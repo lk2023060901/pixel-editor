@@ -4,6 +4,7 @@ import type {
   CanvasGestureModifiers,
   EditorRuntimeSnapshot
 } from "@pixel-editor/app-services";
+import type { ObjectId } from "@pixel-editor/domain";
 import { createPixiEditorRenderer } from "@pixel-editor/renderer-pixi";
 import { useDeferredValue, useEffect, useRef } from "react";
 
@@ -12,13 +13,15 @@ export interface RendererCanvasProps {
   onStrokeStart?: (x: number, y: number, modifiers: CanvasGestureModifiers) => void;
   onStrokeMove?: (x: number, y: number, modifiers: CanvasGestureModifiers) => void;
   onStrokeEnd?: () => void;
+  onObjectSelect?: (objectId: ObjectId) => void;
 }
 
 export function RendererCanvas({
   snapshot,
   onStrokeStart,
   onStrokeMove,
-  onStrokeEnd
+  onStrokeEnd,
+  onObjectSelect
 }: RendererCanvasProps) {
   const hostRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(createPixiEditorRenderer());
@@ -60,6 +63,9 @@ export function RendererCanvas({
       ...(deferredSnapshot.workspace.session.selection.kind === "tile"
         ? { selectedTiles: deferredSnapshot.workspace.session.selection.coordinates }
         : {}),
+      ...(deferredSnapshot.workspace.session.selection.kind === "object"
+        ? { selectedObjectIds: deferredSnapshot.workspace.session.selection.objectIds }
+        : {}),
       ...(deferredSnapshot.runtime.interactions.canvasPreview.kind !== "none"
         ? { previewTiles: deferredSnapshot.runtime.interactions.canvasPreview.coordinates }
         : {})
@@ -67,7 +73,9 @@ export function RendererCanvas({
   }, [deferredSnapshot]);
 
   function pickTile(clientX: number, clientY: number): { x: number; y: number } | undefined {
-    const result = rendererRef.current.pick(clientX, clientY);
+    const result = rendererRef.current.pick(clientX, clientY, {
+      mode: "tile"
+    });
 
     if (result.kind !== "tile") {
       return undefined;
@@ -102,7 +110,24 @@ export function RendererCanvas({
       ref={hostRef}
       className="h-full min-h-[520px] overflow-hidden rounded-2xl"
       onPointerDown={(event) => {
-        if (event.button !== 0 || !onStrokeStart) {
+        if (event.button !== 0) {
+          return;
+        }
+
+        if (snapshot.workspace.session.activeTool === "object-select") {
+          const result = rendererRef.current.pick(event.clientX, event.clientY, {
+            mode: "object"
+          });
+
+          if (result.kind === "object") {
+            hostRef.current?.focus();
+            onObjectSelect?.(result.objectId);
+          }
+
+          return;
+        }
+
+        if (!onStrokeStart) {
           return;
         }
 

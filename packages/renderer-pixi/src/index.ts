@@ -12,6 +12,11 @@ import {
   createRendererLayoutMetrics,
   type RendererLayoutMetrics
 } from "./layout";
+import {
+  collectProjectedMapObjects,
+  pickProjectedObject
+} from "./object-layer";
+import { drawProjectedObjects } from "./object-layer-render";
 
 export {
   createRendererLayoutMetrics,
@@ -30,6 +35,7 @@ export interface RendererSnapshot {
   map?: EditorMap;
   viewport: RendererViewportSnapshot;
   highlightedLayerId?: LayerId;
+  selectedObjectIds?: ObjectId[];
   selectedTiles?: Array<{ x: number; y: number }>;
   previewTiles?: Array<{ x: number; y: number }>;
 }
@@ -40,10 +46,14 @@ export type RendererPickResult =
   | { kind: "object"; objectId: ObjectId }
   | { kind: "tile"; x: number; y: number };
 
+export interface RendererPickOptions {
+  mode?: "tile" | "object" | "topmost";
+}
+
 export interface EditorRenderer {
   mount(host: HTMLElement): Promise<void>;
   update(snapshot: RendererSnapshot): void;
-  pick(clientX: number, clientY: number): RendererPickResult;
+  pick(clientX: number, clientY: number, options?: RendererPickOptions): RendererPickResult;
   destroy(): void;
 }
 
@@ -267,6 +277,30 @@ function drawSelectionOverlay(
   scene.addChild(overlay);
 }
 
+function drawObjectLayers(
+  scene: Container,
+  snapshot: RendererSnapshot,
+  geometry: ViewportGeometry
+): void {
+  if (!snapshot.map) {
+    return;
+  }
+
+  const projectedObjects = collectProjectedMapObjects({
+    map: snapshot.map,
+    geometry,
+    viewport: snapshot.viewport,
+    ...(snapshot.highlightedLayerId !== undefined
+      ? { highlightedLayerId: snapshot.highlightedLayerId }
+      : {}),
+    ...(snapshot.selectedObjectIds !== undefined
+      ? { selectedObjectIds: snapshot.selectedObjectIds }
+      : {})
+  });
+
+  drawProjectedObjects(scene, projectedObjects, geometry);
+}
+
 function drawPreviewOverlay(
   scene: Container,
   snapshot: RendererSnapshot,
@@ -439,11 +473,12 @@ export function createPixiEditorRenderer(options: {
         }
 
         drawTileLayers(scene, snapshot, geometry);
+        drawObjectLayers(scene, snapshot, geometry);
         drawPreviewOverlay(scene, snapshot, geometry);
         drawSelectionOverlay(scene, snapshot, geometry);
       }
     },
-    pick(clientX, clientY) {
+    pick(clientX, clientY, options = {}) {
       if (!mountedHost || !lastSnapshot?.map) {
         return { kind: "none" };
       }
@@ -468,6 +503,23 @@ export function createPixiEditorRenderer(options: {
         return { kind: "none" };
       }
 
+      const projectedObjects = collectProjectedMapObjects({
+        map: lastSnapshot.map,
+        geometry,
+        viewport: lastSnapshot.viewport,
+        ...(lastSnapshot.highlightedLayerId !== undefined
+          ? { highlightedLayerId: lastSnapshot.highlightedLayerId }
+          : {}),
+        ...(lastSnapshot.selectedObjectIds !== undefined
+          ? { selectedObjectIds: lastSnapshot.selectedObjectIds }
+          : {})
+      });
+      const pickedObjectId = pickProjectedObject(projectedObjects, localX, localY);
+
+      if (options.mode === "object") {
+        return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : { kind: "none" };
+      }
+
       const tileX = Math.floor(
         (localX - geometry.gridOriginX + lastSnapshot.viewport.originX) / geometry.tileWidth
       );
@@ -483,14 +535,22 @@ export function createPixiEditorRenderer(options: {
         !lastSnapshot.map.settings.infinite &&
         (tileX >= lastSnapshot.map.settings.width || tileY >= lastSnapshot.map.settings.height)
       ) {
-        return { kind: "none" };
+        return options.mode === "topmost" && pickedObjectId
+          ? { kind: "object", objectId: pickedObjectId }
+          : { kind: "none" };
       }
 
-      return {
+      const tilePick: RendererPickResult = {
         kind: "tile",
         x: tileX,
         y: tileY
       };
+
+      if (options.mode === "tile") {
+        return tilePick;
+      }
+
+      return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : tilePick;
     },
     destroy() {
       if (app) {

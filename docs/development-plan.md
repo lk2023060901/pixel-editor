@@ -66,7 +66,7 @@ Last updated: 2026-03-25
 | REN-008 | 渲染 | Staggered 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 stagger axis/index |
 | REN-009 | 渲染 | Hexagonal 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 hex side length |
 | REN-010 | 渲染 | Oblique 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 skewx/skewy |
-| REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 未开始 | 覆盖对象可视化与选中态 |
+| REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state 与 shape-aware canvas picking；tile/text 视觉保真与 transform handles 待补 |
 | REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 未开始 | 覆盖层级组合 |
 | REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 未开始 | 必须对齐 Tiled 图层视觉语义 |
 | REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |
@@ -76,7 +76,7 @@ Last updated: 2026-03-25
 | UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已支持图层选择与基础新增、删除、重排操作 |
 | UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已落地 Map Properties 与 tileset/tile inspector 第一阶段，layer/object/property type editor 待补全 |
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
-| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择与 object clipboard 操作；画布拾取与检索待补 |
+| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动；检索与属性面板待补 |
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
 | UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 未开始 | 展示兼容与校验问题 |
 | MAP-001 | 地图编辑 | New Map 流程 | UI-001, DOM-002, CMD-001 | 开发中 | 已接入 quick create map 与默认图层初始化 |
@@ -90,8 +90,8 @@ Last updated: 2026-03-25
 | MAP-009 | 地图编辑 | Clipboard | MAP-008, CMD-001 | 开发中 | 已支持 tile selection 与 object selection 的 copy、cut、paste，clipboard 为显式 runtime/session state；standalone property clipboard 待补全 |
 | MAP-010 | 地图编辑 | Undo/Redo UI 接入 | CMD-002, UI-003 | 开发中 | 已接入基础 undo/redo 按钮与 history 状态 |
 | MAP-011 | 地图编辑 | Infinite Map 编辑 | DOM-007, MAP-004, MAP-006, REN-006 | 未开始 | chunk 扩张与转换 |
-| OBJ-001 | 对象编辑 | Object Layer 管理 | MAP-003, DOM-005 | 开发中 | 已支持 active object layer 下的对象列表、选择、创建与删除最小闭环；绘制顺序与画布拾取待补 |
-| OBJ-002 | 对象编辑 | Rectangle / Ellipse / Point | OBJ-001, CMD-001, REN-011 | 开发中 | 已支持 rectangle object 的最小创建与 clipboard 流；ellipse / point / 画布编辑待补 |
+| OBJ-001 | 对象编辑 | Object Layer 管理 | MAP-003, DOM-005 | 开发中 | 已支持 active object layer 下的对象列表、面板/画布选择、创建与删除最小闭环；绘制顺序待补 |
+| OBJ-002 | 对象编辑 | Rectangle / Ellipse / Point | OBJ-001, CMD-001, REN-011 | 开发中 | 已支持 rectangle object 的最小创建与 clipboard 流，ellipse / point 已具备渲染与命中测试基础；画布编辑待补 |
 | OBJ-003 | 对象编辑 | Polygon / Polyline | OBJ-001, CMD-001, REN-011 | 未开始 | 点编辑与路径编辑 |
 | OBJ-004 | 对象编辑 | Text Object | OBJ-001, DOM-005 | 未开始 | 文本样式与内容编辑 |
 | OBJ-005 | 对象编辑 | Tile Object | OBJ-001, DOM-004, REN-011 | 未开始 | tile 作为 object |

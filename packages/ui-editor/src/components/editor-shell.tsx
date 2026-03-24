@@ -198,6 +198,9 @@ export function EditorShell({ store }: EditorShellProps) {
                 onStrokeEnd={() => {
                   store.endCanvasStroke();
                 }}
+                onObjectSelect={(objectId) => {
+                  store.selectObject(objectId);
+                }}
               />
             </Panel>
           </main>
