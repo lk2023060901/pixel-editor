@@ -1,0 +1,249 @@
+import { describe, expect, it } from "vitest";
+
+import { CommandHistory } from "@pixel-editor/command-engine";
+import { createProject, getTileLayerCell } from "@pixel-editor/domain";
+import {
+  createSingleTileStamp,
+  createEditorWorkspaceState,
+  getTileStampPrimaryGid
+} from "@pixel-editor/editor-state";
+
+import {
+  addLayerCommand,
+  captureTileSelectionStampCommand,
+  createMapDocumentCommand,
+  moveLayerCommand,
+  paintTileAtCommand,
+  paintTileStampCommand,
+  paintTileStrokeCommand,
+  removeLayerCommand,
+  selectTileRegionCommand,
+  setActiveStampCommand,
+  toggleGridCommand,
+  updateMapDetailsCommand,
+  zoomViewportCommand
+} from "./index";
+
+describe("map commands", () => {
+  it("creates a default map with tile and object layers", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    expect(history.state.maps).toHaveLength(1);
+    expect(history.state.maps[0]?.layers.map((layer) => layer.kind)).toEqual([
+      "tile",
+      "object"
+    ]);
+    expect(history.state.session.activeMapId).toBe(history.state.maps[0]?.id);
+  });
+
+  it("updates viewport grid and zoom commands", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(toggleGridCommand());
+    history.execute(zoomViewportCommand("in"));
+
+    expect(history.state.session.viewport.showGrid).toBe(false);
+    expect(history.state.session.viewport.zoom).toBeGreaterThan(1);
+  });
+
+  it("updates map details and manages layer order", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+    const originalFirstLayerId = history.state.maps[0]!.layers[0]!.id;
+
+    history.execute(
+      updateMapDetailsCommand(mapId, {
+        width: 24,
+        height: 18,
+        tileWidth: 16,
+        tileHeight: 16,
+        renderOrder: "left-down"
+      })
+    );
+    history.execute(addLayerCommand(mapId, "tile", "Decor"));
+    history.execute(moveLayerCommand(mapId, originalFirstLayerId, "down"));
+    history.execute(removeLayerCommand(mapId, history.state.maps[0]!.layers[2]!.id));
+
+    expect(history.state.maps[0]?.settings.width).toBe(24);
+    expect(history.state.maps[0]?.settings.tileWidth).toBe(16);
+    expect(history.state.maps[0]?.layers.map((layer) => layer.name)).toEqual([
+      "Objects",
+      "Ground"
+    ]);
+  });
+
+  it("sets the active stamp and paints tile selections", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const tileLayer = map.layers.find((layer) => layer.kind === "tile");
+
+    history.execute(setActiveStampCommand(createSingleTileStamp(7)));
+    history.execute(paintTileAtCommand(map.id, tileLayer!.id, 4, 5, 7));
+
+    expect(getTileStampPrimaryGid(history.state.session.activeStamp)).toBe(7);
+    expect(history.state.session.selection).toEqual({
+      kind: "tile",
+      coordinates: [{ x: 4, y: 5 }]
+    });
+    expect(
+      history.state.maps[0]?.layers[0]?.kind === "tile"
+        ? getTileLayerCell(history.state.maps[0].layers[0], 4, 5)?.gid
+        : null
+    ).toBe(7);
+  });
+
+  it("groups multi-tile strokes into one history entry", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const tileLayer = map.layers.find((layer) => layer.kind === "tile");
+
+    history.execute(
+      paintTileStrokeCommand(map.id, tileLayer!.id, [
+        { x: 1, y: 1, gid: 5 },
+        { x: 2, y: 1, gid: 5 },
+        { x: 3, y: 1, gid: 5 }
+      ])
+    );
+
+    expect(history.past).toHaveLength(2);
+    expect(
+      history.state.maps[0]?.layers[0]?.kind === "tile"
+        ? getTileLayerCell(history.state.maps[0].layers[0], 1, 1)?.gid
+        : null
+    ).toBe(5);
+    expect(
+      history.state.maps[0]?.layers[0]?.kind === "tile"
+        ? getTileLayerCell(history.state.maps[0].layers[0], 3, 1)?.gid
+        : null
+    ).toBe(5);
+    expect(history.state.session.selection).toEqual({
+      kind: "tile",
+      coordinates: [{ x: 3, y: 1 }]
+    });
+  });
+
+  it("captures a tile selection as a pattern stamp and reuses it for painting", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 12,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const tileLayer = map.layers.find((layer) => layer.kind === "tile")!;
+
+    history.execute(paintTileAtCommand(map.id, tileLayer.id, 1, 1, 3));
+    history.execute(paintTileAtCommand(map.id, tileLayer.id, 2, 1, 4));
+    history.execute(selectTileRegionCommand(1, 1, 2, 1));
+    const currentTileLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "tile")!;
+    history.execute(
+      captureTileSelectionStampCommand(currentTileLayer, history.state.session.selection)
+    );
+
+    expect(history.state.session.activeStamp.kind).toBe("pattern");
+    expect(getTileStampPrimaryGid(history.state.session.activeStamp)).toBe(3);
+
+    history.execute(
+      paintTileStampCommand(map.id, tileLayer.id, 5, 5, history.state.session.activeStamp)
+    );
+
+    const nextLayer = history.state.maps[0]!.layers[0];
+
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 5, 5)?.gid : null
+    ).toBe(3);
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 6, 5)?.gid : null
+    ).toBe(4);
+  });
+});

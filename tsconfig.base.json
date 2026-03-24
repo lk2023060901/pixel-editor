@@ -1,0 +1,33 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["DOM", "DOM.Iterable", "ES2022"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "jsx": "react-jsx",
+    "strict": true,
+    "noImplicitOverride": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "useDefineForClassFields": true,
+    "verbatimModuleSyntax": true,
+    "allowJs": false,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "skipLibCheck": true,
+    "isolatedModules": true,
+    "declaration": false,
+    "baseUrl": ".",
+    "paths": {
+      "@pixel-editor/contracts": ["packages/contracts/src/index.ts"],
+      "@pixel-editor/domain": ["packages/domain/src/index.ts"],
+      "@pixel-editor/command-engine": ["packages/command-engine/src/index.ts"],
+      "@pixel-editor/editor-state": ["packages/editor-state/src/index.ts"],
+      "@pixel-editor/app-services": ["packages/app-services/src/index.ts"],
+      "@pixel-editor/map": ["packages/map/src/index.ts"],
+      "@pixel-editor/tileset": ["packages/tileset/src/index.ts"],
+      "@pixel-editor/renderer-pixi": ["packages/renderer-pixi/src/index.ts"],
+      "@pixel-editor/ui-editor": ["packages/ui-editor/src/index.ts"]
+    }
+  }
+}

@@ -1,0 +1,45 @@
+{
+  "project": {
+    "name": "Example Terrain Project",
+    "assetRoots": ["maps", "tilesets", "templates"]
+  },
+  "tilesets": [
+    {
+      "key": "terrain-core",
+      "kind": "image",
+      "name": "Terrain Core",
+      "tileWidth": 32,
+      "tileHeight": 32,
+      "imagePath": "assets/terrain-core.svg",
+      "imageWidth": 192,
+      "imageHeight": 128,
+      "columns": 6
+    },
+    {
+      "key": "props-collection",
+      "kind": "image-collection",
+      "name": "Props Collection",
+      "tileWidth": 32,
+      "tileHeight": 32,
+      "imageSources": [
+        "assets/props/prop-1.svg",
+        "assets/props/prop-2.svg",
+        "assets/props/prop-3.svg",
+        "assets/props/prop-4.svg",
+        "assets/props/prop-5.svg",
+        "assets/props/prop-6.svg"
+      ]
+    }
+  ],
+  "maps": [
+    {
+      "name": "starter-map",
+      "orientation": "orthogonal",
+      "width": 64,
+      "height": 64,
+      "tileWidth": 32,
+      "tileHeight": 32,
+      "tilesetKeys": ["terrain-core", "props-collection"]
+    }
+  ]
+}
