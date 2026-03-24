@@ -8,6 +8,7 @@ const nextConfig: NextConfig = {
     "@pixel-editor/domain",
     "@pixel-editor/editor-state",
     "@pixel-editor/map",
+    "@pixel-editor/objects",
     "@pixel-editor/renderer-pixi",
     "@pixel-editor/tileset",
     "@pixel-editor/ui-editor"

@@ -23,6 +23,8 @@ export const layerNamePrefixes = {
   object: "Object Layer"
 } as const;
 
+export const objectNamePrefix = "Object";
+
 export const quickMapBlueprint: MapBlueprint = {
   orientation: "orthogonal",
   width: 48,

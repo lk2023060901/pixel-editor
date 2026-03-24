@@ -76,7 +76,7 @@ Last updated: 2026-03-25
 | UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已支持图层选择与基础新增、删除、重排操作 |
 | UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已落地 Map Properties 与 tileset/tile inspector 第一阶段，layer/object/property type editor 待补全 |
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
-| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 未开始 | 对象列表与检索 |
+| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择与 object clipboard 操作；画布拾取与检索待补 |
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
 | UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 未开始 | 展示兼容与校验问题 |
 | MAP-001 | 地图编辑 | New Map 流程 | UI-001, DOM-002, CMD-001 | 开发中 | 已接入 quick create map 与默认图层初始化 |
@@ -87,11 +87,11 @@ Last updated: 2026-03-25
 | MAP-006 | 地图编辑 | Bucket Fill | MAP-004 | 已完成 | 已支持 finite map flood fill，并按 Tiled 语义将 infinite map 填充限制在当前 tile layer bounds；已补 domain/map/controller 测试 |
 | MAP-007 | 地图编辑 | Shape Fill | MAP-004 | 已完成 | 已支持 rectangle / ellipse 模式、拖拽预览、Shift 等比约束与 Alt 中心绘制；临时预览态已收敛到 `editor-state` 的 interaction slice，不再由 controller 私有字段承载，并通过 domain/map/controller 测试 |
 | MAP-008 | 地图编辑 | Tile Selection | MAP-004, SES-002 | 已完成 | 已支持 tile 区域框选预览、提交选区、从选区 capture pattern stamp，并通过 editor-state/map/controller 测试 |
-| MAP-009 | 地图编辑 | Clipboard | MAP-008, CMD-001 | 未开始 | copy、cut、paste tiles/objects/properties |
+| MAP-009 | 地图编辑 | Clipboard | MAP-008, CMD-001 | 开发中 | 已支持 tile selection 与 object selection 的 copy、cut、paste，clipboard 为显式 runtime/session state；standalone property clipboard 待补全 |
 | MAP-010 | 地图编辑 | Undo/Redo UI 接入 | CMD-002, UI-003 | 开发中 | 已接入基础 undo/redo 按钮与 history 状态 |
 | MAP-011 | 地图编辑 | Infinite Map 编辑 | DOM-007, MAP-004, MAP-006, REN-006 | 未开始 | chunk 扩张与转换 |
-| OBJ-001 | 对象编辑 | Object Layer 管理 | MAP-003, DOM-005 | 未开始 | 创建、删除、切换、绘制顺序 |
-| OBJ-002 | 对象编辑 | Rectangle / Ellipse / Point | OBJ-001, CMD-001, REN-011 | 未开始 | 基础形状对象 |
+| OBJ-001 | 对象编辑 | Object Layer 管理 | MAP-003, DOM-005 | 开发中 | 已支持 active object layer 下的对象列表、选择、创建与删除最小闭环；绘制顺序与画布拾取待补 |
+| OBJ-002 | 对象编辑 | Rectangle / Ellipse / Point | OBJ-001, CMD-001, REN-011 | 开发中 | 已支持 rectangle object 的最小创建与 clipboard 流；ellipse / point / 画布编辑待补 |
 | OBJ-003 | 对象编辑 | Polygon / Polyline | OBJ-001, CMD-001, REN-011 | 未开始 | 点编辑与路径编辑 |
 | OBJ-004 | 对象编辑 | Text Object | OBJ-001, DOM-005 | 未开始 | 文本样式与内容编辑 |
 | OBJ-005 | 对象编辑 | Tile Object | OBJ-001, DOM-004, REN-011 | 未开始 | tile 作为 object |

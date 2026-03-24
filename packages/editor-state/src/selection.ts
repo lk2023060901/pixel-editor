@@ -19,6 +19,12 @@ export function isTileSelectionState(
   return selection.kind === "tile";
 }
 
+export function isObjectSelectionState(
+  selection: SelectionState
+): selection is Extract<SelectionState, { kind: "object" }> {
+  return selection.kind === "object";
+}
+
 export function getTileSelectionBounds(
   selection: SelectionState
 ): TileSelectionBounds | undefined {

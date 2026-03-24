@@ -2,6 +2,8 @@ import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
   getLayerById,
+  getMapObjectBounds,
+  getObjectById,
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type CreateMapInput,
@@ -9,6 +11,8 @@ import {
   type LayerDefinition,
   type LayerId,
   type MapId,
+  type ObjectId,
+  type ObjectLayer,
   type PropertyDefinition,
   type TilesetDefinition,
   type UpdateTileMetadataInput,
@@ -16,22 +20,28 @@ import {
   type UpdateMapDetailsInput
 } from "@pixel-editor/domain";
 import {
-  clearCanvasPreview,
-  createEditorInteractionState,
+  clearEditorRuntimeInteractions,
+  createEditorRuntimeState,
   createShapeFillCanvasPreview,
   createSingleTileStamp,
+  createObjectClipboardState,
+  createTileClipboardState,
   createTileSelectionCanvasPreview,
   getActiveLayer,
   getActiveMap,
   getActiveStampPrimaryGid,
   getActiveTileset,
   getCanvasPreviewTiles,
+  getTileSelectionBounds,
+  isObjectSelectionState,
   isTileSelectionState,
   materializeTileStampCells,
+  setEditorRuntimeClipboard,
   updateShapeFillCanvasPreview,
   updateTileSelectionCanvasPreview,
   type CanvasGestureModifiers,
-  type EditorInteractionState,
+  type ClipboardState,
+  type EditorRuntimeState,
   type EditorToolId,
   type EditorWorkspaceState,
   type TileStamp,
@@ -40,8 +50,10 @@ import {
 import {
   addLayerCommand,
   captureTileSelectionStampCommand,
+  clearTileSelectionCommand,
   collectTileSelectionCoordinates,
   collectShapeFillCoordinates,
+  createTileStampFromSelection,
   createMapDocumentCommand,
   moveLayerCommand,
   paintTileAtCommand,
@@ -49,6 +61,7 @@ import {
   paintTileShapeCommand,
   paintTileStampCommand,
   paintTileStrokeCommand,
+  pasteTileClipboardCommand,
   panViewportCommand,
   removeLayerCommand,
   selectTileCommand,
@@ -62,6 +75,12 @@ import {
   updateMapDetailsCommand,
   zoomViewportCommand
 } from "@pixel-editor/map";
+import {
+  createRectangleObjectCommand,
+  pasteObjectClipboardCommand,
+  removeSelectedObjectsCommand,
+  selectObjectCommand
+} from "@pixel-editor/objects";
 import {
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
@@ -77,6 +96,7 @@ import {
   createIndexedName,
   createIndexedSlug,
   layerNamePrefixes,
+  objectNamePrefix,
   quickMapBlueprint
 } from "./config";
 import { toEditorBootstrap } from "./bootstrap";
@@ -107,7 +127,7 @@ export interface EditorInfrastructure {
 export interface EditorRuntimeSnapshot {
   bootstrap: EditorBootstrapContract;
   workspace: EditorWorkspaceState;
-  interactions: EditorInteractionState;
+  runtime: EditorRuntimeState;
   activeMap?: EditorMap;
   activeLayer?: LayerDefinition;
   activeTileset?: TilesetDefinition;
@@ -126,8 +146,17 @@ export interface EditorController {
   setActiveTool(tool: EditorToolId): void;
   setShapeFillMode(mode: ShapeFillMode): void;
   setActiveStamp(stamp: TileStamp): void;
+  selectObject(objectId: ObjectId): void;
   selectStampTile(tilesetId: string, localId: number): void;
   captureSelectedTilesAsStamp(): void;
+  copySelectedTilesToClipboard(): void;
+  cutSelectedTilesToClipboard(): void;
+  pasteClipboardToSelection(): void;
+  createRectangleObject(): void;
+  copySelectedObjectsToClipboard(): void;
+  cutSelectedObjectsToClipboard(): void;
+  pasteClipboardToActiveObjectLayer(): void;
+  removeSelectedObjects(): void;
   createSpriteSheetTileset(input: CreateImageTilesetInput): void;
   createImageCollectionTileset(input: CreateImageCollectionTilesetInput): void;
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
@@ -206,7 +235,7 @@ class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly listeners = new Set<() => void>();
   private canvasStroke: CanvasStrokeState | undefined;
-  private interactions = createEditorInteractionState();
+  private runtime = createEditorRuntimeState();
 
   constructor(initialState: EditorWorkspaceState) {
     this.history = new CommandHistory(initialState);
@@ -225,7 +254,7 @@ class InMemoryEditorController implements EditorController {
     return {
       bootstrap: toEditorBootstrap(workspace),
       workspace,
-      interactions: this.interactions,
+      runtime: this.runtime,
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
       ...(activeMap ? { activeMap } : {}),
@@ -250,7 +279,102 @@ class InMemoryEditorController implements EditorController {
 
   private clearTransientInteractions(): void {
     this.canvasStroke = undefined;
-    this.interactions = createEditorInteractionState();
+    this.runtime = clearEditorRuntimeInteractions(this.runtime);
+  }
+
+  private buildTileClipboardFromSelection(): ClipboardState | undefined {
+    const state = this.history.state;
+    const activeLayer = getActiveLayer(state);
+
+    if (!activeLayer || activeLayer.kind !== "tile" || !isTileSelectionState(state.session.selection)) {
+      return undefined;
+    }
+
+    const stamp = createTileStampFromSelection(activeLayer, state.session.selection);
+    const bounds = getTileSelectionBounds(state.session.selection);
+
+    if (!stamp || !bounds) {
+      return undefined;
+    }
+
+    return createTileClipboardState({
+      stamp,
+      sourceBounds: bounds
+    });
+  }
+
+  private resolveActiveObjectLayer():
+    | { activeMap: EditorMap; activeLayer: ObjectLayer }
+    | undefined {
+    const state = this.history.state;
+    const activeMap = getActiveMap(state);
+    const activeLayer = getActiveLayer(state);
+
+    if (!activeMap || !activeLayer || activeLayer.kind !== "object") {
+      return undefined;
+    }
+
+    return {
+      activeMap,
+      activeLayer
+    };
+  }
+
+  private getSelectedObjects(activeLayer: ObjectLayer) {
+    const selection = this.history.state.session.selection;
+
+    if (!isObjectSelectionState(selection) || selection.objectIds.length === 0) {
+      return [];
+    }
+
+    const targetIds = new Set(selection.objectIds);
+
+    return activeLayer.objects.filter((object) => targetIds.has(object.id));
+  }
+
+  private buildObjectClipboardFromSelection(): ClipboardState | undefined {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved) {
+      return undefined;
+    }
+
+    const selectedObjects = this.getSelectedObjects(resolved.activeLayer);
+    const bounds = getMapObjectBounds(selectedObjects);
+
+    if (selectedObjects.length === 0 || !bounds) {
+      return undefined;
+    }
+
+    return createObjectClipboardState({
+      objects: selectedObjects,
+      sourceLayerId: resolved.activeLayer.id,
+      sourceBounds: bounds
+    });
+  }
+
+  private resolveObjectClipboardPasteAnchor(
+    activeMap: EditorMap,
+    activeLayer: ObjectLayer
+  ): { x: number; y: number } {
+    const selectedObjects = this.getSelectedObjects(activeLayer);
+    const sourceBounds =
+      this.runtime.clipboard.kind === "object"
+        ? this.runtime.clipboard.sourceBounds
+        : { x: 0, y: 0 };
+    const anchorObject = selectedObjects[0];
+
+    if (anchorObject) {
+      return {
+        x: anchorObject.x + activeMap.settings.tileWidth,
+        y: anchorObject.y + activeMap.settings.tileHeight
+      };
+    }
+
+    return {
+      x: sourceBounds.x + activeMap.settings.tileWidth,
+      y: sourceBounds.y + activeMap.settings.tileHeight
+    };
   }
 
   private commit(command: Parameters<CommandHistory<EditorWorkspaceState>["execute"]>[0]): void {
@@ -349,27 +473,29 @@ class InMemoryEditorController implements EditorController {
     y: number,
     modifiers: CanvasGestureModifiers = {}
   ): void {
-    const preview = this.interactions.canvasPreview;
+    const preview = this.runtime.interactions.canvasPreview;
 
     if (preview.kind !== "shape-fill") {
       return;
     }
 
-    this.interactions = {
-      ...this.interactions,
-      canvasPreview: updateShapeFillCanvasPreview(preview, {
-        currentX: x,
-        currentY: y,
-        modifiers,
-        coordinates: collectShapeFillCoordinates(
-          preview.mode,
-          preview.originX,
-          preview.originY,
-          x,
-          y,
-          modifiers
-        )
-      })
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        canvasPreview: updateShapeFillCanvasPreview(preview, {
+          currentX: x,
+          currentY: y,
+          modifiers,
+          coordinates: collectShapeFillCoordinates(
+            preview.mode,
+            preview.originX,
+            preview.originY,
+            x,
+            y,
+            modifiers
+          )
+        })
+      }
     };
 
     this.emit();
@@ -388,40 +514,44 @@ class InMemoryEditorController implements EditorController {
       return;
     }
 
-    this.interactions = {
-      ...this.interactions,
-      canvasPreview: createShapeFillCanvasPreview({
-        mapId: activeMap.id,
-        layerId: activeLayer.id,
-        mode: state.session.shapeFillMode,
-        originX: x,
-        originY: y,
-        gid: getActiveStampPrimaryGid(state) ?? 1,
-        modifiers
-      })
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        canvasPreview: createShapeFillCanvasPreview({
+          mapId: activeMap.id,
+          layerId: activeLayer.id,
+          mode: state.session.shapeFillMode,
+          originX: x,
+          originY: y,
+          gid: getActiveStampPrimaryGid(state) ?? 1,
+          modifiers
+        })
+      }
     };
     this.updateShapeFillPreview(x, y, modifiers);
   }
 
   private updateTileSelectionPreview(x: number, y: number): void {
-    const preview = this.interactions.canvasPreview;
+    const preview = this.runtime.interactions.canvasPreview;
 
     if (preview.kind !== "tile-selection") {
       return;
     }
 
-    this.interactions = {
-      ...this.interactions,
-      canvasPreview: updateTileSelectionCanvasPreview(preview, {
-        currentX: x,
-        currentY: y,
-        coordinates: collectTileSelectionCoordinates(
-          preview.originX,
-          preview.originY,
-          x,
-          y
-        )
-      })
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        canvasPreview: updateTileSelectionCanvasPreview(preview, {
+          currentX: x,
+          currentY: y,
+          coordinates: collectTileSelectionCoordinates(
+            preview.originX,
+            preview.originY,
+            x,
+            y
+          )
+        })
+      }
     };
     this.emit();
   }
@@ -436,14 +566,16 @@ class InMemoryEditorController implements EditorController {
       return;
     }
 
-    this.interactions = {
-      ...this.interactions,
-      canvasPreview: createTileSelectionCanvasPreview({
-        mapId: activeMap.id,
-        layerId: activeLayer.id,
-        originX: x,
-        originY: y
-      })
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        canvasPreview: createTileSelectionCanvasPreview({
+          mapId: activeMap.id,
+          layerId: activeLayer.id,
+          originX: x,
+          originY: y
+        })
+      }
     };
     this.updateTileSelectionPreview(x, y);
   }
@@ -525,6 +657,17 @@ class InMemoryEditorController implements EditorController {
     this.commit(setActiveStampCommand(stamp));
   }
 
+  selectObject(objectId: ObjectId): void {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved || !getObjectById(resolved.activeLayer, objectId)) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(selectObjectCommand(objectId));
+  }
+
   selectStampTile(tilesetId: string, localId: number): void {
     const state = this.history.state;
     const tileset = state.tilesets.find((entry) => entry.id === tilesetId);
@@ -547,6 +690,153 @@ class InMemoryEditorController implements EditorController {
 
     this.clearTransientInteractions();
     this.commit(captureTileSelectionStampCommand(activeLayer, state.session.selection));
+  }
+
+  copySelectedTilesToClipboard(): void {
+    const clipboard = this.buildTileClipboardFromSelection();
+
+    if (!clipboard) {
+      return;
+    }
+
+    this.runtime = setEditorRuntimeClipboard(this.runtime, clipboard);
+    this.emit();
+  }
+
+  cutSelectedTilesToClipboard(): void {
+    const state = this.history.state;
+    const activeMap = getActiveMap(state);
+    const activeLayer = getActiveLayer(state);
+    const clipboard = this.buildTileClipboardFromSelection();
+
+    if (!activeMap || !activeLayer || activeLayer.kind !== "tile" || !clipboard) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.runtime = setEditorRuntimeClipboard(this.runtime, clipboard);
+    this.commit(clearTileSelectionCommand(activeMap.id, activeLayer.id, state.session.selection));
+  }
+
+  pasteClipboardToSelection(): void {
+    const state = this.history.state;
+    const activeMap = getActiveMap(state);
+    const activeLayer = getActiveLayer(state);
+    const selectionBounds = getTileSelectionBounds(state.session.selection);
+
+    if (
+      this.runtime.clipboard.kind !== "tile" ||
+      !activeMap ||
+      !activeLayer ||
+      activeLayer.kind !== "tile" ||
+      !selectionBounds
+    ) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      pasteTileClipboardCommand(
+        activeMap.id,
+        activeLayer.id,
+        selectionBounds.x,
+        selectionBounds.y,
+        this.runtime.clipboard.stamp
+      )
+    );
+  }
+
+  createRectangleObject(): void {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      createRectangleObjectCommand(resolved.activeMap.id, resolved.activeLayer.id, {
+        name: createIndexedName(objectNamePrefix, resolved.activeLayer.objects.length + 1),
+        x: resolved.activeMap.settings.tileWidth,
+        y: resolved.activeMap.settings.tileHeight,
+        width: resolved.activeMap.settings.tileWidth,
+        height: resolved.activeMap.settings.tileHeight
+      })
+    );
+  }
+
+  copySelectedObjectsToClipboard(): void {
+    const clipboard = this.buildObjectClipboardFromSelection();
+
+    if (!clipboard) {
+      return;
+    }
+
+    this.runtime = setEditorRuntimeClipboard(this.runtime, clipboard);
+    this.emit();
+  }
+
+  cutSelectedObjectsToClipboard(): void {
+    const resolved = this.resolveActiveObjectLayer();
+    const selection = this.history.state.session.selection;
+    const clipboard = this.buildObjectClipboardFromSelection();
+
+    if (!resolved || !clipboard || !isObjectSelectionState(selection)) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.runtime = setEditorRuntimeClipboard(this.runtime, clipboard);
+    this.commit(
+      removeSelectedObjectsCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        selection
+      )
+    );
+  }
+
+  pasteClipboardToActiveObjectLayer(): void {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved || this.runtime.clipboard.kind !== "object") {
+      return;
+    }
+
+    const anchor = this.resolveObjectClipboardPasteAnchor(
+      resolved.activeMap,
+      resolved.activeLayer
+    );
+
+    this.clearTransientInteractions();
+    this.commit(
+      pasteObjectClipboardCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        anchor.x,
+        anchor.y,
+        this.runtime.clipboard.objects,
+        this.runtime.clipboard.sourceBounds
+      )
+    );
+  }
+
+  removeSelectedObjects(): void {
+    const resolved = this.resolveActiveObjectLayer();
+    const selection = this.history.state.session.selection;
+
+    if (!resolved || !isObjectSelectionState(selection)) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      removeSelectedObjectsCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        selection
+      )
+    );
   }
 
   createSpriteSheetTileset(input: CreateImageTilesetInput): void {
@@ -709,7 +999,6 @@ class InMemoryEditorController implements EditorController {
     }
 
     if (tool === "object-select") {
-      this.commit(selectTileCommand(x, y));
       return;
     }
 
@@ -745,12 +1034,12 @@ class InMemoryEditorController implements EditorController {
     y: number,
     modifiers: CanvasGestureModifiers = {}
   ): void {
-    if (this.interactions.canvasPreview.kind === "shape-fill") {
+    if (this.runtime.interactions.canvasPreview.kind === "shape-fill") {
       this.updateShapeFillPreview(x, y, modifiers);
       return;
     }
 
-    if (this.interactions.canvasPreview.kind === "tile-selection") {
+    if (this.runtime.interactions.canvasPreview.kind === "tile-selection") {
       this.updateTileSelectionPreview(x, y);
       return;
     }
@@ -760,13 +1049,13 @@ class InMemoryEditorController implements EditorController {
 
   endCanvasStroke(): void {
     const preview =
-      this.interactions.canvasPreview.kind !== "none"
-        ? this.interactions.canvasPreview
+      this.runtime.interactions.canvasPreview.kind !== "none"
+        ? this.runtime.interactions.canvasPreview
         : undefined;
 
     if (preview) {
       if (preview.kind === "tile-selection") {
-        this.interactions = clearCanvasPreview(this.interactions);
+        this.runtime = clearEditorRuntimeInteractions(this.runtime);
         this.commit(
           selectTileRegionCommand(
             preview.originX,
@@ -778,7 +1067,7 @@ class InMemoryEditorController implements EditorController {
         return;
       }
 
-      this.interactions = clearCanvasPreview(this.interactions);
+      this.runtime = clearEditorRuntimeInteractions(this.runtime);
 
       if (getCanvasPreviewTiles({ canvasPreview: preview }).length === 0) {
         this.emit();
@@ -822,8 +1111,12 @@ class InMemoryEditorController implements EditorController {
 
     const tool = state.session.activeTool;
 
-    if (tool === "select" || tool === "object-select") {
+    if (tool === "select") {
       this.commit(selectTileRegionCommand(x, y, x, y));
+      return;
+    }
+
+    if (tool === "object-select") {
       return;
     }
 
@@ -834,14 +1127,14 @@ class InMemoryEditorController implements EditorController {
     if (tool === "bucket-fill") {
       this.commit(
         paintTileFillCommand(
-        activeMap.id,
-        activeLayer.id,
-        activeLayer,
-        x,
-        y,
-        getActiveStampPrimaryGid(state) ?? 1
-      )
-    );
+          activeMap.id,
+          activeLayer.id,
+          activeLayer,
+          x,
+          y,
+          getActiveStampPrimaryGid(state) ?? 1
+        )
+      );
       return;
     }
 

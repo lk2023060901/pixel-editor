@@ -25,6 +25,15 @@ export {
 } from "./property";
 export { createMapObject, type CreateObjectInput, type MapObject, type ObjectShape, type Point } from "./object";
 export {
+  appendObjectsToLayer,
+  cloneMapObject,
+  clonePropertyDefinition,
+  getMapObjectBounds,
+  getObjectById,
+  removeObjectsFromLayer,
+  type ObjectBoundsRect
+} from "./object-operations";
+export {
   createTileDefinition,
   createTileset,
   type CreateTilesetInput,

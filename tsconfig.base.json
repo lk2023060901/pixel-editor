@@ -25,6 +25,7 @@
       "@pixel-editor/editor-state": ["packages/editor-state/src/index.ts"],
       "@pixel-editor/app-services": ["packages/app-services/src/index.ts"],
       "@pixel-editor/map": ["packages/map/src/index.ts"],
+      "@pixel-editor/objects": ["packages/objects/src/index.ts"],
       "@pixel-editor/tileset": ["packages/tileset/src/index.ts"],
       "@pixel-editor/renderer-pixi": ["packages/renderer-pixi/src/index.ts"],
       "@pixel-editor/ui-editor": ["packages/ui-editor/src/index.ts"]

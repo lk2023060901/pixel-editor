@@ -1,0 +1,14 @@
+{
+  "name": "@pixel-editor/objects",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pixel-editor/command-engine": "0.1.0",
+    "@pixel-editor/domain": "0.1.0",
+    "@pixel-editor/editor-state": "0.1.0"
+  }
+}

@@ -36,6 +36,7 @@ import type {
 import {
   createPatternTileStamp,
   createSingleTileStamp,
+  getTileStampFootprint,
   getTileSelectionBounds,
   materializeTileStampCells
 } from "@pixel-editor/editor-state";
@@ -687,6 +688,80 @@ export function captureTileSelectionStampCommand(
     "Capture selection as stamp",
     [setActiveStampCommand(stamp)],
     "selection.captureStamp"
+  );
+}
+
+export function clearTileSelectionCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  selection: SelectionState
+): HistoryCommand<EditorWorkspaceState> {
+  if (selection.kind !== "tile" || selection.coordinates.length === 0) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "clipboard.cut",
+      description: "Clear empty tile selection",
+      run: (state) => state
+    });
+  }
+
+  const bounds = getTileSelectionBounds(selection);
+
+  if (!bounds) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "clipboard.cut",
+      description: "Clear empty tile selection",
+      run: (state) => state
+    });
+  }
+
+  const clearCommand = paintTileStrokeCommand(
+    mapId,
+    layerId,
+    selection.coordinates.map((coordinate) => ({
+      ...coordinate,
+      gid: null
+    })),
+    { x: bounds.x, y: bounds.y }
+  );
+  const restoreSelectionCommand = selectTileRegionCommand(
+    bounds.x,
+    bounds.y,
+    bounds.x + bounds.width - 1,
+    bounds.y + bounds.height - 1
+  );
+
+  return createMacroCommand(
+    "Clear tile selection",
+    [clearCommand, restoreSelectionCommand],
+    "clipboard.cut"
+  );
+}
+
+export function pasteTileClipboardCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  x: number,
+  y: number,
+  stamp: TileStamp
+): HistoryCommand<EditorWorkspaceState> {
+  const footprint = getTileStampFootprint(stamp);
+  const paintCommand = paintTileStrokeCommand(
+    mapId,
+    layerId,
+    materializeTileStampCells(stamp, x, y),
+    { x, y }
+  );
+  const selectionCommand = selectTileRegionCommand(
+    x,
+    y,
+    x + footprint.width - 1,
+    y + footprint.height - 1
+  );
+
+  return createMacroCommand(
+    "Paste tile clipboard",
+    [paintCommand, selectionCommand],
+    "clipboard.paste"
   );
 }
 

@@ -10,6 +10,7 @@ import { startTransition, useSyncExternalStore } from "react";
 
 import { LayersPanel } from "./layers-panel";
 import { MapPropertiesPanel } from "./map-properties-panel";
+import { ObjectsPanel } from "./objects-panel";
 import { Panel } from "./panel";
 import { RendererCanvas } from "./renderer-canvas";
 import { ShapeFillControls } from "./shape-fill-controls";
@@ -37,6 +38,7 @@ export function EditorShell({ store }: EditorShellProps) {
     store.getSnapshot.bind(store)
   );
   const activeMap = snapshot.activeMap;
+  const activeObjectLayer = snapshot.activeLayer?.kind === "object" ? snapshot.activeLayer : undefined;
   const activeStamp = snapshot.workspace.session.activeStamp;
   const activeStampGid = getTileStampPrimaryGid(activeStamp);
   const activeStampFootprint = getTileStampFootprint(activeStamp);
@@ -177,8 +179,9 @@ export function EditorShell({ store }: EditorShellProps) {
               )}
 
               <TileSelectionControls
+                clipboard={snapshot.runtime.clipboard}
                 selection={snapshot.workspace.session.selection}
-                canCaptureStamp={snapshot.activeLayer?.kind === "tile"}
+                canEditTiles={snapshot.activeLayer?.kind === "tile"}
                 store={store}
               />
             </Panel>
@@ -350,6 +353,12 @@ export function EditorShell({ store }: EditorShellProps) {
             <LayersPanel
               activeMap={activeMap}
               activeLayerId={snapshot.workspace.session.activeLayerId}
+              store={store}
+            />
+            <ObjectsPanel
+              activeLayer={activeObjectLayer}
+              clipboard={snapshot.runtime.clipboard}
+              selection={snapshot.workspace.session.selection}
               store={store}
             />
           </div>

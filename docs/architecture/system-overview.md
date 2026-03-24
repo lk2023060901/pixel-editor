@@ -51,6 +51,7 @@ Background process responsible for:
 - `packages/editor-state`: session state, selection state, tool state, viewport state
 - `packages/app-services`: orchestration layer that binds UI actions to domain operations
 - `packages/map`: map-focused commands, viewport actions, and default map workflows
+- `packages/objects`: object-focused commands, selection actions, and clipboard workflows
 - `packages/tileset`: tileset-focused commands, selection actions, and tile metadata workflows
 - `packages/renderer-pixi`: PixiJS-backed render graph, picking, overlays, viewport rendering
 - `packages/ui-editor`: editor shell components, panels, toolbars, dialogs

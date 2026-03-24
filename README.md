@@ -12,6 +12,7 @@ Web-first Tiled-compatible editor built with Next.js, Tailwind CSS, and PixiJS.
 - `packages/editor-state`: Session state and selectors.
 - `packages/app-services`: Use-case orchestration layer.
 - `packages/map`: Map-focused editing commands and use-case helpers.
+- `packages/objects`: Object-focused editing commands and use-case helpers.
 - `packages/tileset`: Tileset-focused editing commands and use-case helpers.
 - `packages/renderer-pixi`: PixiJS rendering adapter.
 - `packages/ui-editor`: Reusable editor UI components.

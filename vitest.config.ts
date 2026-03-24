@@ -15,6 +15,7 @@ export default defineConfig({
       "@pixel-editor/editor-state": fromRepositoryRoot("./packages/editor-state/src/index.ts"),
       "@pixel-editor/app-services": fromRepositoryRoot("./packages/app-services/src/index.ts"),
       "@pixel-editor/map": fromRepositoryRoot("./packages/map/src/index.ts"),
+      "@pixel-editor/objects": fromRepositoryRoot("./packages/objects/src/index.ts"),
       "@pixel-editor/tileset": fromRepositoryRoot("./packages/tileset/src/index.ts"),
       "@pixel-editor/renderer-pixi": fromRepositoryRoot("./packages/renderer-pixi/src/index.ts"),
       "@pixel-editor/ui-editor": fromRepositoryRoot("./packages/ui-editor/src/index.ts")

@@ -60,8 +60,8 @@ export function RendererCanvas({
       ...(deferredSnapshot.workspace.session.selection.kind === "tile"
         ? { selectedTiles: deferredSnapshot.workspace.session.selection.coordinates }
         : {}),
-      ...(deferredSnapshot.interactions.canvasPreview.kind !== "none"
-        ? { previewTiles: deferredSnapshot.interactions.canvasPreview.coordinates }
+      ...(deferredSnapshot.runtime.interactions.canvasPreview.kind !== "none"
+        ? { previewTiles: deferredSnapshot.runtime.interactions.canvasPreview.coordinates }
         : {})
     });
   }, [deferredSnapshot]);

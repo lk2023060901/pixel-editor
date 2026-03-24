@@ -11,9 +11,12 @@ import {
 import {
   addLayerCommand,
   captureTileSelectionStampCommand,
+  clearTileSelectionCommand,
+  createTileStampFromSelection,
   createMapDocumentCommand,
   moveLayerCommand,
   paintTileAtCommand,
+  pasteTileClipboardCommand,
   paintTileStampCommand,
   paintTileStrokeCommand,
   removeLayerCommand,
@@ -246,4 +249,58 @@ describe("map commands", () => {
       nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 6, 5)?.gid : null
     ).toBe(4);
   });
+
+  it("cuts and pastes selected tile regions through explicit clipboard commands", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 12,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const tileLayer = map.layers.find((layer) => layer.kind === "tile")!;
+
+    history.execute(paintTileAtCommand(map.id, tileLayer.id, 1, 1, 7));
+    history.execute(paintTileAtCommand(map.id, tileLayer.id, 2, 1, 8));
+    history.execute(selectTileRegionCommand(1, 1, 2, 1));
+
+    const currentTileLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "tile")!;
+    const stamp = createTileStampFromSelection(currentTileLayer, history.state.session.selection)!;
+
+    history.execute(clearTileSelectionCommand(map.id, tileLayer.id, history.state.session.selection));
+
+    let nextLayer = history.state.maps[0]!.layers[0];
+
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 1, 1)?.gid : null
+    ).toBeNull();
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 2, 1)?.gid : null
+    ).toBeNull();
+
+    history.execute(pasteTileClipboardCommand(map.id, tileLayer.id, 5, 4, stamp));
+
+    nextLayer = history.state.maps[0]!.layers[0];
+
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 5, 4)?.gid : null
+    ).toBe(7);
+    expect(
+      nextLayer?.kind === "tile" ? getTileLayerCell(nextLayer, 6, 4)?.gid : null
+    ).toBe(8);
+  });
+
 });

@@ -147,6 +147,7 @@ Owns:
 - map-focused command composition
 - viewport commands
 - active map and active tool commands
+- tile selection and tile painting workflows
 
 Must not own:
 
@@ -154,12 +155,35 @@ Must not own:
 - React components
 - renderer internals
 - generic persistence adapters
+- object-specific editing workflows
 
 Public API rules:
 
 - expose map-specific commands and helpers only
 - depend on shared domain and command primitives instead of duplicating them
 - keep feature behavior reusable by both UI and future automation flows
+
+## `packages/objects`
+
+Owns:
+
+- object-focused command composition
+- object selection commands
+- object clipboard workflows
+- object creation and deletion helpers
+
+Must not own:
+
+- transport DTOs
+- React components
+- renderer internals
+- tile editing workflows
+
+Public API rules:
+
+- expose object-specific commands and helpers only
+- depend on shared domain and command primitives instead of duplicating them
+- keep object behavior reusable by both UI and future automation flows
 
 ## `packages/tileset`
 

@@ -152,6 +152,19 @@ export function getDocumentCount(state: EditorWorkspaceState): number {
   return state.maps.length + state.tilesets.length + state.templates.length + state.worlds.length;
 }
 
+export type { ClipboardState } from "./clipboard";
+export {
+  createEmptyClipboardState,
+  createObjectClipboardState,
+  createTileClipboardState,
+  hasClipboardContent
+} from "./clipboard";
+export type { EditorRuntimeState } from "./runtime";
+export {
+  clearEditorRuntimeInteractions,
+  createEditorRuntimeState,
+  setEditorRuntimeClipboard
+} from "./runtime";
 export type {
   CanvasGestureModifiers,
   CanvasPreviewState,
@@ -170,6 +183,7 @@ export {
 } from "./interactions";
 export type { SelectionState } from "./selection";
 export {
+  isObjectSelectionState,
   getTileSelectionBounds,
   isTileSelectionState
 } from "./selection";

@@ -161,7 +161,7 @@ describe("editor controller", () => {
       fromCenter: true
     });
 
-    const preview = store.getSnapshot().interactions.canvasPreview;
+    const preview = store.getSnapshot().runtime.interactions.canvasPreview;
 
     expect(preview.kind).toBe("shape-fill");
     expect(preview.kind === "shape-fill" ? preview.coordinates : []).toContainEqual({
@@ -183,7 +183,7 @@ describe("editor controller", () => {
       .getSnapshot()
       .activeMap?.layers.find((entry) => entry.kind === "tile");
 
-    expect(store.getSnapshot().interactions.canvasPreview.kind).toBe("none");
+    expect(store.getSnapshot().runtime.interactions.canvasPreview.kind).toBe("none");
     expect(layer?.kind === "tile" ? getTileLayerCell(layer, 5, 5)?.gid : null).toBe(12);
     expect(layer?.kind === "tile" ? getTileLayerCell(layer, 5, 3)?.gid : null).toBe(12);
     expect(layer?.kind === "tile" ? getTileLayerCell(layer, 3, 3)?.gid : null).toBeNull();
@@ -196,11 +196,11 @@ describe("editor controller", () => {
     store.beginCanvasStroke(2, 2);
     store.updateCanvasStroke(6, 4);
 
-    expect(store.getSnapshot().interactions.canvasPreview.kind).toBe("shape-fill");
+    expect(store.getSnapshot().runtime.interactions.canvasPreview.kind).toBe("shape-fill");
 
     store.setShapeFillMode("ellipse");
 
-    expect(store.getSnapshot().interactions.canvasPreview.kind).toBe("none");
+    expect(store.getSnapshot().runtime.interactions.canvasPreview.kind).toBe("none");
   });
 
   it("selects tile regions and captures them as reusable pattern stamps", () => {
@@ -215,7 +215,7 @@ describe("editor controller", () => {
     store.beginCanvasStroke(1, 1);
     store.updateCanvasStroke(2, 1);
 
-    const preview = store.getSnapshot().interactions.canvasPreview;
+    const preview = store.getSnapshot().runtime.interactions.canvasPreview;
 
     expect(preview.kind).toBe("tile-selection");
     expect(preview.kind === "tile-selection" ? preview.coordinates : []).toHaveLength(2);
@@ -246,6 +246,112 @@ describe("editor controller", () => {
 
     expect(layer?.kind === "tile" ? getTileLayerCell(layer, 6, 4)?.gid : null).toBe(21);
     expect(layer?.kind === "tile" ? getTileLayerCell(layer, 7, 4)?.gid : null).toBe(22);
+  });
+
+  it("copies, cuts, and pastes tile selections through the clipboard API", () => {
+    const store = createTestEditorStore("demo");
+
+    store.setActiveStamp(createSingleTileStamp(31));
+    store.handleCanvasPrimaryAction(1, 1);
+    store.setActiveStamp(createSingleTileStamp(32));
+    store.handleCanvasPrimaryAction(2, 1);
+
+    store.setActiveTool("select");
+    store.beginCanvasStroke(1, 1);
+    store.updateCanvasStroke(2, 1);
+    store.endCanvasStroke();
+
+    store.copySelectedTilesToClipboard();
+
+    expect(store.getSnapshot().runtime.clipboard.kind).toBe("tile");
+
+    store.cutSelectedTilesToClipboard();
+
+    let layer = store
+      .getSnapshot()
+      .activeMap?.layers.find((entry) => entry.kind === "tile");
+
+    expect(layer?.kind === "tile" ? getTileLayerCell(layer, 1, 1)?.gid : null).toBeNull();
+    expect(layer?.kind === "tile" ? getTileLayerCell(layer, 2, 1)?.gid : null).toBeNull();
+
+    store.setActiveTool("select");
+    store.beginCanvasStroke(6, 4);
+    store.updateCanvasStroke(7, 4);
+    store.endCanvasStroke();
+    store.pasteClipboardToSelection();
+
+    layer = store.getSnapshot().activeMap?.layers.find((entry) => entry.kind === "tile");
+
+    expect(layer?.kind === "tile" ? getTileLayerCell(layer, 6, 4)?.gid : null).toBe(31);
+    expect(layer?.kind === "tile" ? getTileLayerCell(layer, 7, 4)?.gid : null).toBe(32);
+  });
+
+  it("creates, selects, cuts, and pastes objects through the object clipboard API", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store.getSnapshot().activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      return;
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    let nextObjectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const firstObject = nextObjectLayer?.kind === "object" ? nextObjectLayer.objects[0] : undefined;
+
+    expect(firstObject).toMatchObject({
+      name: "Object 1",
+      shape: "rectangle",
+      x: 32,
+      y: 32,
+      width: 32,
+      height: 32
+    });
+    expect(store.getState().session.selection).toEqual({
+      kind: "object",
+      objectIds: firstObject ? [firstObject.id] : []
+    });
+
+    if (!firstObject) {
+      return;
+    }
+
+    store.copySelectedObjectsToClipboard();
+
+    expect(store.getSnapshot().runtime.clipboard.kind).toBe("object");
+
+    store.pasteClipboardToActiveObjectLayer();
+
+    nextObjectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const objectEntries = nextObjectLayer?.kind === "object" ? nextObjectLayer.objects : [];
+    const pastedObject = objectEntries[1];
+
+    expect(objectEntries).toHaveLength(2);
+    expect(pastedObject).toMatchObject({
+      name: "Object 1",
+      shape: "rectangle",
+      x: 64,
+      y: 64,
+      width: 32,
+      height: 32
+    });
+
+    store.selectObject(firstObject.id);
+    store.cutSelectedObjectsToClipboard();
+
+    nextObjectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+
+    expect(nextObjectLayer?.kind === "object" ? nextObjectLayer.objects : []).toHaveLength(1);
+    expect(store.getState().session.selection).toEqual({ kind: "none" });
   });
 
   it("selects stamps from the active tileset set", () => {
