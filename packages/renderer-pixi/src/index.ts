@@ -406,6 +406,52 @@ function drawPreviewOverlay(
   scene.addChild(overlay);
 }
 
+function drawGridOverlay(
+  scene: Container,
+  snapshot: RendererSnapshot,
+  geometry: ViewportGeometry
+): void {
+  if (!snapshot.map || !snapshot.viewport.showGrid) {
+    return;
+  }
+
+  const grid = new Graphics();
+
+  if (snapshot.map.settings.infinite) {
+    for (let column = 0; column <= geometry.endTileX - geometry.startTileX; column += 1) {
+      const x = geometry.gridOriginX + column * geometry.tileWidth;
+      grid.moveTo(x, geometry.gridOriginY);
+      grid.lineTo(x, geometry.gridOriginY + geometry.canvasHeight);
+    }
+
+    for (let row = 0; row <= geometry.endTileY - geometry.startTileY; row += 1) {
+      const y = geometry.gridOriginY + row * geometry.tileHeight;
+      grid.moveTo(geometry.gridOriginX, y);
+      grid.lineTo(geometry.gridOriginX + geometry.canvasWidth, y);
+    }
+  } else {
+    const mapLeft = geometry.gridOriginX - snapshot.viewport.originX;
+    const mapTop = geometry.gridOriginY - snapshot.viewport.originY;
+    const mapWidth = snapshot.map.settings.width * geometry.tileWidth;
+    const mapHeight = snapshot.map.settings.height * geometry.tileHeight;
+
+    for (let column = 0; column <= snapshot.map.settings.width; column += 1) {
+      const x = mapLeft + column * geometry.tileWidth;
+      grid.moveTo(x, mapTop);
+      grid.lineTo(x, mapTop + mapHeight);
+    }
+
+    for (let row = 0; row <= snapshot.map.settings.height; row += 1) {
+      const y = mapTop + row * geometry.tileHeight;
+      grid.moveTo(mapLeft, y);
+      grid.lineTo(mapLeft + mapWidth, y);
+    }
+  }
+
+  grid.stroke({ color: 0x1e293b, width: 1, alpha: 0.9 });
+  scene.addChild(grid);
+}
+
 export function createPixiEditorRenderer(options: {
   layout?: Partial<RendererLayoutMetrics>;
 } = {}): EditorRenderer {
@@ -432,25 +478,10 @@ export function createPixiEditorRenderer(options: {
 
     const width = app.renderer.width;
     const height = app.renderer.height;
-    const frameWidth = Math.max(
-      layout.minFrameWidth,
-      width - layout.framePadding * 2
-    );
-    const frameHeight = Math.max(
-      layout.minFrameHeight,
-      height - layout.framePadding * 2
-    );
 
     const background = new Graphics();
-    background.roundRect(
-      layout.framePadding,
-      layout.framePadding,
-      frameWidth,
-      frameHeight,
-      layout.frameRadius
-    );
-    background.fill({ color: 0x020617, alpha: 0.92 });
-    background.stroke({ color: 0x334155, width: 1.5, alpha: 0.95 });
+    background.rect(0, 0, width, height);
+    background.fill({ color: 0x0b1220, alpha: 1 });
     scene.addChild(background);
 
     if (!snapshot.map) {
@@ -480,68 +511,8 @@ export function createPixiEditorRenderer(options: {
       layout
     );
 
-    if (snapshot.viewport.showGrid) {
-      const grid = new Graphics();
-
-      for (let column = 0; column <= geometry.endTileX - geometry.startTileX; column += 1) {
-        const x = geometry.gridOriginX + column * geometry.tileWidth;
-        grid.moveTo(x, geometry.gridOriginY);
-        grid.lineTo(x, geometry.gridOriginY + geometry.canvasHeight);
-      }
-
-      for (let row = 0; row <= geometry.endTileY - geometry.startTileY; row += 1) {
-        const y = geometry.gridOriginY + row * geometry.tileHeight;
-        grid.moveTo(geometry.gridOriginX, y);
-        grid.lineTo(geometry.gridOriginX + geometry.canvasWidth, y);
-      }
-
-      grid.stroke({ color: 0x1e293b, width: 1, alpha: 0.9 });
-      scene.addChild(grid);
-    }
-
-    const titleText = new Text({
-      text: `${map.name} · ${map.settings.orientation}`,
-      style: {
-        fill: 0xf8fafc,
-        fontSize: 20,
-        fontWeight: "600",
-        fontFamily: "IBM Plex Sans, sans-serif"
-      }
-    });
-    titleText.position.set(
-      layout.framePadding + layout.titleOffsetX,
-      layout.framePadding + layout.titleOffsetY
-    );
-    scene.addChild(titleText);
-
-    const subtitleText = new Text({
-      text: `Layers ${map.layers.length} · Tiles ${map.settings.tileWidth}×${map.settings.tileHeight} · Zoom ${zoom.toFixed(2)}x`,
-      style: {
-        fill: 0x94a3b8,
-        fontSize: 13,
-        fontFamily: "IBM Plex Sans, sans-serif"
-      }
-    });
-    subtitleText.position.set(
-      layout.framePadding + layout.titleOffsetX,
-      layout.framePadding + layout.subtitleOffsetY
-    );
-    scene.addChild(subtitleText);
-
-    if (!map.settings.infinite) {
-      const bounds = new Graphics();
-      bounds.roundRect(
-        geometry.gridOriginX - snapshot.viewport.originX,
-        geometry.gridOriginY - snapshot.viewport.originY,
-        map.settings.width * geometry.tileWidth,
-        map.settings.height * geometry.tileHeight,
-        14
-      );
-      bounds.stroke({ color: 0x475569, width: 1.5, alpha: 0.8 });
-      scene.addChild(bounds);
-    }
-
     drawTileLayers(scene, snapshot, geometry);
+    drawGridOverlay(scene, snapshot, geometry);
     drawObjectLayers(scene, snapshot, geometry);
     drawPreviewOverlay(scene, snapshot, geometry);
     drawSelectionOverlay(scene, snapshot, geometry);

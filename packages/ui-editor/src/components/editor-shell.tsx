@@ -1,11 +1,7 @@
 "use client";
 
 import type { EditorController } from "@pixel-editor/app-services";
-import {
-  getTileStampFootprint,
-  getTileStampPrimaryGid,
-} from "@pixel-editor/editor-state";
-import { startTransition, useState, useSyncExternalStore } from "react";
+import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { LayersPanel } from "./layers-panel";
 import { DockPanel } from "./dock-panel";
@@ -18,12 +14,13 @@ import { RendererCanvas } from "./renderer-canvas";
 import { EditorStatusBar } from "./editor-status-bar";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
 import {
+  getTiledMainMenus,
   getTiledToolOptionItems,
-  tiledMainMenuItems,
   tiledMainToolbarActions,
   tiledNewMenuItems,
   tiledToolToolbarItems,
   toolbarIconUrls,
+  type TiledMenuItemSpec2,
   type ToolbarActionSpec
 } from "./toolbar-spec";
 import { TilesetsPanel } from "./tilesets-panel";
@@ -46,13 +43,92 @@ const lowerRightDockTabs: DockStackTab<LowerRightDockTabId>[] = [
   { id: "tilesets", label: "Tilesets" }
 ];
 
-function MenuLabel(props: {
+function MenuBarButton(props: {
   label: string;
+  open: boolean;
+  onClick: () => void;
+  onPointerEnter: () => void;
 }) {
   return (
-    <span className="rounded-sm px-2 py-1 text-sm text-slate-200 transition hover:bg-slate-700/70">
+    <button
+      className={`rounded-sm px-2 py-1 text-sm transition ${
+        props.open
+          ? "bg-slate-700/90 text-slate-50"
+          : "text-slate-200 hover:bg-slate-700/70"
+      }`}
+      onClick={props.onClick}
+      onPointerEnter={props.onPointerEnter}
+    >
       {props.label}
-    </span>
+    </button>
+  );
+}
+
+function MenuPopup(props: {
+  items: TiledMenuItemSpec2[];
+  onAction: (actionId: string) => void;
+  onRequestClose: () => void;
+}) {
+  const [openSubmenuId, setOpenSubmenuId] = useState<string | null>(null);
+
+  return (
+    <div className="min-h-4 min-w-[240px] border border-slate-700 bg-slate-900/98 py-1 shadow-[0_12px_32px_rgba(2,6,23,0.6)]">
+      {props.items.map((item, index) => {
+        if (item.kind === "separator") {
+          return <div key={`separator-${index}`} className="my-1 border-t border-slate-800" />;
+        }
+
+        if (item.kind === "submenu") {
+          const isOpen = openSubmenuId === item.id;
+
+          return (
+            <div
+              key={item.id}
+              className="relative"
+              onMouseEnter={() => {
+                setOpenSubmenuId(item.id);
+              }}
+            >
+              <button
+                className="flex w-full items-center justify-between gap-4 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800/90"
+              >
+                <span>{item.label}</span>
+                <span className="text-[11px] text-slate-500">▸</span>
+              </button>
+              {isOpen ? (
+                <div className="absolute left-full top-0 z-30 ml-1">
+                  <MenuPopup
+                    items={item.items}
+                    onAction={props.onAction}
+                    onRequestClose={props.onRequestClose}
+                  />
+                </div>
+              ) : null}
+            </div>
+          );
+        }
+
+        return (
+          <button
+            key={item.id}
+            className={`grid w-full grid-cols-[16px_minmax(0,1fr)_auto] items-center gap-3 px-3 py-1.5 text-left text-sm transition ${
+              item.implemented && !item.disabled
+                ? "text-slate-200 hover:bg-slate-800/90"
+                : "cursor-not-allowed text-slate-500"
+            }`}
+            disabled={!item.implemented || item.disabled}
+            onClick={() => {
+              props.onAction(item.id);
+              props.onRequestClose();
+            }}
+          >
+            <span className="w-4 text-xs text-slate-300">{item.checked ? "✓" : ""}</span>
+            <span className="min-w-0 truncate">{item.label}</span>
+            <span className="pl-6 text-[11px] text-slate-500">{item.shortcut ?? ""}</span>
+          </button>
+        );
+      })}
+    </div>
   );
 }
 
@@ -162,8 +238,10 @@ function ToolbarSplitButton(props: {
 export function EditorShell({ store }: EditorShellProps) {
   const [upperRightDockTab, setUpperRightDockTab] = useState<UpperRightDockTabId>("layers");
   const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
+  const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [statusInfo, setStatusInfo] = useState("");
+  const menuBarRef = useRef<HTMLDivElement | null>(null);
   const snapshot = useSyncExternalStore(
     store.subscribe.bind(store),
     store.getSnapshot.bind(store),
@@ -173,12 +251,12 @@ export function EditorShell({ store }: EditorShellProps) {
   const activeLayer = snapshot.activeLayer;
   const activeObjectLayer = activeLayer?.kind === "object" ? activeLayer : undefined;
   const activeStamp = snapshot.workspace.session.activeStamp;
-  const activeStampGid = getTileStampPrimaryGid(activeStamp);
-  const activeStampFootprint = getTileStampFootprint(activeStamp);
   const activeDocument =
     snapshot.bootstrap.documents.find(
       (document) => document.id === snapshot.bootstrap.activeDocumentId
     ) ?? snapshot.bootstrap.documents[0];
+  const activeLayerIndex =
+    activeMap?.layers.findIndex((layer) => layer.id === snapshot.workspace.session.activeLayerId) ?? -1;
   const activeTool = snapshot.workspace.session.activeTool;
   const toolOptionItems = getTiledToolOptionItems({
     activeTool,
@@ -190,6 +268,39 @@ export function EditorShell({ store }: EditorShellProps) {
     errorCount: 0,
     warningCount: 0
   };
+  const menuSpecs = getTiledMainMenus({
+    activeDocumentKind: activeDocument?.kind,
+    canUndo: snapshot.canUndo,
+    canRedo: snapshot.canRedo,
+    showGrid: snapshot.bootstrap.viewport.showGrid,
+    hasActiveMap: Boolean(activeMap),
+    hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
+    canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
+    canMoveLayerDown: Boolean(
+      activeMap &&
+        activeLayerIndex >= 0 &&
+        activeLayerIndex < activeMap.layers.length - 1
+    )
+  });
+
+  useEffect(() => {
+    if (!openMenuId) {
+      return;
+    }
+
+    function handlePointerDown(event: PointerEvent): void {
+      if (menuBarRef.current?.contains(event.target as Node)) {
+        return;
+      }
+
+      setOpenMenuId(null);
+    }
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+    };
+  }, [openMenuId]);
 
   function handleToolbarAction(action: ToolbarActionSpec): void {
     if (!action.implemented) {
@@ -248,6 +359,71 @@ export function EditorShell({ store }: EditorShellProps) {
     });
   }
 
+  function handleMenuAction(actionId: string): void {
+    switch (actionId) {
+      case "new-map":
+        handleNewMenuItem("new-map");
+        return;
+      case "undo":
+        startTransition(() => {
+          store.undo();
+        });
+        return;
+      case "redo":
+        startTransition(() => {
+          store.redo();
+        });
+        return;
+      case "show-grid":
+        startTransition(() => {
+          store.toggleGrid();
+        });
+        return;
+      case "zoom-in":
+        startTransition(() => {
+          store.zoomIn();
+        });
+        return;
+      case "zoom-out":
+        startTransition(() => {
+          store.zoomOut();
+        });
+        return;
+      case "zoom-normal":
+        startTransition(() => {
+          store.setViewportZoom(1);
+        });
+        return;
+      case "add-tile-layer":
+        startTransition(() => {
+          store.addTileLayer();
+        });
+        return;
+      case "add-object-layer":
+        startTransition(() => {
+          store.addObjectLayer();
+        });
+        return;
+      case "remove-layers":
+        startTransition(() => {
+          store.removeActiveLayer();
+        });
+        return;
+      case "raise-layers":
+        startTransition(() => {
+          store.moveActiveLayer("up");
+        });
+        return;
+      case "lower-layers":
+        startTransition(() => {
+          store.moveActiveLayer("down");
+        });
+        return;
+      default:
+        return;
+    }
+  }
+
   let upperRightDockContent = (
     <LayersPanel
       embedded
@@ -302,9 +478,41 @@ export function EditorShell({ store }: EditorShellProps) {
     <div className="min-h-screen overflow-x-auto bg-slate-950 text-slate-100">
       <div className="flex min-h-screen min-w-[1520px] flex-col">
         <div className="border-b border-slate-700 bg-slate-800/95 px-3 py-1.5">
-          <div className="flex items-center gap-1">
-            {tiledMainMenuItems.map((label) => (
-              <MenuLabel key={label} label={label} />
+          <div ref={menuBarRef} className="flex items-center gap-1">
+            {menuSpecs.map((menu) => (
+              <div
+                key={menu.id}
+                className="relative"
+                onPointerEnter={() => {
+                  if (openMenuId !== null) {
+                    setOpenMenuId(menu.id);
+                  }
+                }}
+              >
+                <MenuBarButton
+                  label={menu.label}
+                  open={openMenuId === menu.id}
+                  onClick={() => {
+                    setOpenMenuId((current) => (current === menu.id ? null : menu.id));
+                  }}
+                  onPointerEnter={() => {
+                    if (openMenuId !== null) {
+                      setOpenMenuId(menu.id);
+                    }
+                  }}
+                />
+                {openMenuId === menu.id ? (
+                  <div className="absolute left-0 top-full z-30 mt-1">
+                    <MenuPopup
+                      items={menu.items}
+                      onAction={handleMenuAction}
+                      onRequestClose={() => {
+                        setOpenMenuId(null);
+                      }}
+                    />
+                  </div>
+                ) : null}
+              </div>
             ))}
           </div>
         </div>
@@ -409,14 +617,9 @@ export function EditorShell({ store }: EditorShellProps) {
               <div className="border border-slate-600 bg-slate-900 px-3 py-1 text-sm text-slate-100">
                 {activeDocument?.name ?? "Untitled Map"}
               </div>
-              <span className="text-xs text-slate-400">
-                {activeMap
-                  ? `${activeMap.settings.orientation} · ${activeMap.layers.length} layer(s)`
-                  : ""}
-              </span>
             </div>
 
-            <div className="min-h-0 flex-1 p-3">
+            <div className="min-h-0 flex-1">
               <RendererCanvas
                 snapshot={snapshot}
                 onStrokeStart={(x, y, modifiers) => {

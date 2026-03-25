@@ -15,19 +15,19 @@ export interface RendererLayoutMetrics {
 }
 
 export const defaultRendererLayoutMetrics: RendererLayoutMetrics = {
-  framePadding: 24,
-  canvasOffsetX: 28,
-  canvasOffsetY: 84,
-  minCanvasWidth: 180,
-  minCanvasHeight: 180,
-  minFrameWidth: 240,
-  minFrameHeight: 200,
-  titleOffsetX: 28,
-  titleOffsetY: 24,
-  subtitleOffsetY: 52,
-  emptyStateOffsetX: 28,
-  emptyStateOffsetY: 28,
-  frameRadius: 20
+  framePadding: 0,
+  canvasOffsetX: 0,
+  canvasOffsetY: 0,
+  minCanvasWidth: 64,
+  minCanvasHeight: 64,
+  minFrameWidth: 64,
+  minFrameHeight: 64,
+  titleOffsetX: 0,
+  titleOffsetY: 0,
+  subtitleOffsetY: 0,
+  emptyStateOffsetX: 16,
+  emptyStateOffsetY: 16,
+  frameRadius: 0
 };
 
 export function createRendererLayoutMetrics(

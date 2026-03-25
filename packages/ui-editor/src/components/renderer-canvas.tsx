@@ -254,7 +254,7 @@ export function RendererCanvas({
   return (
     <div
       ref={hostRef}
-      className="h-full min-h-[520px] overflow-hidden rounded-2xl"
+      className="h-full min-h-0 w-full overflow-hidden bg-slate-950 outline-none"
       onPointerDown={(event) => {
         if (event.button !== 0) {
           return;
