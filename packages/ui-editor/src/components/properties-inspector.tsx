@@ -9,7 +9,7 @@ import type {
   PropertyTypeDefinition
 } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useState, type ReactNode } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 import {
   getLayerKindLabel,
@@ -21,6 +21,14 @@ import {
 import { CustomPropertiesEditor } from "./custom-properties-editor";
 import { buildObjectReferenceOptions } from "./object-reference-options";
 import { Panel } from "./panel";
+import {
+  PropertyBrowserCheckboxRow,
+  PropertyBrowserContent,
+  PropertyBrowserGroup,
+  PropertyBrowserReadOnlyRow,
+  PropertyBrowserSelectRow,
+  PropertyBrowserTextRow
+} from "./property-browser";
 
 interface MapDraft {
   name: string;
@@ -76,11 +84,6 @@ const objectDrawOrderOptions: Array<ObjectLayer["drawOrder"]> = [
   "index"
 ];
 
-const rowLabelClass =
-  "border-r border-slate-800 bg-slate-900 px-2 py-1.5 text-[11px] uppercase tracking-[0.14em] text-slate-500";
-const inputClass =
-  "w-full bg-slate-950 px-2 py-1.5 text-sm text-slate-100 outline-none placeholder:text-slate-500";
-
 function createMapDraft(map?: EditorMap): MapDraft {
   return {
     name: map?.name ?? "",
@@ -121,120 +124,6 @@ function createObjectDraft(object?: MapObject): ObjectDraft {
   };
 }
 
-function InspectorSection(props: {
-  title: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="border-b border-slate-700 last:border-b-0">
-      <div className="border-b border-slate-700 bg-slate-800 px-2 py-1 text-[11px] font-medium uppercase tracking-[0.14em] text-slate-300">
-        {props.title}
-      </div>
-      {props.children}
-    </section>
-  );
-}
-
-function ReadOnlyRow(props: {
-  label: string;
-  value: string;
-}) {
-  return (
-    <div className="grid grid-cols-[96px_1fr] border-b border-slate-800 last:border-b-0">
-      <span className={rowLabelClass}>{props.label}</span>
-      <span className="bg-slate-950 px-2 py-1.5 text-sm text-slate-300">{props.value}</span>
-    </div>
-  );
-}
-
-function TextRow(props: {
-  label: string;
-  value: string;
-  type?: "text" | "number";
-  disabled?: boolean;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid grid-cols-[96px_1fr] border-b border-slate-800 last:border-b-0">
-      <span className={rowLabelClass}>{props.label}</span>
-      <input
-        className={inputClass}
-        disabled={props.disabled}
-        inputMode={props.type === "number" ? "numeric" : undefined}
-        type={props.type ?? "text"}
-        value={props.value}
-        onChange={(event) => {
-          props.onChange(event.target.value);
-        }}
-      />
-    </label>
-  );
-}
-
-function SelectRow(props: {
-  label: string;
-  value: string;
-  options: Array<{ value: string; label: string }>;
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="grid grid-cols-[96px_1fr] border-b border-slate-800 last:border-b-0">
-      <span className={rowLabelClass}>{props.label}</span>
-      <select
-        className={inputClass}
-        value={props.value}
-        onChange={(event) => {
-          props.onChange(event.target.value);
-        }}
-      >
-        {props.options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
-function CheckboxRow(props: {
-  label: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-}) {
-  return (
-    <label className="grid grid-cols-[96px_1fr] border-b border-slate-800 last:border-b-0">
-      <span className={rowLabelClass}>{props.label}</span>
-      <span className="flex items-center bg-slate-950 px-2 py-1.5 text-sm text-slate-200">
-        <input
-          checked={props.checked}
-          type="checkbox"
-          onChange={(event) => {
-            props.onChange(event.target.checked);
-          }}
-        />
-      </span>
-    </label>
-  );
-}
-
-function SectionFooter(props: {
-  onApply: () => void;
-  label: string;
-}) {
-  return (
-    <div className="border-t border-slate-700 bg-slate-800 p-1">
-      <button
-        className="w-full border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 transition hover:bg-slate-800"
-        onClick={props.onApply}
-        type="button"
-      >
-        {props.label}
-      </button>
-    </div>
-  );
-}
-
 export interface PropertiesInspectorProps {
   activeMap: EditorMap | undefined;
   activeLayer: LayerDefinition | undefined;
@@ -273,77 +162,79 @@ function PropertiesInspectorContent({
     return <p className="px-3 py-3 text-sm text-slate-400">{t("mapProperties.noActiveMap")}</p>;
   }
 
-  function applyMapDraft(): void {
+  function applyMapDraft(nextDraft: MapDraft = mapDraft): void {
     if (!activeMap) {
       return;
     }
 
-    const width = Number.parseInt(mapDraft.width, 10);
-    const height = Number.parseInt(mapDraft.height, 10);
-    const tileWidth = Number.parseInt(mapDraft.tileWidth, 10);
-    const tileHeight = Number.parseInt(mapDraft.tileHeight, 10);
+    const width = Number.parseInt(nextDraft.width, 10);
+    const height = Number.parseInt(nextDraft.height, 10);
+    const tileWidth = Number.parseInt(nextDraft.tileWidth, 10);
+    const tileHeight = Number.parseInt(nextDraft.tileHeight, 10);
 
     if (
       Number.isNaN(tileWidth) ||
       Number.isNaN(tileHeight) ||
-      (!mapDraft.infinite && (Number.isNaN(width) || Number.isNaN(height)))
+      (!nextDraft.infinite && (Number.isNaN(width) || Number.isNaN(height)))
     ) {
+      setMapDraft(createMapDraft(activeMap));
       return;
     }
 
     startTransition(() => {
       store.updateActiveMapDetails({
-        name: mapDraft.name.trim() || activeMap.name,
-        orientation: mapDraft.orientation,
-        renderOrder: mapDraft.renderOrder,
+        name: nextDraft.name.trim() || activeMap.name,
+        orientation: nextDraft.orientation,
+        renderOrder: nextDraft.renderOrder,
         tileWidth,
         tileHeight,
-        infinite: mapDraft.infinite,
-        ...(mapDraft.infinite ? {} : { width, height }),
-        ...(mapDraft.backgroundColor.trim()
-          ? { backgroundColor: mapDraft.backgroundColor.trim() }
+        infinite: nextDraft.infinite,
+        ...(nextDraft.infinite ? {} : { width, height }),
+        ...(nextDraft.backgroundColor.trim()
+          ? { backgroundColor: nextDraft.backgroundColor.trim() }
           : {})
       });
     });
   }
 
-  function applyLayerDraft(): void {
+  function applyLayerDraft(nextDraft: LayerDraft = layerDraft): void {
     if (!activeLayer) {
       return;
     }
 
-    const opacity = Number.parseFloat(layerDraft.opacity);
-    const offsetX = Number.parseFloat(layerDraft.offsetX);
-    const offsetY = Number.parseFloat(layerDraft.offsetY);
+    const opacity = Number.parseFloat(nextDraft.opacity);
+    const offsetX = Number.parseFloat(nextDraft.offsetX);
+    const offsetY = Number.parseFloat(nextDraft.offsetY);
 
     if (Number.isNaN(opacity) || Number.isNaN(offsetX) || Number.isNaN(offsetY)) {
+      setLayerDraft(createLayerDraft(activeLayer));
       return;
     }
 
     startTransition(() => {
       store.updateActiveLayerDetails({
-        name: layerDraft.name.trim() || activeLayer.name,
-        className: layerDraft.className,
-        visible: layerDraft.visible,
-        locked: layerDraft.locked,
+        name: nextDraft.name.trim() || activeLayer.name,
+        className: nextDraft.className,
+        visible: nextDraft.visible,
+        locked: nextDraft.locked,
         opacity: Math.max(0, Math.min(opacity, 1)),
         offsetX,
         offsetY,
-        ...(activeLayer.kind === "object" ? { drawOrder: layerDraft.drawOrder } : {})
+        ...(activeLayer.kind === "object" ? { drawOrder: nextDraft.drawOrder } : {})
       });
     });
   }
 
-  function applyObjectDraft(): void {
+  function applyObjectDraft(nextDraft: ObjectDraft = objectDraft): void {
     if (!activeObject) {
       return;
     }
 
-    const x = Number.parseFloat(objectDraft.x);
-    const y = Number.parseFloat(objectDraft.y);
-    const width = Number.parseFloat(objectDraft.width);
-    const height = Number.parseFloat(objectDraft.height);
-    const rotation = Number.parseFloat(objectDraft.rotation);
+    const x = Number.parseFloat(nextDraft.x);
+    const y = Number.parseFloat(nextDraft.y);
+    const width = Number.parseFloat(nextDraft.width);
+    const height = Number.parseFloat(nextDraft.height);
+    const rotation = Number.parseFloat(nextDraft.rotation);
 
     if (
       Number.isNaN(x) ||
@@ -352,35 +243,39 @@ function PropertiesInspectorContent({
       Number.isNaN(height) ||
       Number.isNaN(rotation)
     ) {
+      setObjectDraft(createObjectDraft(activeObject));
       return;
     }
 
     startTransition(() => {
       store.updateSelectedObjectDetails({
-        name: objectDraft.name.trim() || activeObject.name,
-        className: objectDraft.className,
+        name: nextDraft.name.trim() || activeObject.name,
+        className: nextDraft.className,
         x,
         y,
         width,
         height,
         rotation,
-        visible: objectDraft.visible
+        visible: nextDraft.visible
       });
     });
   }
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <PropertyBrowserContent>
       <div className="min-h-0 flex-1 overflow-y-auto">
-        <InspectorSection title={t("propertiesInspector.mapSection")}>
-          <TextRow
+        <PropertyBrowserGroup title={t("propertiesInspector.mapSection")}>
+          <PropertyBrowserTextRow
             label={t("common.name")}
             value={mapDraft.name}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, name: value }));
             }}
           />
-          <SelectRow
+          <PropertyBrowserSelectRow
             label={t("mapProperties.orientation")}
             options={orientationOptions.map((orientation) => ({
               value: orientation,
@@ -388,13 +283,15 @@ function PropertiesInspectorContent({
             }))}
             value={mapDraft.orientation}
             onChange={(value) => {
-              setMapDraft((current) => ({
-                ...current,
+              const nextDraft = {
+                ...mapDraft,
                 orientation: value as EditorMap["settings"]["orientation"]
-              }));
+              };
+              setMapDraft(nextDraft);
+              applyMapDraft(nextDraft);
             }}
           />
-          <SelectRow
+          <PropertyBrowserSelectRow
             label={t("mapProperties.renderOrder")}
             options={renderOrderOptions.map((renderOrder) => ({
               value: renderOrder,
@@ -402,62 +299,82 @@ function PropertiesInspectorContent({
             }))}
             value={mapDraft.renderOrder}
             onChange={(value) => {
-              setMapDraft((current) => ({
-                ...current,
+              const nextDraft = {
+                ...mapDraft,
                 renderOrder: value as EditorMap["settings"]["renderOrder"]
-              }));
+              };
+              setMapDraft(nextDraft);
+              applyMapDraft(nextDraft);
             }}
           />
-          <TextRow
+          <PropertyBrowserTextRow
             disabled={mapDraft.infinite}
             label={t("common.width")}
             type="number"
             value={mapDraft.width}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, width: value }));
             }}
           />
-          <TextRow
+          <PropertyBrowserTextRow
             disabled={mapDraft.infinite}
             label={t("common.height")}
             type="number"
             value={mapDraft.height}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, height: value }));
             }}
           />
-          <TextRow
+          <PropertyBrowserTextRow
             label={t("mapProperties.tileWidthShort")}
             type="number"
             value={mapDraft.tileWidth}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, tileWidth: value }));
             }}
           />
-          <TextRow
+          <PropertyBrowserTextRow
             label={t("mapProperties.tileHeightShort")}
             type="number"
             value={mapDraft.tileHeight}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, tileHeight: value }));
             }}
           />
-          <TextRow
+          <PropertyBrowserTextRow
             label={t("common.color")}
             value={mapDraft.backgroundColor}
+            onCommit={() => {
+              applyMapDraft();
+            }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, backgroundColor: value }));
             }}
           />
-          <CheckboxRow
+          <PropertyBrowserCheckboxRow
             checked={mapDraft.infinite}
             label={t("common.infinite")}
             onChange={(checked) => {
-              setMapDraft((current) => ({ ...current, infinite: checked }));
+              const nextDraft = { ...mapDraft, infinite: checked };
+              setMapDraft(nextDraft);
+              applyMapDraft(nextDraft);
             }}
           />
-          <div className="border-t border-slate-700 p-2">
+          <div className="border-t border-slate-700 p-0">
             <CustomPropertiesEditor
+              className="bg-slate-950"
               properties={activeMap.properties}
               objectReferenceOptions={objectReferenceOptions}
               propertyTypes={propertyTypes}
@@ -470,69 +387,87 @@ function PropertiesInspectorContent({
               showHint={false}
             />
           </div>
-          <SectionFooter label={t("common.apply")} onApply={applyMapDraft} />
-        </InspectorSection>
+        </PropertyBrowserGroup>
 
         {activeLayer ? (
-          <InspectorSection title={t("propertiesInspector.layerSection")}>
-            <TextRow
+          <PropertyBrowserGroup title={t("propertiesInspector.layerSection")}>
+            <PropertyBrowserTextRow
               label={t("common.name")}
               value={layerDraft.name}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
               onChange={(value) => {
                 setLayerDraft((current) => ({ ...current, name: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.className")}
               value={layerDraft.className}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
               onChange={(value) => {
                 setLayerDraft((current) => ({ ...current, className: value }));
               }}
             />
-            <ReadOnlyRow
+            <PropertyBrowserReadOnlyRow
               label={t("common.kind")}
               value={getLayerKindLabel(activeLayer.kind, t)}
             />
-            <CheckboxRow
+            <PropertyBrowserCheckboxRow
               checked={layerDraft.visible}
               label={t("common.visible")}
               onChange={(checked) => {
-                setLayerDraft((current) => ({ ...current, visible: checked }));
+                const nextDraft = { ...layerDraft, visible: checked };
+                setLayerDraft(nextDraft);
+                applyLayerDraft(nextDraft);
               }}
             />
-            <CheckboxRow
+            <PropertyBrowserCheckboxRow
               checked={layerDraft.locked}
               label={t("common.locked")}
               onChange={(checked) => {
-                setLayerDraft((current) => ({ ...current, locked: checked }));
+                const nextDraft = { ...layerDraft, locked: checked };
+                setLayerDraft(nextDraft);
+                applyLayerDraft(nextDraft);
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.opacity")}
               type="number"
               value={layerDraft.opacity}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
               onChange={(value) => {
                 setLayerDraft((current) => ({ ...current, opacity: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("propertiesInspector.offsetX")}
               type="number"
               value={layerDraft.offsetX}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
               onChange={(value) => {
                 setLayerDraft((current) => ({ ...current, offsetX: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("propertiesInspector.offsetY")}
               type="number"
               value={layerDraft.offsetY}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
               onChange={(value) => {
                 setLayerDraft((current) => ({ ...current, offsetY: value }));
               }}
             />
             {activeLayer.kind === "object" ? (
-              <SelectRow
+              <PropertyBrowserSelectRow
                 label={t("propertiesInspector.drawOrder")}
                 options={objectDrawOrderOptions.map((drawOrder) => ({
                   value: drawOrder,
@@ -540,15 +475,18 @@ function PropertiesInspectorContent({
                 }))}
                 value={layerDraft.drawOrder}
                 onChange={(value) => {
-                  setLayerDraft((current) => ({
-                    ...current,
+                  const nextDraft = {
+                    ...layerDraft,
                     drawOrder: value as ObjectLayer["drawOrder"]
-                  }));
+                  };
+                  setLayerDraft(nextDraft);
+                  applyLayerDraft(nextDraft);
                 }}
               />
             ) : null}
-            <div className="border-t border-slate-700 p-2">
+            <div className="border-t border-slate-700 p-0">
               <CustomPropertiesEditor
+                className="bg-slate-950"
                 properties={activeLayer.properties}
                 objectReferenceOptions={objectReferenceOptions}
                 propertyTypes={propertyTypes}
@@ -561,79 +499,102 @@ function PropertiesInspectorContent({
                 showHint={false}
               />
             </div>
-            <SectionFooter label={t("common.apply")} onApply={applyLayerDraft} />
-          </InspectorSection>
+          </PropertyBrowserGroup>
         ) : null}
 
         {activeObject ? (
-          <InspectorSection title={t("propertiesInspector.objectSection")}>
-            <TextRow
+          <PropertyBrowserGroup title={t("propertiesInspector.objectSection")}>
+            <PropertyBrowserTextRow
               label={t("common.name")}
               value={objectDraft.name}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, name: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.className")}
               value={objectDraft.className}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, className: value }));
               }}
             />
-            <ReadOnlyRow
+            <PropertyBrowserReadOnlyRow
               label={t("common.kind")}
               value={getObjectShapeLabel(activeObject.shape, t)}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.x")}
               type="number"
               value={objectDraft.x}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, x: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.y")}
               type="number"
               value={objectDraft.y}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, y: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.width")}
               type="number"
               value={objectDraft.width}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, width: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.height")}
               type="number"
               value={objectDraft.height}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, height: value }));
               }}
             />
-            <TextRow
+            <PropertyBrowserTextRow
               label={t("common.rotation")}
               type="number"
               value={objectDraft.rotation}
+              onCommit={() => {
+                applyObjectDraft();
+              }}
               onChange={(value) => {
                 setObjectDraft((current) => ({ ...current, rotation: value }));
               }}
             />
-            <CheckboxRow
+            <PropertyBrowserCheckboxRow
               checked={objectDraft.visible}
               label={t("common.visible")}
               onChange={(checked) => {
-                setObjectDraft((current) => ({ ...current, visible: checked }));
+                const nextDraft = { ...objectDraft, visible: checked };
+                setObjectDraft(nextDraft);
+                applyObjectDraft(nextDraft);
               }}
             />
-            <div className="border-t border-slate-700 p-2">
+            <div className="border-t border-slate-700 p-0">
               <CustomPropertiesEditor
+                className="bg-slate-950"
                 properties={activeObject.properties}
                 objectReferenceOptions={objectReferenceOptions}
                 propertyTypes={propertyTypes}
@@ -646,11 +607,10 @@ function PropertiesInspectorContent({
                 showHint={false}
               />
             </div>
-            <SectionFooter label={t("common.apply")} onApply={applyObjectDraft} />
-          </InspectorSection>
+          </PropertyBrowserGroup>
         ) : null}
       </div>
-    </div>
+    </PropertyBrowserContent>
   );
 }
 

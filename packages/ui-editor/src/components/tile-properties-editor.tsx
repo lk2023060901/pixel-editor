@@ -10,9 +10,13 @@ import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
 import { CustomPropertiesEditor } from "./custom-properties-editor";
-import { TextField } from "./editor-fields";
 import { buildObjectReferenceOptions } from "./object-reference-options";
-import { TilePreview } from "./tile-preview";
+import {
+  PropertyBrowserContent,
+  PropertyBrowserGroup,
+  PropertyBrowserReadOnlyRow,
+  PropertyBrowserTextRow
+} from "./property-browser";
 
 export function TilePropertiesEditor(props: {
   activeMap: EditorMap | undefined;
@@ -29,73 +33,88 @@ export function TilePropertiesEditor(props: {
       ? props.tileset.tiles.find((tile) => tile.localId === selectedLocalId)
       : undefined;
   const [className, setClassName] = useState(selectedTile?.className ?? "");
+  const [probability, setProbability] = useState(String(selectedTile?.probability ?? 1));
 
   useEffect(() => {
     setClassName(selectedTile?.className ?? "");
-  }, [selectedTile?.className, selectedLocalId]);
+    setProbability(String(selectedTile?.probability ?? 1));
+  }, [selectedTile?.className, selectedTile?.probability, selectedLocalId]);
 
   if (selectedLocalId === null || !selectedTile) {
     return (
-      <div className="mt-6 space-y-3 border-t border-slate-800 pt-4">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-          {t("tileProperties.title")}
-        </p>
-        <p className="text-sm text-slate-400">{t("tileProperties.emptyState")}</p>
-      </div>
+      <div className="px-3 py-3 text-sm text-slate-400">{t("tileProperties.emptyState")}</div>
     );
   }
 
-  return (
-    <div className="mt-6 space-y-4 border-t border-slate-800 pt-4">
-      <div className="flex items-center gap-3">
-        <TilePreview tileset={props.tileset} localId={selectedLocalId} />
-        <div>
-          <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-            {t("tileProperties.title")}
-          </p>
-          <p className="mt-1 text-sm text-slate-100">
-            {t("tileProperties.tileLabel", { localId: selectedLocalId })}
-            {selectedTile.imageSource ? ` · ${selectedTile.imageSource}` : ""}
-          </p>
-        </div>
-      </div>
+  const currentProbability = selectedTile.probability;
 
-      <div className="border border-slate-800 bg-slate-900/60 p-3">
-        <div className="grid gap-3">
-          <TextField
+  function commitTileMetadata(input?: {
+    className?: string;
+    probability?: string;
+  }): void {
+    const nextClassName = input?.className ?? className;
+    const nextProbabilityText = input?.probability ?? probability;
+    const nextProbability = Number.parseFloat(nextProbabilityText);
+
+    if (Number.isNaN(nextProbability) || nextProbability < 0) {
+      setProbability(String(currentProbability));
+      return;
+    }
+
+    startTransition(() => {
+      props.store.updateSelectedTileMetadata({
+        className: nextClassName.trim() || null,
+        probability: nextProbability
+      });
+    });
+  }
+
+  return (
+    <PropertyBrowserContent>
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        <PropertyBrowserGroup title={t("tileProperties.title")}>
+          <PropertyBrowserReadOnlyRow label={t("common.id")} value={String(selectedLocalId)} />
+          <PropertyBrowserTextRow
             label={t("common.class")}
             value={className}
+            onCommit={() => {
+              commitTileMetadata();
+            }}
             onChange={setClassName}
           />
-          <div className="flex justify-end">
-            <button
-              className="border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition hover:bg-amber-500/20"
-              onClick={() => {
-                startTransition(() => {
-                  props.store.updateSelectedTileMetadata({
-                    className: className.trim() || null
-                  });
-                });
-              }}
-              type="button"
-            >
-              {t("tileProperties.applyMetadata")}
-            </button>
-          </div>
+          <PropertyBrowserTextRow
+            label={t("common.probability")}
+            type="number"
+            value={probability}
+            onCommit={() => {
+              commitTileMetadata();
+            }}
+            onChange={setProbability}
+          />
+          {selectedTile.imageSource ? (
+            <PropertyBrowserReadOnlyRow
+              label={t("common.image")}
+              value={selectedTile.imageSource}
+            />
+          ) : null}
+        </PropertyBrowserGroup>
+
+        <div className="border-t border-slate-700">
+          <CustomPropertiesEditor
+            className="bg-slate-950"
+            properties={selectedTile.properties}
+            objectReferenceOptions={objectReferenceOptions}
+            propertyTypes={props.propertyTypes}
+            onRemove={(propertyName) => {
+              props.store.removeSelectedTileProperty(propertyName);
+            }}
+            onUpsert={(property, previousName) => {
+              props.store.upsertSelectedTileProperty(property, previousName);
+            }}
+            showHint={false}
+          />
         </div>
       </div>
-
-      <CustomPropertiesEditor
-        properties={selectedTile.properties}
-        objectReferenceOptions={objectReferenceOptions}
-        propertyTypes={props.propertyTypes}
-        onRemove={(propertyName) => {
-          props.store.removeSelectedTileProperty(propertyName);
-        }}
-        onUpsert={(property, previousName) => {
-          props.store.upsertSelectedTileProperty(property, previousName);
-        }}
-      />
-    </div>
+    </PropertyBrowserContent>
   );
 }

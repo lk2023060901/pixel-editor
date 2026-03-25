@@ -14,14 +14,21 @@ import {
   type PropertyValue
 } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useRef, useState, type RefObject } from "react";
 
 import { NumberField, SelectField, TextField } from "./editor-fields";
 import { getPropertyTypeLabel } from "./i18n-helpers";
 import type { ObjectReferenceOption } from "./object-reference-options";
+import {
+  PropertyBrowserGroup,
+  PropertyBrowserRow,
+  PropertyBrowserSelectRow,
+  PropertyBrowserTextRow
+} from "./property-browser";
 
 type EditablePropertyType = Exclude<PrimitivePropertyType, "object">;
 type DraftTypeValue = EditablePropertyType | "enum" | "class" | "object";
+const NEW_PROPERTY_KEY = "__new__";
 
 interface PropertyDraft {
   name: string;
@@ -275,6 +282,107 @@ function parseDraft(
   return createProperty(nextName, draft.type, draft.value);
 }
 
+function createEmptyPropertyDraft(): PropertyDraft {
+  return {
+    name: "",
+    type: "string",
+    propertyTypeName: undefined,
+    value: "",
+    classMembers: undefined
+  };
+}
+
+function getDraftTypeSelectValue(draft: PropertyDraft): string {
+  return draft.type === "enum" || draft.type === "class"
+    ? buildTypedOptionValue(draft.type, draft.propertyTypeName ?? "")
+    : draft.type;
+}
+
+function updateDraftTypeFromValue(
+  draft: PropertyDraft,
+  nextValue: string,
+  propertyTypes: readonly PropertyTypeDefinition[]
+): PropertyDraft {
+  if (nextValue.startsWith("enum:")) {
+    const propertyTypeName = nextValue.slice("enum:".length);
+    const defaultValue = createDefaultPropertyValue("enum", propertyTypeName, propertyTypes);
+
+    return {
+      ...draft,
+      type: "enum",
+      propertyTypeName,
+      value: String(defaultValue),
+      classMembers: undefined
+    };
+  }
+
+  if (nextValue.startsWith("class:")) {
+    const propertyTypeName = nextValue.slice("class:".length);
+    const defaultValue = createDefaultPropertyValue("class", propertyTypeName, propertyTypes);
+
+    return {
+      ...draft,
+      type: "class",
+      propertyTypeName,
+      value: "",
+      classMembers: isClassPropertyValue(defaultValue) ? defaultValue.members : {}
+    };
+  }
+
+  return {
+    ...draft,
+    type: nextValue as DraftTypeValue,
+    propertyTypeName: undefined,
+    value: String(createDefaultPropertyValue(nextValue as DraftTypeValue, undefined, propertyTypes)),
+    classMembers: undefined
+  };
+}
+
+function getPropertyValueSummary(
+  property: PropertyDefinition,
+  propertyTypes: readonly PropertyTypeDefinition[],
+  objectReferenceOptions: readonly ObjectReferenceOption[],
+  t: ReturnType<typeof useI18n>["t"]
+): string {
+  if (property.type === "bool") {
+    return property.value ? t("common.true") : t("common.false");
+  }
+
+  if (property.type === "enum") {
+    const enumType = getEnumPropertyTypeDefinitionByName(propertyTypes, property.propertyTypeName);
+
+    if (!enumType) {
+      return String(property.value);
+    }
+
+    if (enumType.storageType === "int") {
+      const optionIndex = typeof property.value === "number" ? property.value : -1;
+      return enumType.values[optionIndex] ?? String(property.value);
+    }
+
+    return String(property.value);
+  }
+
+  if (property.type === "object") {
+    if (!property.value || typeof property.value !== "object" || !("objectId" in property.value)) {
+      return t("common.none");
+    }
+
+    const objectId = property.value.objectId;
+
+    return (
+      objectReferenceOptions.find((option) => option.id === objectId)?.label ??
+      objectId
+    );
+  }
+
+  if (property.type === "class") {
+    return property.propertyTypeName ?? t("common.none");
+  }
+
+  return String(property.value);
+}
+
 function ClassMemberField(props: {
   classType: ClassPropertyTypeDefinition;
   propertyTypes: readonly PropertyTypeDefinition[];
@@ -476,10 +584,12 @@ function ClassMemberField(props: {
   );
 }
 
-function PropertyValueField(props: {
+function PropertyDraftEditor(props: {
   draft: PropertyDraft;
   propertyTypes: readonly PropertyTypeDefinition[];
   objectReferenceOptions: readonly ObjectReferenceOption[];
+  supportedPropertyTypes: Array<{ label: string; value: string }>;
+  nameInputRef?: RefObject<HTMLInputElement | null>;
   onChange: (draft: PropertyDraft) => void;
 }) {
   const { t } = useI18n();
@@ -492,300 +602,170 @@ function PropertyValueField(props: {
     props.draft.propertyTypeName
   );
 
-  if (props.draft.type === "class" && classType && props.draft.classMembers) {
-    return (
-      <div className="border border-slate-800 bg-slate-950/60 p-3">
-        <p className="mb-3 text-[11px] uppercase tracking-[0.18em] text-slate-500">
-          {classType.name}
-        </p>
-        <ClassMemberField
-          classType={classType}
-          members={props.draft.classMembers}
-          objectReferenceOptions={props.objectReferenceOptions}
-          propertyTypes={props.propertyTypes}
-          onChange={(members) => {
+  return (
+    <>
+      <PropertyBrowserTextRow
+        inputRef={props.nameInputRef}
+        label={t("common.name")}
+        value={props.draft.name}
+        onChange={(value) => {
+          props.onChange({
+            ...props.draft,
+            name: value
+          });
+        }}
+      />
+      <PropertyBrowserSelectRow
+        label={t("common.type")}
+        options={props.supportedPropertyTypes}
+        value={getDraftTypeSelectValue(props.draft)}
+        onChange={(value) => {
+          props.onChange(updateDraftTypeFromValue(props.draft, value, props.propertyTypes));
+        }}
+      />
+
+      {props.draft.type === "class" && classType && props.draft.classMembers ? (
+        <PropertyBrowserRow label={t("common.value")} multiLine>
+          <div className="p-2">
+            <ClassMemberField
+              classType={classType}
+              members={props.draft.classMembers}
+              objectReferenceOptions={props.objectReferenceOptions}
+              propertyTypes={props.propertyTypes}
+              onChange={(members) => {
+                props.onChange({
+                  ...props.draft,
+                  classMembers: members
+                });
+              }}
+            />
+          </div>
+        </PropertyBrowserRow>
+      ) : null}
+
+      {props.draft.type === "object" ? (
+        <PropertyBrowserSelectRow
+          label={t("common.value")}
+          options={[
+            { label: t("common.none"), value: "" },
+            ...props.objectReferenceOptions.map((option) => ({
+              label: option.label,
+              value: option.id
+            }))
+          ]}
+          value={props.draft.value}
+          onChange={(value) => {
             props.onChange({
               ...props.draft,
-              classMembers: members
+              value
             });
           }}
         />
-      </div>
-    );
-  }
+      ) : null}
 
-  if (props.draft.type === "object") {
-    return (
-      <SelectField
-        label={t("common.value")}
-        value={props.draft.value}
-        options={[
-          { label: t("common.none"), value: "" },
-          ...props.objectReferenceOptions.map((option) => ({
-            label: option.label,
-            value: option.id
-          }))
-        ]}
-        onChange={(value) => {
-          props.onChange({
-            ...props.draft,
-            value
-          });
-        }}
-      />
-    );
-  }
+      {props.draft.type === "enum" && enumType ? (
+        <PropertyBrowserSelectRow
+          label={t("common.value")}
+          options={enumType.values.map((value, index) => ({
+            label: value,
+            value: enumType.storageType === "int" ? String(index) : value
+          }))}
+          value={props.draft.value}
+          onChange={(value) => {
+            props.onChange({
+              ...props.draft,
+              value
+            });
+          }}
+        />
+      ) : null}
 
-  if (props.draft.type === "enum" && enumType) {
-    return (
-      <SelectField
-        label={t("common.value")}
-        value={props.draft.value}
-        options={enumType.values.map((value, index) => ({
-          label: value,
-          value: enumType.storageType === "int" ? String(index) : value
-        }))}
-        onChange={(value) => {
-          props.onChange({
-            ...props.draft,
-            value
-          });
-        }}
-      />
-    );
-  }
+      {props.draft.type === "bool" ? (
+        <PropertyBrowserSelectRow
+          label={t("common.value")}
+          options={[
+            { label: t("common.true"), value: "true" },
+            { label: t("common.false"), value: "false" }
+          ]}
+          value={props.draft.value}
+          onChange={(value) => {
+            props.onChange({
+              ...props.draft,
+              value
+            });
+          }}
+        />
+      ) : null}
 
-  if (props.draft.type === "bool") {
-    return (
-      <SelectField
-        label={t("common.value")}
-        value={props.draft.value}
-        options={[
-          { label: t("common.true"), value: "true" },
-          { label: t("common.false"), value: "false" }
-        ]}
-        onChange={(value) => {
-          props.onChange({
-            ...props.draft,
-            value
-          });
-        }}
-      />
-    );
-  }
+      {props.draft.type === "int" || props.draft.type === "float" ? (
+        <PropertyBrowserTextRow
+          label={t("common.value")}
+          type="number"
+          value={props.draft.value}
+          onChange={(value) => {
+            props.onChange({
+              ...props.draft,
+              value
+            });
+          }}
+        />
+      ) : null}
 
-  if (props.draft.type === "int" || props.draft.type === "float") {
-    return (
-      <NumberField
-        label={t("common.value")}
-        value={props.draft.value}
-        onChange={(value) => {
-          props.onChange({
-            ...props.draft,
-            value
-          });
-        }}
-      />
-    );
-  }
+      {props.draft.type === "string" ||
+      props.draft.type === "color" ||
+      props.draft.type === "file" ? (
+        <PropertyBrowserTextRow
+          label={t("common.value")}
+          value={props.draft.value}
+          onChange={(value) => {
+            props.onChange({
+              ...props.draft,
+              value
+            });
+          }}
+        />
+      ) : null}
 
-  return (
-    <TextField
-      label={t("common.value")}
-      value={props.draft.value}
-      onChange={(value) => {
-        props.onChange({
-          ...props.draft,
-          value
-        });
-      }}
-    />
+      {props.draft.type === "enum" && !enumType ? (
+        <PropertyBrowserRow label={t("common.value")} multiLine>
+          <p className="px-2 py-2 text-xs text-slate-400">
+            {t("propertiesEditor.unsupportedReadonly", {
+              type: getPropertyTypeLabel("enum", t)
+            })}
+          </p>
+        </PropertyBrowserRow>
+      ) : null}
+    </>
   );
 }
 
-function EditablePropertyRow(props: {
+function PropertyListRow(props: {
   property: PropertyDefinition;
+  selected: boolean;
   propertyTypes: readonly PropertyTypeDefinition[];
   objectReferenceOptions: readonly ObjectReferenceOption[];
-  onUpsert: (property: PropertyDefinition, previousName?: string) => void;
-  onRemove: (propertyName: string) => void;
+  onSelect: () => void;
 }) {
   const { t } = useI18n();
-  const supportedPropertyTypes: Array<{ label: string; value: string }> = [
-    { label: t("propertyType.string"), value: "string" },
-    { label: t("propertyType.int"), value: "int" },
-    { label: t("propertyType.float"), value: "float" },
-    { label: t("propertyType.bool"), value: "bool" },
-    { label: t("propertyType.color"), value: "color" },
-    { label: t("propertyType.file"), value: "file" },
-    { label: t("propertyType.object"), value: "object" },
-    ...getEnumPropertyTypes(props.propertyTypes).map((propertyType) => ({
-      label: t("propertiesEditor.enumTypeOption", { name: propertyType.name }),
-      value: buildTypedOptionValue("enum", propertyType.name)
-    })),
-    ...getClassPropertyTypes(props.propertyTypes).map((propertyType) => ({
-      label: t("propertiesEditor.classTypeOption", { name: propertyType.name }),
-      value: buildTypedOptionValue("class", propertyType.name)
-    }))
-  ];
-  const enumType = getEnumPropertyTypeDefinitionByName(
-    props.propertyTypes,
-    props.property.propertyTypeName
-  );
-  const classType = getClassPropertyTypeDefinitionByName(
-    props.propertyTypes,
-    props.property.propertyTypeName
-  );
-  const [draft, setDraft] = useState(() => createPropertyDraft(props.property, props.propertyTypes));
-
-  useEffect(() => {
-    setDraft(createPropertyDraft(props.property, props.propertyTypes));
-  }, [props.property, props.propertyTypes]);
-
-  const isEditable =
-    (props.property.type !== "enum" || enumType !== undefined) &&
-    (props.property.type !== "class" || classType !== undefined);
 
   return (
-    <div className="border border-slate-800 bg-slate-900/60 p-3">
-      {isEditable ? (
-        <div className="grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <TextField
-              label={t("common.name")}
-              value={draft.name}
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, name: value }));
-              }}
-            />
-            <SelectField
-              label={t("common.type")}
-              value={
-                draft.type === "enum" || draft.type === "class"
-                  ? buildTypedOptionValue(draft.type, draft.propertyTypeName ?? "")
-                  : draft.type
-              }
-              options={supportedPropertyTypes}
-              onChange={(value) => {
-                if (value.startsWith("enum:")) {
-                  const propertyTypeName = value.slice("enum:".length);
-                  const propertyType = getEnumPropertyTypeDefinitionByName(
-                    props.propertyTypes,
-                    propertyTypeName
-                  );
-                  const defaultValue = createDefaultPropertyValue(
-                    "enum",
-                    propertyTypeName,
-                    props.propertyTypes
-                  );
-
-                  setDraft((current) => ({
-                    ...current,
-                    type: "enum",
-                    propertyTypeName,
-                    value: String(defaultValue),
-                    classMembers: undefined
-                  }));
-                  return;
-                }
-
-                if (value.startsWith("class:")) {
-                  const propertyTypeName = value.slice("class:".length);
-                  const defaultValue = createDefaultPropertyValue(
-                    "class",
-                    propertyTypeName,
-                    props.propertyTypes
-                  );
-
-                  setDraft((current) => ({
-                    ...current,
-                    type: "class",
-                    propertyTypeName,
-                    value: "",
-                    classMembers: isClassPropertyValue(defaultValue)
-                      ? defaultValue.members
-                      : {}
-                  }));
-                  return;
-                }
-
-                setDraft((current) => ({
-                  ...current,
-                  type: value as DraftTypeValue,
-                  propertyTypeName: undefined,
-                  value: String(
-                    createDefaultPropertyValue(
-                      value as DraftTypeValue,
-                      undefined,
-                      props.propertyTypes
-                    )
-                  ),
-                  classMembers: undefined
-                }));
-              }}
-            />
-          </div>
-          <PropertyValueField
-            draft={draft}
-            objectReferenceOptions={props.objectReferenceOptions}
-            propertyTypes={props.propertyTypes}
-            onChange={setDraft}
-          />
-          <div className="flex justify-end gap-2">
-            <button
-              className="border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-slate-500"
-              onClick={() => {
-                startTransition(() => {
-                  props.onRemove(props.property.name);
-                });
-              }}
-              type="button"
-            >
-              {t("common.remove")}
-            </button>
-            <button
-              className="border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/20"
-              onClick={() => {
-                const nextProperty = parseDraft(draft, props.propertyTypes);
-
-                if (!nextProperty) {
-                  return;
-                }
-
-                startTransition(() => {
-                  props.onUpsert(nextProperty, props.property.name);
-                });
-              }}
-              type="button"
-            >
-              {t("propertiesEditor.saveProperty")}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div className="space-y-3">
-          <div>
-            <p className="text-sm text-slate-100">{props.property.name}</p>
-            <p className="mt-1 text-xs text-slate-400">
-              {t("propertiesEditor.unsupportedReadonly", {
-                type: getPropertyTypeLabel(props.property.type, t)
-              })}
-            </p>
-          </div>
-          <button
-            className="border border-slate-700 bg-slate-950/70 px-3 py-2 text-xs font-medium text-slate-200 transition hover:border-slate-500"
-            onClick={() => {
-              startTransition(() => {
-                props.onRemove(props.property.name);
-              });
-            }}
-            type="button"
-          >
-            {t("common.remove")}
-          </button>
-        </div>
-      )}
-    </div>
+    <button
+      className={`grid w-full grid-cols-[minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-slate-800 px-2 py-1.5 text-left transition last:border-b-0 ${
+        props.selected ? "bg-blue-600/25 text-slate-50" : "bg-slate-950 text-slate-200 hover:bg-slate-900"
+      }`}
+      onClick={props.onSelect}
+      type="button"
+    >
+      <span className="min-w-0 truncate text-sm">{props.property.name}</span>
+      <span className="min-w-0 truncate text-right text-xs text-slate-400">
+        {getPropertyValueSummary(
+          props.property,
+          props.propertyTypes,
+          props.objectReferenceOptions,
+          t
+        )}
+      </span>
+    </button>
   );
 }
 
@@ -803,6 +783,7 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
   const { t } = useI18n();
   const propertyTypes = props.propertyTypes ?? [];
   const objectReferenceOptions = props.objectReferenceOptions ?? [];
+  const nameInputRef = useRef<HTMLInputElement>(null);
   const supportedPropertyTypes: Array<{ label: string; value: string }> = [
     { label: t("propertyType.string"), value: "string" },
     { label: t("propertyType.int"), value: "int" },
@@ -820,145 +801,172 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
       value: buildTypedOptionValue("class", propertyType.name)
     }))
   ];
-  const [newPropertyDraft, setNewPropertyDraft] = useState<PropertyDraft>({
-    name: "",
-    type: "string",
-    propertyTypeName: undefined,
-    value: "",
-    classMembers: undefined
-  });
+  const [activePropertyKey, setActivePropertyKey] = useState<string | null>(null);
+  const [activeDraft, setActiveDraft] = useState<PropertyDraft | null>(null);
+  const [previousName, setPreviousName] = useState<string | undefined>(undefined);
+  const [nameFocusToken, setNameFocusToken] = useState(0);
+
+  useEffect(() => {
+    if (!activePropertyKey || activePropertyKey === NEW_PROPERTY_KEY) {
+      return;
+    }
+
+    const property = props.properties.find((item) => item.name === activePropertyKey);
+
+    if (!property) {
+      setActivePropertyKey(null);
+      setActiveDraft(null);
+      setPreviousName(undefined);
+      return;
+    }
+
+    setActiveDraft(createPropertyDraft(property, propertyTypes));
+    setPreviousName(property.name);
+  }, [activePropertyKey, props.properties, propertyTypes]);
+
+  useEffect(() => {
+    if (nameFocusToken === 0) {
+      return;
+    }
+
+    nameInputRef.current?.focus();
+    nameInputRef.current?.select();
+  }, [nameFocusToken]);
+
+  const selectedExistingProperty =
+    activePropertyKey && activePropertyKey !== NEW_PROPERTY_KEY
+      ? props.properties.find((property) => property.name === activePropertyKey)
+      : undefined;
+
+  function beginCreate(): void {
+    setActivePropertyKey(NEW_PROPERTY_KEY);
+    setActiveDraft(createEmptyPropertyDraft());
+    setPreviousName(undefined);
+    setNameFocusToken((current) => current + 1);
+  }
+
+  function selectProperty(propertyName: string): void {
+    if (activePropertyKey === propertyName) {
+      setActivePropertyKey(null);
+      setActiveDraft(null);
+      setPreviousName(undefined);
+      return;
+    }
+
+    setActivePropertyKey(propertyName);
+  }
+
+  function focusPropertyName(): void {
+    if (!activeDraft) {
+      return;
+    }
+
+    setNameFocusToken((current) => current + 1);
+  }
+
+  function removeSelectedProperty(): void {
+    if (!selectedExistingProperty) {
+      return;
+    }
+
+    startTransition(() => {
+      props.onRemove(selectedExistingProperty.name);
+    });
+    setActivePropertyKey(null);
+    setActiveDraft(null);
+    setPreviousName(undefined);
+  }
+
+  function saveActiveDraft(): void {
+    if (!activeDraft) {
+      return;
+    }
+
+    const nextProperty = parseDraft(activeDraft, propertyTypes);
+
+    if (!nextProperty) {
+      return;
+    }
+
+    startTransition(() => {
+      props.onUpsert(nextProperty, previousName);
+    });
+    setActivePropertyKey(nextProperty.name);
+    setActiveDraft(createPropertyDraft(nextProperty, propertyTypes));
+    setPreviousName(nextProperty.name);
+  }
 
   return (
     <div className={props.className}>
-      <div className="space-y-3">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-          {t("propertiesEditor.customProperties")}
-        </p>
+      <PropertyBrowserGroup title={t("propertiesEditor.customProperties")}>
         {props.properties.length === 0 ? (
-          <p className="text-sm text-slate-400">{t("propertiesEditor.noCustomProperties")}</p>
-        ) : null}
-        {props.properties.map((property) => (
-          <EditablePropertyRow
-            key={property.name}
-            property={property}
-            propertyTypes={propertyTypes}
-            objectReferenceOptions={objectReferenceOptions}
-            onRemove={props.onRemove}
-            onUpsert={props.onUpsert}
-          />
-        ))}
-      </div>
-
-      <div className="mt-3 border border-slate-800 bg-slate-900/60 p-3">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-          {t("propertiesEditor.addProperty")}
-        </p>
-        <div className="mt-3 grid gap-3">
-          <div className="grid grid-cols-2 gap-3">
-            <TextField
-              label={t("common.name")}
-              value={newPropertyDraft.name}
-              onChange={(value) => {
-                setNewPropertyDraft((current) => ({ ...current, name: value }));
+          <div className="border-b border-slate-800 bg-slate-950 px-2 py-2 text-sm text-slate-400">
+            {t("propertiesEditor.noCustomProperties")}
+          </div>
+        ) : (
+          props.properties.map((property) => (
+            <PropertyListRow
+              key={property.name}
+              objectReferenceOptions={objectReferenceOptions}
+              property={property}
+              propertyTypes={propertyTypes}
+              selected={activePropertyKey === property.name}
+              onSelect={() => {
+                selectProperty(property.name);
               }}
             />
-            <SelectField
-              label={t("common.type")}
-              value={
-                newPropertyDraft.type === "enum" || newPropertyDraft.type === "class"
-                  ? buildTypedOptionValue(newPropertyDraft.type, newPropertyDraft.propertyTypeName ?? "")
-                  : newPropertyDraft.type
-              }
-              options={supportedPropertyTypes}
-              onChange={(value) => {
-                if (value.startsWith("enum:")) {
-                  const propertyTypeName = value.slice("enum:".length);
-                  const defaultValue = createDefaultPropertyValue(
-                    "enum",
-                    propertyTypeName,
-                    propertyTypes
-                  );
+          ))
+        )}
 
-                  setNewPropertyDraft((current) => ({
-                    ...current,
-                    type: "enum",
-                    propertyTypeName,
-                    value: String(defaultValue),
-                    classMembers: undefined
-                  }));
-                  return;
-                }
-
-                if (value.startsWith("class:")) {
-                  const propertyTypeName = value.slice("class:".length);
-                  const defaultValue = createDefaultPropertyValue(
-                    "class",
-                    propertyTypeName,
-                    propertyTypes
-                  );
-
-                  setNewPropertyDraft((current) => ({
-                    ...current,
-                    type: "class",
-                    propertyTypeName,
-                    value: "",
-                    classMembers: isClassPropertyValue(defaultValue)
-                      ? defaultValue.members
-                      : {}
-                  }));
-                  return;
-                }
-
-                setNewPropertyDraft((current) => ({
-                  ...current,
-                  type: value as DraftTypeValue,
-                  propertyTypeName: undefined,
-                  value: String(
-                    createDefaultPropertyValue(
-                      value as DraftTypeValue,
-                      undefined,
-                      propertyTypes
-                    )
-                  ),
-                  classMembers: undefined
-                }));
-              }}
+        {activeDraft ? (
+          <div className="border-t border-slate-700">
+            <PropertyDraftEditor
+              draft={activeDraft}
+              nameInputRef={nameInputRef}
+              objectReferenceOptions={objectReferenceOptions}
+              propertyTypes={propertyTypes}
+              supportedPropertyTypes={supportedPropertyTypes}
+              onChange={setActiveDraft}
             />
           </div>
-          <PropertyValueField
-            draft={newPropertyDraft}
-            objectReferenceOptions={objectReferenceOptions}
-            propertyTypes={propertyTypes}
-            onChange={setNewPropertyDraft}
-          />
-          <div className="flex justify-end">
+        ) : null}
+
+        <div className="flex items-center gap-px border-t border-slate-700 bg-slate-800 p-1">
+          <button
+            className="border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 transition hover:bg-slate-800"
+            onClick={beginCreate}
+            type="button"
+          >
+            {t("common.add")}
+          </button>
+          <button
+            className="border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+            disabled={!selectedExistingProperty}
+            onClick={removeSelectedProperty}
+            type="button"
+          >
+            {t("common.remove")}
+          </button>
+          <button
+            className="border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
+            disabled={!activeDraft}
+            onClick={focusPropertyName}
+            type="button"
+          >
+            {t("common.rename")}
+          </button>
+          <div className="ml-auto">
             <button
-              className="border border-sky-500/50 bg-sky-500/10 px-3 py-2 text-xs font-medium text-sky-100 transition hover:bg-sky-500/20"
-              onClick={() => {
-                const nextProperty = parseDraft(newPropertyDraft, propertyTypes);
-
-                if (!nextProperty) {
-                  return;
-                }
-
-                startTransition(() => {
-                  props.onUpsert(nextProperty);
-                });
-                setNewPropertyDraft({
-                  name: "",
-                  type: "string",
-                  propertyTypeName: undefined,
-                  value: "",
-                  classMembers: undefined
-                });
-              }}
+              className="border border-sky-500/50 bg-sky-500/10 px-2 py-1 text-xs text-sky-100 transition hover:bg-sky-500/20 disabled:cursor-not-allowed disabled:border-slate-800 disabled:bg-slate-900 disabled:text-slate-500"
+              disabled={!activeDraft}
+              onClick={saveActiveDraft}
               type="button"
             >
-              {t("propertiesEditor.addProperty")}
+              {previousName ? t("propertiesEditor.saveProperty") : t("propertiesEditor.addProperty")}
             </button>
           </div>
         </div>
-      </div>
+      </PropertyBrowserGroup>
 
       {props.showHint ?? true ? (
         <div className="mt-3 border border-slate-800 bg-slate-950/70 px-3 py-3 text-xs text-slate-400">

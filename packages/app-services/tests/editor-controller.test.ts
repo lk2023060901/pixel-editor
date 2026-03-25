@@ -805,7 +805,8 @@ describe("editor controller", () => {
       tileRenderSize: "grid"
     });
     store.updateSelectedTileMetadata({
-      className: "TerrainSlope"
+      className: "TerrainSlope",
+      probability: 0.25
     });
     store.upsertSelectedTileProperty(createProperty("terrainType", "string", "grass"));
 
@@ -819,7 +820,8 @@ describe("editor controller", () => {
     });
     expect(snapshot.workspace.session.activeTilesetTileLocalId).toBe(5);
     expect(snapshot.activeTileset?.tiles[5]).toMatchObject({
-      className: "TerrainSlope"
+      className: "TerrainSlope",
+      probability: 0.25
     });
     expect(snapshot.activeTileset?.tiles[5]?.properties).toEqual([
       createProperty("terrainType", "string", "grass")

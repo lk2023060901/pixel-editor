@@ -182,7 +182,8 @@ describe("tileset operations", () => {
     });
 
     const withMetadata = updateTilesetTileMetadata(tileset, 1, {
-      className: "PropRock"
+      className: "PropRock",
+      probability: 0.5
     });
     const withProperty = upsertTilesetTileProperty(
       withMetadata,
@@ -199,7 +200,8 @@ describe("tileset operations", () => {
 
     expect(withMetadata.tiles[1]).toMatchObject({
       localId: 1,
-      className: "PropRock"
+      className: "PropRock",
+      probability: 0.5
     });
     expect(withProperty.tiles[1]?.properties).toEqual([
       createProperty("biome", "string", "forest")
