@@ -4,7 +4,8 @@ import {
   createProject,
   createProperty,
   getMapGlobalTileGid,
-  getTileLayerCell
+  getTileLayerCell,
+  type TileAnimationFrame
 } from "@pixel-editor/domain";
 import {
   createEditorWorkspaceState,
@@ -836,5 +837,23 @@ describe("editor controller", () => {
     snapshot = store.getSnapshot();
 
     expect(snapshot.activeTileset?.tiles[5]?.properties).toEqual([]);
+  });
+
+  it("updates selected tile animation frames through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const firstTilesetId = store.getState().tilesets[0]!.id;
+    const frames: TileAnimationFrame[] = [
+      { tileId: 1, durationMs: 100 },
+      { tileId: 4, durationMs: 220 }
+    ];
+
+    store.setActiveTileset(firstTilesetId);
+    store.selectStampTile(firstTilesetId, 3);
+    store.updateSelectedTileAnimation(frames);
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.session.activeTilesetTileLocalId).toBe(3);
+    expect(snapshot.activeTileset?.tiles[3]?.animation).toEqual(frames);
   });
 });

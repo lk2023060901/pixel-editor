@@ -72,6 +72,7 @@ export {
   listTilesetLocalIds,
   removeTilesetTileProperty,
   resolveMapTileGid,
+  updateTilesetTileAnimation,
   updateTilesetDetails,
   updateTilesetTileMetadata,
   upsertTilesetTileProperty,

@@ -17,13 +17,19 @@ import {
   getTileStampPrimaryGid,
   type TileStamp
 } from "@pixel-editor/editor-state";
-import type { CSSProperties, ReactNode } from "react";
+import type { ReactNode } from "react";
 import { startTransition, useMemo, useState } from "react";
 
 import { getTilesetKindLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 import { TilePropertiesEditor } from "./tile-properties-editor";
 import { TilePreview } from "./tile-preview";
+import {
+  buildImageCollectionTileStyle,
+  buildImageTilesetTileStyle,
+  getImageTilesetColumns,
+  TILESET_VIEW_ZOOM_OPTIONS
+} from "./tileset-view-helpers";
 import { TilesetCreateForms } from "./tileset-create-forms";
 import { TilesetDetailsForm } from "./tileset-details-form";
 
@@ -35,101 +41,23 @@ export interface TilesetsPanelProps {
   activeStamp: TileStamp;
   propertyTypes: readonly PropertyTypeDefinition[] | undefined;
   store: EditorController;
+  onOpenTileAnimationEditor?: () => void;
   embedded?: boolean;
-}
-
-const TILESET_DOCK_ZOOM_OPTIONS = [0.5, 1, 2, 4] as const;
-
-function getImageTilesetColumns(tileset: TilesetDefinition): number | undefined {
-  if (tileset.kind !== "image" || !tileset.source) {
-    return undefined;
-  }
-
-  if (tileset.source.columns !== undefined) {
-    return tileset.source.columns;
-  }
-
-  if (tileset.source.imageWidth === undefined) {
-    return undefined;
-  }
-
-  return Math.floor(
-    (tileset.source.imageWidth - tileset.source.margin * 2 + tileset.source.spacing) /
-      Math.max(1, tileset.tileWidth + tileset.source.spacing)
-  );
-}
-
-function buildImageTilesetTileStyle(
-  tileset: TilesetDefinition,
-  localId: number,
-  zoom: number
-): CSSProperties | undefined {
-  if (
-    tileset.kind !== "image" ||
-    !tileset.source ||
-    tileset.source.imageWidth === undefined ||
-    tileset.source.imageHeight === undefined
-  ) {
-    return undefined;
-  }
-
-  const columns = getImageTilesetColumns(tileset);
-
-  if (!columns || columns <= 0) {
-    return undefined;
-  }
-
-  const column = localId % columns;
-  const row = Math.floor(localId / columns);
-  const offsetX =
-    tileset.source.margin + column * (tileset.tileWidth + tileset.source.spacing);
-  const offsetY =
-    tileset.source.margin + row * (tileset.tileHeight + tileset.source.spacing);
-
-  return {
-    width: `${tileset.tileWidth * zoom}px`,
-    height: `${tileset.tileHeight * zoom}px`,
-    backgroundImage: `url(${tileset.source.imagePath})`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: `-${offsetX * zoom}px -${offsetY * zoom}px`,
-    backgroundSize: `${tileset.source.imageWidth * zoom}px ${tileset.source.imageHeight * zoom}px`
-  };
-}
-
-function buildImageCollectionTileStyle(
-  tileset: TilesetDefinition,
-  localId: number,
-  zoom: number
-): CSSProperties | undefined {
-  if (tileset.kind !== "image-collection") {
-    return undefined;
-  }
-
-  const tile = getTilesetTileByLocalId(tileset, localId);
-
-  if (!tile?.imageSource) {
-    return undefined;
-  }
-
-  return {
-    width: `${tileset.tileWidth * zoom}px`,
-    height: `${tileset.tileHeight * zoom}px`,
-    backgroundImage: `url(${tile.imageSource})`,
-    backgroundRepeat: "no-repeat",
-    backgroundPosition: "center",
-    backgroundSize: "contain"
-  };
 }
 
 function TilesetDockToolbarButton(props: {
   title: string;
   children: ReactNode;
+  disabled?: boolean | undefined;
+  onClick?: (() => void) | undefined;
 }) {
   return (
     <button
-      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900 text-slate-300"
+      className="flex h-6 w-6 items-center justify-center rounded border border-slate-700 bg-slate-900 text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={props.disabled}
       title={props.title}
       type="button"
+      onClick={props.onClick}
     >
       {props.children}
     </button>
@@ -329,7 +257,8 @@ function TilesetsDockContent({
   tilesets,
   activeTilesetId,
   activeTileLocalId,
-  store
+  store,
+  onOpenTileAnimationEditor
 }: Omit<TilesetsPanelProps, "embedded" | "activeStamp">) {
   const { t } = useI18n();
   const [zoom, setZoom] = useState<number>(1);
@@ -510,6 +439,17 @@ function TilesetsDockContent({
             <path d="M7 8l-2 2.5L7 13" />
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
+        <TilesetDockToolbarButton
+          disabled={selectedLocalId === null || !onOpenTileAnimationEditor}
+          title={t("action.tileAnimationEditor")}
+          onClick={onOpenTileAnimationEditor}
+        >
+          <TilesetDockIcon>
+            <rect x="2.5" y="3" width="3.5" height="10" rx="0.75" />
+            <rect x="7.5" y="3" width="6" height="10" rx="0.75" />
+            <path d="M9.5 5.5l2.5 2-2.5 2z" fill="currentColor" stroke="none" />
+          </TilesetDockIcon>
+        </TilesetDockToolbarButton>
         <TilesetDockToolbarButton title={t("action.removeTiles")}>
           <TilesetDockIcon>
             <path d="M4.5 5.5h7" />
@@ -527,7 +467,7 @@ function TilesetsDockContent({
             setZoom(Number(event.target.value));
           }}
         >
-          {TILESET_DOCK_ZOOM_OPTIONS.map((option) => (
+          {TILESET_VIEW_ZOOM_OPTIONS.map((option) => (
             <option key={option} value={option}>
               {Math.round(option * 100)} %
             </option>

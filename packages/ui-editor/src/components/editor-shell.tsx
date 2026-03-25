@@ -25,6 +25,7 @@ import {
   type TiledMenuItemSpec2,
   type ToolbarActionSpec
 } from "./toolbar-spec";
+import { TileAnimationEditorDialog } from "./tile-animation-editor-dialog";
 import { TilesetsPanel } from "./tilesets-panel";
 
 export interface EditorShellProps {
@@ -234,6 +235,7 @@ export function EditorShell({ store }: EditorShellProps) {
   const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [tileAnimationEditorOpen, setTileAnimationEditorOpen] = useState(false);
   const [statusInfo, setStatusInfo] = useState("");
   const menuBarRef = useRef<HTMLDivElement | null>(null);
   const snapshot = useSyncExternalStore(
@@ -439,6 +441,9 @@ export function EditorShell({ store }: EditorShellProps) {
           store.moveActiveLayer("down");
         });
         return;
+      case "tile-animation-editor":
+        setTileAnimationEditorOpen(true);
+        return;
       default:
         return;
     }
@@ -490,6 +495,9 @@ export function EditorShell({ store }: EditorShellProps) {
         activeTilesetId={snapshot.workspace.session.activeTilesetId}
         activeTileLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
         activeStamp={activeStamp}
+        onOpenTileAnimationEditor={() => {
+          setTileAnimationEditorOpen(true);
+        }}
         propertyTypes={snapshot.workspace.project.propertyTypes}
         store={store}
       />
@@ -722,6 +730,16 @@ export function EditorShell({ store }: EditorShellProps) {
             });
           }}
         />
+        {tileAnimationEditorOpen && snapshot.activeTileset ? (
+          <TileAnimationEditorDialog
+            selectedLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
+            store={store}
+            tileset={snapshot.activeTileset}
+            onClose={() => {
+              setTileAnimationEditorOpen(false);
+            }}
+          />
+        ) : null}
       </div>
     </div>
   );

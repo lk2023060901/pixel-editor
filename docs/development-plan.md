@@ -105,7 +105,7 @@ Last updated: 2026-03-25
 | TSET-004 | Tileset | Tile 属性编辑 | TSET-003, DOM-006 | 开发中 | 已支持 tile class 与 primitive + enum + class + object reference custom properties 编辑，并将 Tile Properties 收成连续 property rows、移除 Apply 元数据按钮、接入紧凑 custom properties browser；property browser 细节与高级 tile 元数据待补 |
 | TSET-005 | Tileset | Tile Probability | TSET-004 | 已完成 | 已在 Tile Properties 中接入概率 property row、即时提交与 controller/domain 测试链路，为 random mode 提供 tile 权重元数据 |
 | TSET-006 | Tileset | Typed Tiles | TSET-004, DOM-006 | 已完成 | 已接入 tile class 对应的 suggested/inherited properties 解析、显式属性覆盖合并、继承属性在 Tile Properties 中的展示与覆写编辑，并通过 domain/seed 测试链路验证 |
-| TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 未开始 | frame 列表与 duration |
+| TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 已完成 | 已接入 Tiled 风格的 tile animation editor 对话框，支持 frame 列表、拖拽重排、duration 应用与 tileset 选帧，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 未开始 | tile 内 objectgroup 编辑 |
 | TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 未开始 | tileset 高级能力入口 |
 | LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 未开始 | 包含 repeatx/repeaty |

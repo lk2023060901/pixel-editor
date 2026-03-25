@@ -6,12 +6,14 @@ import {
   getMapGlobalTileGid,
   getTilesetTileCount,
   removeTilesetTileProperty,
+  updateTilesetTileAnimation,
   updateTilesetDetails,
   updateTilesetTileMetadata,
   upsertTilesetTileProperty,
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type MapId,
+  type TileAnimationFrame,
   type PropertyDefinition,
   type TilesetDefinition,
   type TilesetId,
@@ -250,5 +252,22 @@ export function removeTilesetTilePropertyCommand(
       updateWorkspaceTileset(state, tilesetId, (tileset) =>
         removeTilesetTileProperty(tileset, localId, propertyName)
       )
+  });
+}
+
+export function updateTilesetTileAnimationCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  animation: readonly TileAnimationFrame[]
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.animation:${tilesetId}:${localId}`,
+    description: `Update animation for tile ${localId} in tileset ${tilesetId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        updateTilesetTileAnimation(tileset, localId, animation)
+      ),
+    canMerge: (next) => next.id === `tileset.tile.animation:${tilesetId}:${localId}`,
+    merge: (next) => next
   });
 }

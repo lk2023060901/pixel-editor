@@ -354,6 +354,10 @@ export const EN_MESSAGES = {
     "Unsupported property type `{type}` is currently read-only.",
   "tileProperties.primitiveHint":
     "Properties editor currently supports primitive, enum, class, and object reference property types.",
+  "tileAnimationEditor.frameDuration": "Frame Duration:",
+  "tileAnimationEditor.ms": "ms",
+  "tileAnimationEditor.preview": "Preview",
+  "tileAnimationEditor.noFrames": "Double-click a tile to add an animation frame.",
   "tilesetCreate.spriteTitle": "Create Sprite Sheet Tileset",
   "tilesetCreate.collectionTitle": "Create Image Collection",
   "tilesetCreate.imageSources": "Image Sources",
@@ -740,6 +744,10 @@ export const ZH_CN_MESSAGES: { [K in I18nMessageKey]: string } = {
   "tileProperties.unsupportedReadonly": "不支持的属性类型 `{type}` 当前为只读。",
   "tileProperties.primitiveHint":
     "属性编辑器当前支持基础属性类型、枚举属性、类属性和对象引用属性。",
+  "tileAnimationEditor.frameDuration": "帧时长：",
+  "tileAnimationEditor.ms": "毫秒",
+  "tileAnimationEditor.preview": "预览",
+  "tileAnimationEditor.noFrames": "双击右侧图块以添加动画帧。",
   "tilesetCreate.spriteTitle": "创建精灵表图块集",
   "tilesetCreate.collectionTitle": "创建图片集合",
   "tilesetCreate.imageSources": "图片来源",

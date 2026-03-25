@@ -510,7 +510,7 @@ export function getTiledMainMenus(
     id: "tileset",
     label: t("menu.tileset"),
     items: [
-      menuAction("tile-animation-editor", t("action.tileAnimationEditor"), { implemented: false }),
+      menuAction("tile-animation-editor", t("action.tileAnimationEditor"), { implemented: true }),
       menuAction("rearrange-tiles", t("action.rearrangeTiles"), { implemented: false }),
       menuAction("edit-collision", t("action.editCollision"), { implemented: false }),
       menuAction("edit-wang-sets", t("action.editWangSets"), { implemented: false }),

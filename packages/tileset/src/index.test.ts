@@ -6,6 +6,7 @@ import {
   createTileDefinition,
   createTileset,
   createProject,
+  type TileAnimationFrame,
   type EditorMap
 } from "@pixel-editor/domain";
 import {
@@ -19,6 +20,7 @@ import {
   removeTilesetTilePropertyCommand,
   selectTilesetStampCommand,
   setActiveTilesetCommand,
+  updateTilesetTileAnimationCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
   upsertTilesetTilePropertyCommand
@@ -267,5 +269,34 @@ describe("tileset commands", () => {
     history.execute(removeTilesetTilePropertyCommand(tileset.id, 0, "spawnWeight"));
 
     expect(history.state.tilesets[0]?.tiles[0]?.properties).toEqual([]);
+  });
+
+  it("updates tile animation frames", () => {
+    const tileset = {
+      ...createTileset({
+        name: "terrain",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1), createTileDefinition(2)]
+    };
+    const history = new CommandHistory(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets"]
+        }),
+        tilesets: [tileset]
+      })
+    );
+    const frames: TileAnimationFrame[] = [
+      { tileId: 0, durationMs: 100 },
+      { tileId: 2, durationMs: 160 }
+    ];
+
+    history.execute(updateTilesetTileAnimationCommand(tileset.id, 1, frames));
+
+    expect(history.state.tilesets[0]?.tiles[1]?.animation).toEqual(frames);
   });
 });

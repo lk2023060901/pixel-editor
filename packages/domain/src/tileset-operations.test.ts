@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createMap,
   createProperty,
+  type TileAnimationFrame,
   createTileDefinition,
   createTileset
 } from "./index";
@@ -15,6 +16,7 @@ import {
   listTilesetLocalIds,
   removeTilesetTileProperty,
   resolveMapTileGid,
+  updateTilesetTileAnimation,
   updateTilesetDetails,
   updateTilesetTileMetadata,
   upsertTilesetTileProperty
@@ -210,5 +212,27 @@ describe("tileset operations", () => {
       createProperty("spawnWeight", "int", 4)
     ]);
     expect(cleaned.tiles[1]?.properties).toEqual([]);
+  });
+
+  it("updates tile animation frames by local id", () => {
+    const tileset = createImageCollectionTileset({
+      name: "props",
+      tileWidth: 32,
+      tileHeight: 32,
+      imageSources: [
+        "/demo/props/prop-1.svg",
+        "/demo/props/prop-2.svg",
+        "/demo/props/prop-3.svg"
+      ]
+    });
+    const animation: TileAnimationFrame[] = [
+      { tileId: 0, durationMs: 100 },
+      { tileId: 2, durationMs: 180 }
+    ];
+
+    const updated = updateTilesetTileAnimation(tileset, 1, animation);
+
+    expect(updated.tiles[1]?.animation).toEqual(animation);
+    expect(updated.tiles[1]?.animation).not.toBe(animation);
   });
 });

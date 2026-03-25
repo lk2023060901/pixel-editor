@@ -7,6 +7,7 @@ import {
 } from "./property";
 import {
   createTileDefinition,
+  type TileAnimationFrame,
   createTileset,
   type CreateTilesetInput,
   type TileDefinition,
@@ -86,6 +87,13 @@ export interface UpdateTilesetDetailsInput {
 export interface UpdateTileMetadataInput {
   className?: string | null;
   probability?: number;
+}
+
+function cloneTileAnimationFrame(frame: TileAnimationFrame): TileAnimationFrame {
+  return {
+    tileId: frame.tileId,
+    durationMs: frame.durationMs
+  };
 }
 
 function assertPositiveDimension(name: string, value: number): void {
@@ -315,6 +323,22 @@ export function removeTilesetTileProperty(
   return updateTileDefinition(tileset, localId, (tile) => ({
     ...tile,
     properties: removePropertyDefinition(tile.properties, propertyName)
+  }));
+}
+
+export function updateTilesetTileAnimation(
+  tileset: TilesetDefinition,
+  localId: number,
+  animation: readonly TileAnimationFrame[]
+): TilesetDefinition {
+  animation.forEach((frame, frameIndex) => {
+    requireValidTileLocalId(tileset, frame.tileId);
+    assertNonNegative(`animation[${frameIndex}].durationMs`, frame.durationMs);
+  });
+
+  return updateTileDefinition(tileset, localId, (tile) => ({
+    ...tile,
+    animation: animation.map(cloneTileAnimationFrame)
   }));
 }
 

@@ -15,6 +15,7 @@ import {
   type ObjectId,
   type ObjectLayer,
   type PropertyDefinition,
+  type TileAnimationFrame,
   type TilesetDefinition,
   type UpdateMapObjectDetailsInput,
   type UpdateTileMetadataInput,
@@ -103,6 +104,7 @@ import {
   removeTilesetTilePropertyCommand,
   selectTilesetStampCommand,
   setActiveTilesetCommand,
+  updateTilesetTileAnimationCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
   upsertTilesetTilePropertyCommand
@@ -189,6 +191,7 @@ export interface EditorController {
   createImageCollectionTileset(input: CreateImageCollectionTilesetInput): void;
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
   updateSelectedTileMetadata(patch: UpdateTileMetadataInput): void;
+  updateSelectedTileAnimation(animation: readonly TileAnimationFrame[]): void;
   upsertSelectedTileProperty(property: PropertyDefinition, previousName?: string): void;
   removeSelectedTileProperty(propertyName: string): void;
   updateActiveMapDetails(patch: UpdateMapDetailsInput): void;
@@ -1151,6 +1154,18 @@ class InMemoryEditorController implements EditorController {
     }
 
     this.commit(updateTilesetTileMetadataCommand(activeTileset.id, selectedLocalId, patch));
+  }
+
+  updateSelectedTileAnimation(animation: readonly TileAnimationFrame[]): void {
+    const state = this.history.state;
+    const activeTileset = getActiveTileset(state);
+    const selectedLocalId = state.session.activeTilesetTileLocalId;
+
+    if (!activeTileset || selectedLocalId === null) {
+      return;
+    }
+
+    this.commit(updateTilesetTileAnimationCommand(activeTileset.id, selectedLocalId, animation));
   }
 
   upsertSelectedTileProperty(
