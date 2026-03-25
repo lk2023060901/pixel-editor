@@ -1,19 +1,24 @@
 import { createHistoryCommand, type HistoryCommand } from "@pixel-editor/command-engine";
 import {
   attachTilesetToMap,
+  createTilesetWangSet,
   createTilesetTileCollisionObject,
   createImageCollectionTileset,
   createImageTileset,
   getTilesetTileCollisionObject,
+  getTilesetWangSet,
   getMapGlobalTileGid,
   getTilesetTileCount,
   moveTilesetTileCollisionObjects,
+  removeTilesetWangSet,
   removeTilesetTileCollisionObjectProperty,
   removeTilesetTileCollisionObjects,
   removeTilesetTileProperty,
   reorderTilesetTileCollisionObjects,
   type MapObject,
+  type WangSetDefinition,
   updateTilesetTileAnimation,
+  updateTilesetWangSet,
   updateTilesetTileCollisionObject,
   updateTilesetDetails,
   updateTilesetTileMetadata,
@@ -28,7 +33,8 @@ import {
   type TilesetDefinition,
   type TilesetId,
   type UpdateTileMetadataInput,
-  type UpdateTilesetDetailsInput
+  type UpdateTilesetDetailsInput,
+  type UpdateWangSetInput
 } from "@pixel-editor/domain";
 import {
   createSingleTileStamp,
@@ -282,6 +288,51 @@ export function updateTilesetTileAnimationCommand(
   });
 }
 
+export function createTilesetWangSetCommand(
+  tilesetId: TilesetId,
+  wangSet: WangSetDefinition
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.wangSet.create:${tilesetId}:${wangSet.id}`,
+    description: `Create Wang set ${wangSet.name} in tileset ${tilesetId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        createTilesetWangSet(tileset, wangSet)
+      )
+  });
+}
+
+export function updateTilesetWangSetCommand(
+  tilesetId: TilesetId,
+  wangSetId: WangSetDefinition["id"],
+  patch: UpdateWangSetInput
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.wangSet.update:${tilesetId}:${wangSetId}`,
+    description: `Update Wang set ${wangSetId} in tileset ${tilesetId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        updateTilesetWangSet(tileset, wangSetId, patch)
+      ),
+    canMerge: (next) => next.id === `tileset.wangSet.update:${tilesetId}:${wangSetId}`,
+    merge: (next) => next
+  });
+}
+
+export function removeTilesetWangSetCommand(
+  tilesetId: TilesetId,
+  wangSetId: WangSetDefinition["id"]
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.wangSet.remove:${tilesetId}:${wangSetId}`,
+    description: `Remove Wang set ${wangSetId} from tileset ${tilesetId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        removeTilesetWangSet(tileset, wangSetId)
+      )
+  });
+}
+
 export function createTilesetTileCollisionObjectCommand(
   tilesetId: TilesetId,
   localId: number,
@@ -416,4 +467,18 @@ export function getActiveTilesetTileCollisionObject(
   }
 
   return getTilesetTileCollisionObject(tileset, localId, objectId);
+}
+
+export function getActiveTilesetWangSet(
+  state: EditorWorkspaceState,
+  tilesetId: TilesetId,
+  wangSetId: WangSetDefinition["id"]
+): WangSetDefinition | undefined {
+  const tileset = state.tilesets.find((entry) => entry.id === tilesetId);
+
+  if (!tileset) {
+    return undefined;
+  }
+
+  return getTilesetWangSet(tileset, wangSetId);
 }

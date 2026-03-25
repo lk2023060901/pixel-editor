@@ -195,4 +195,53 @@ describe("createEditorStoreFromExampleSeed", () => {
       ]
     });
   });
+
+  it("applies seeded Wang sets to created tilesets", () => {
+    const seed: ExampleProjectSeed = {
+      projectId: "demo-project",
+      project: {
+        name: "Example Terrain Project",
+        assetRoots: ["maps", "tilesets", "templates"]
+      },
+      tilesets: [
+        {
+          key: "terrain-core",
+          kind: "image",
+          name: "Terrain Core",
+          tileWidth: 32,
+          tileHeight: 32,
+          imagePath: "/terrain-core.svg",
+          imageWidth: 64,
+          imageHeight: 32,
+          columns: 2,
+          wangSets: [
+            {
+              name: "Core Terrain",
+              type: "mixed"
+            }
+          ]
+        }
+      ],
+      maps: [
+        {
+          name: "starter-map",
+          orientation: "orthogonal",
+          width: 8,
+          height: 8,
+          tileWidth: 32,
+          tileHeight: 32,
+          tilesetKeys: ["terrain-core"]
+        }
+      ]
+    };
+
+    const store = createEditorStoreFromExampleSeed(seed);
+
+    expect(store.getState().tilesets[0]?.wangSets).toMatchObject([
+      {
+        name: "Core Terrain",
+        type: "mixed"
+      }
+    ]);
+  });
 });

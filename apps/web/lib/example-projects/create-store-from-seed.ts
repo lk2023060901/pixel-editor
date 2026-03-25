@@ -101,6 +101,14 @@ export function createEditorStoreFromExampleSeed(
           }
         }
       }
+
+      if (tileset.wangSets?.length) {
+        store.setActiveTileset(createdTileset.id);
+
+        for (const wangSet of tileset.wangSets) {
+          store.createActiveTilesetWangSet(wangSet.type, wangSet.name);
+        }
+      }
     }
   }
 

@@ -56,6 +56,7 @@ export type ExampleTilesetDescriptor =
       margin?: number;
       spacing?: number;
       columns?: number;
+      wangSets?: ExampleWangSetDescriptor[];
       tiles?: ExampleTileDescriptor[];
     }
   | {
@@ -65,8 +66,14 @@ export type ExampleTilesetDescriptor =
       tileWidth: number;
       tileHeight: number;
       imageSources: string[];
+      wangSets?: ExampleWangSetDescriptor[];
       tiles?: ExampleTileDescriptor[];
     };
+
+export interface ExampleWangSetDescriptor {
+  name: string;
+  type: "corner" | "edge" | "mixed";
+}
 
 export interface ExamplePropertyDefinition {
   name: string;

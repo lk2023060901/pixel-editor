@@ -1,23 +1,117 @@
 "use client";
 
-import type { EditorMap, TilesetDefinition } from "@pixel-editor/domain";
+import type { EditorController } from "@pixel-editor/app-services";
+import type {
+  EditorMap,
+  TilesetDefinition,
+  TilesetId,
+  WangSetDefinition,
+  WangSetType
+} from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { useMemo } from "react";
+import { startTransition, useEffect, useMemo, useState } from "react";
 
-import { Panel } from "./panel";
 import { getWangSetTypeLabel } from "./i18n-helpers";
+import { Panel } from "./panel";
 
 export interface TerrainSetsPanelProps {
   activeMap: EditorMap | undefined;
   tilesets: TilesetDefinition[];
+  activeTilesetId: TilesetId | undefined;
+  store: EditorController;
   embedded?: boolean;
 }
 
-function TerrainSetsPanelContent({
+function TerrainSetToolbarButton(props: {
+  title: string;
+  label: string;
+  disabled?: boolean;
+  onClick?: () => void;
+}) {
+  return (
+    <button
+      className="flex h-6 items-center justify-center rounded border border-slate-700 bg-slate-900 px-2 text-[11px] text-slate-300 disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={props.disabled}
+      title={props.title}
+      type="button"
+      onClick={props.onClick}
+    >
+      {props.label}
+    </button>
+  );
+}
+
+function TerrainSetDetails(props: {
+  wangSet: WangSetDefinition | undefined;
+  onRename: (name: string) => void;
+  onTypeChange: (type: WangSetType) => void;
+}) {
+  const { t } = useI18n();
+  const [nameDraft, setNameDraft] = useState(props.wangSet?.name ?? "");
+
+  useEffect(() => {
+    setNameDraft(props.wangSet?.name ?? "");
+  }, [props.wangSet?.id, props.wangSet?.name]);
+
+  if (!props.wangSet) {
+    return (
+      <div className="flex h-full min-h-[140px] items-center justify-center px-4 text-center text-sm text-slate-700">
+        {t("terrainSets.noSelection")}
+      </div>
+    );
+  }
+
+  return (
+    <div className="border-t border-slate-500/20 bg-slate-100/60 p-2">
+      <div className="grid gap-2">
+        <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-xs text-slate-700">
+          <span>{t("terrainSets.name")}</span>
+          <input
+            className="h-7 border border-slate-500/30 bg-white px-2 text-sm text-slate-900 outline-none"
+            value={nameDraft}
+            onBlur={() => {
+              props.onRename(nameDraft);
+            }}
+            onChange={(event) => {
+              setNameDraft(event.target.value);
+            }}
+            onKeyDown={(event) => {
+              if (event.key === "Enter") {
+                props.onRename(nameDraft);
+                event.currentTarget.blur();
+              }
+            }}
+          />
+        </label>
+        <label className="grid grid-cols-[72px_minmax(0,1fr)] items-center gap-2 text-xs text-slate-700">
+          <span>{t("terrainSets.type")}</span>
+          <select
+            className="h-7 border border-slate-500/30 bg-white px-2 text-sm text-slate-900 outline-none"
+            value={props.wangSet.type}
+            onChange={(event) => {
+              props.onTypeChange(event.target.value as WangSetType);
+            }}
+          >
+            {(["corner", "edge", "mixed"] as const).map((type) => (
+              <option key={type} value={type}>
+                {getWangSetTypeLabel(type, t)}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+    </div>
+  );
+}
+
+function TerrainSetsDockContent({
   activeMap,
-  tilesets
+  tilesets,
+  activeTilesetId,
+  store
 }: Omit<TerrainSetsPanelProps, "embedded">) {
   const { t } = useI18n();
+  const [selectedWangSetId, setSelectedWangSetId] = useState<WangSetDefinition["id"] | undefined>();
   const availableTilesets = useMemo(() => {
     if (!activeMap) {
       return tilesets;
@@ -27,9 +121,30 @@ function TerrainSetsPanelContent({
       .map((tilesetId) => tilesets.find((tileset) => tileset.id === tilesetId))
       .filter((tileset): tileset is TilesetDefinition => tileset !== undefined);
   }, [activeMap, tilesets]);
-  const tilesetsWithTerrainSets = availableTilesets.filter((tileset) => tileset.wangSets.length > 0);
+  const activeTileset =
+    availableTilesets.find((tileset) => tileset.id === activeTilesetId) ??
+    availableTilesets[0];
+  const selectedWangSet =
+    activeTileset?.wangSets.find((wangSet) => wangSet.id === selectedWangSetId) ??
+    activeTileset?.wangSets[0];
 
-  if (!tilesetsWithTerrainSets.length) {
+  useEffect(() => {
+    if (!activeTileset) {
+      setSelectedWangSetId(undefined);
+      return;
+    }
+
+    if (
+      selectedWangSetId &&
+      activeTileset.wangSets.some((wangSet) => wangSet.id === selectedWangSetId)
+    ) {
+      return;
+    }
+
+    setSelectedWangSetId(activeTileset.wangSets[0]?.id);
+  }, [activeTileset, selectedWangSetId]);
+
+  if (!availableTilesets.length) {
     return (
       <div className="flex h-full min-h-[220px] items-center justify-center bg-[#b8b8b8] px-6 text-center text-sm text-slate-700">
         {t("terrainSets.noneAvailable")}
@@ -38,27 +153,154 @@ function TerrainSetsPanelContent({
   }
 
   return (
-    <div className="min-h-0 h-full overflow-y-auto bg-[#b8b8b8] p-2">
-      {tilesetsWithTerrainSets.map((tileset) => (
-        <article key={tileset.id} className="mb-2 border border-slate-500/30 bg-slate-100/70">
-          <div className="border-b border-slate-500/30 px-3 py-2 text-xs uppercase tracking-[0.14em] text-slate-600">
-            {tileset.name}
-          </div>
-          <ul className="text-sm text-slate-800">
-            {tileset.wangSets.map((wangSet) => (
-              <li
-                key={`${tileset.id}:${wangSet.name}`}
-                className="flex items-center justify-between border-t border-slate-500/20 px-3 py-2"
+    <div className="flex h-full min-h-0 flex-col bg-[#b8b8b8]">
+      <div className="flex items-end border-b border-slate-700 bg-slate-800">
+        <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto px-1 pt-1">
+          {availableTilesets.map((tileset) => {
+            const isActive = tileset.id === activeTileset?.id;
+
+            return (
+              <button
+                key={tileset.id}
+                className={`shrink-0 border px-2 py-1 text-xs transition ${
+                  isActive
+                    ? "border-slate-700 border-b-[#b8b8b8] bg-slate-900 text-slate-100"
+                    : "border-slate-700 border-b-0 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                }`}
+                onClick={() => {
+                  startTransition(() => {
+                    store.setActiveTileset(tileset.id);
+                  });
+                }}
               >
-                <span>{wangSet.name}</span>
-                <span className="text-xs uppercase tracking-[0.18em] text-slate-500">
-                  {getWangSetTypeLabel(wangSet.type, t)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </article>
-      ))}
+                {tileset.name}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {activeTileset?.wangSets.length ? (
+          <div className="p-2">
+            <ul className="border border-slate-500/20 bg-slate-100/70">
+              {activeTileset.wangSets.map((wangSet) => {
+                const isSelected = wangSet.id === selectedWangSet?.id;
+
+                return (
+                  <li key={wangSet.id} className="border-b border-slate-500/20 last:border-b-0">
+                    <button
+                      className={`flex w-full items-center justify-between px-3 py-2 text-left text-sm transition ${
+                        isSelected
+                          ? "bg-blue-600 text-white"
+                          : "text-slate-800 hover:bg-slate-200/80"
+                      }`}
+                      onClick={() => {
+                        setSelectedWangSetId(wangSet.id);
+                      }}
+                    >
+                      <span>{wangSet.name}</span>
+                      <span className={`text-[11px] uppercase tracking-[0.16em] ${isSelected ? "text-blue-100" : "text-slate-500"}`}>
+                        {getWangSetTypeLabel(wangSet.type, t)}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ) : (
+          <div className="flex h-full min-h-[180px] items-center justify-center px-6 text-center text-sm text-slate-700">
+            {t("terrainSets.noSetsInTileset", { name: activeTileset?.name ?? t("common.none") })}
+          </div>
+        )}
+      </div>
+
+      <TerrainSetDetails
+        wangSet={selectedWangSet}
+        onRename={(name) => {
+          if (!selectedWangSet) {
+            return;
+          }
+
+          startTransition(() => {
+            store.updateActiveTilesetWangSet(selectedWangSet.id, { name });
+          });
+        }}
+        onTypeChange={(type) => {
+          if (!selectedWangSet) {
+            return;
+          }
+
+          startTransition(() => {
+            store.updateActiveTilesetWangSet(selectedWangSet.id, { type });
+          });
+        }}
+      />
+
+      <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-2 py-1">
+        <TerrainSetToolbarButton
+          title={t("terrainSets.addCorner")}
+          label={t("wangSetType.corner")}
+          onClick={() => {
+            startTransition(() => {
+              const createdId = store.createActiveTilesetWangSet("corner");
+
+              if (createdId) {
+                setSelectedWangSetId(createdId);
+              }
+            });
+          }}
+        />
+        <TerrainSetToolbarButton
+          title={t("terrainSets.addEdge")}
+          label={t("wangSetType.edge")}
+          onClick={() => {
+            startTransition(() => {
+              const createdId = store.createActiveTilesetWangSet("edge");
+
+              if (createdId) {
+                setSelectedWangSetId(createdId);
+              }
+            });
+          }}
+        />
+        <TerrainSetToolbarButton
+          title={t("terrainSets.addMixed")}
+          label={t("wangSetType.mixed")}
+          onClick={() => {
+            startTransition(() => {
+              const createdId = store.createActiveTilesetWangSet("mixed");
+
+              if (createdId) {
+                setSelectedWangSetId(createdId);
+              }
+            });
+          }}
+        />
+        <div className="min-w-0 flex-1" />
+        <TerrainSetToolbarButton
+          disabled={!selectedWangSet}
+          title={t("terrainSets.removeSet")}
+          label={t("common.remove")}
+          onClick={() => {
+            if (!selectedWangSet) {
+              return;
+            }
+
+            const nextIndex = activeTileset?.wangSets.findIndex((wangSet) => wangSet.id === selectedWangSet.id) ?? -1;
+            const fallbackId =
+              nextIndex > 0
+                ? activeTileset?.wangSets[nextIndex - 1]?.id
+                : activeTileset?.wangSets[1]?.id;
+
+            startTransition(() => {
+              store.removeActiveTilesetWangSet(selectedWangSet.id);
+              setSelectedWangSetId(fallbackId);
+            });
+          }}
+        />
+      </div>
     </div>
   );
 }
@@ -68,7 +310,7 @@ export function TerrainSetsPanel({
   ...props
 }: TerrainSetsPanelProps) {
   const { t } = useI18n();
-  const content = <TerrainSetsPanelContent {...props} />;
+  const content = <TerrainSetsDockContent {...props} />;
 
   if (embedded) {
     return content;

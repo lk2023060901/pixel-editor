@@ -4,25 +4,30 @@ import {
   createMap,
   createMapObject,
   createProperty,
+  createWangSetDefinition,
   type TileAnimationFrame,
   createTileDefinition,
   createTileset
 } from "./index";
 import {
   attachTilesetToMap,
+  createTilesetWangSet,
   createTilesetTileCollisionObject,
   createImageCollectionTileset,
   createImageTileset,
+  getTilesetWangSet,
   moveTilesetTileCollisionObjects,
   getMapGlobalTileGid,
   getTilesetTileCollisionObject,
   getTilesetTileCount,
   listTilesetLocalIds,
+  removeTilesetWangSet,
   removeTilesetTileCollisionObjectProperty,
   removeTilesetTileCollisionObjects,
   removeTilesetTileProperty,
   reorderTilesetTileCollisionObjects,
   resolveMapTileGid,
+  updateTilesetWangSet,
   updateTilesetTileCollisionObject,
   updateTilesetTileAnimation,
   updateTilesetDetails,
@@ -243,6 +248,39 @@ describe("tileset operations", () => {
 
     expect(updated.tiles[1]?.animation).toEqual(animation);
     expect(updated.tiles[1]?.animation).not.toBe(animation);
+  });
+
+  it("creates, updates, and removes Wang sets on a tileset", () => {
+    const tileset = createImageTileset({
+      name: "terrain",
+      tileWidth: 32,
+      tileHeight: 32,
+      imagePath: "/demo/terrain-core.svg",
+      imageWidth: 192,
+      imageHeight: 128,
+      columns: 6
+    });
+    const wangSet = createWangSetDefinition({
+      name: "Core Terrain",
+      type: "mixed"
+    });
+
+    const withWangSet = createTilesetWangSet(tileset, wangSet);
+    const updated = updateTilesetWangSet(withWangSet, wangSet.id, {
+      name: "Road Terrain",
+      type: "edge"
+    });
+    const removed = removeTilesetWangSet(updated, wangSet.id);
+
+    expect(getTilesetWangSet(withWangSet, wangSet.id)).toMatchObject({
+      name: "Core Terrain",
+      type: "mixed"
+    });
+    expect(getTilesetWangSet(updated, wangSet.id)).toMatchObject({
+      name: "Road Terrain",
+      type: "edge"
+    });
+    expect(getTilesetWangSet(removed, wangSet.id)).toBeUndefined();
   });
 
   it("edits tile collision objects by local id", () => {

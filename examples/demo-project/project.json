@@ -64,6 +64,12 @@
       "imageWidth": 192,
       "imageHeight": 128,
       "columns": 6,
+      "wangSets": [
+        {
+          "name": "Core Terrain",
+          "type": "mixed"
+        }
+      ],
       "tiles": [
         {
           "localId": 0,

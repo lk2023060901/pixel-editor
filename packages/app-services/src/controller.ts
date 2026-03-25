@@ -1,11 +1,13 @@
 import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  createWangSetDefinition,
   createMapObject,
   getLayerById,
   getMapObjectBounds,
   getObjectById,
   getTilesetTileByLocalId,
+  getTilesetWangSet,
   type Point,
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
@@ -24,7 +26,10 @@ import {
   type UpdateMapObjectDetailsInput,
   type UpdateTileMetadataInput,
   type UpdateTilesetDetailsInput,
-  type UpdateMapDetailsInput
+  type UpdateMapDetailsInput,
+  type UpdateWangSetInput,
+  type WangSetId,
+  type WangSetType
 } from "@pixel-editor/domain";
 import {
   clearEditorRuntimeInteractions,
@@ -103,8 +108,10 @@ import {
   updateObjectDetailsCommand
 } from "@pixel-editor/objects";
 import {
+  createTilesetWangSetCommand,
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
+  removeTilesetWangSetCommand,
   createTilesetTileCollisionObjectCommand,
   moveTilesetTileCollisionObjectsCommand,
   removeTilesetTileCollisionObjectPropertyCommand,
@@ -114,6 +121,7 @@ import {
   selectTilesetStampCommand,
   setActiveTilesetCommand,
   updateTilesetTileAnimationCommand,
+  updateTilesetWangSetCommand,
   updateTilesetTileCollisionObjectCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
@@ -203,6 +211,9 @@ export interface EditorController {
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
   updateSelectedTileMetadata(patch: UpdateTileMetadataInput): void;
   updateSelectedTileAnimation(animation: readonly TileAnimationFrame[]): void;
+  createActiveTilesetWangSet(type: WangSetType, name?: string): WangSetId | undefined;
+  updateActiveTilesetWangSet(wangSetId: WangSetId, patch: UpdateWangSetInput): void;
+  removeActiveTilesetWangSet(wangSetId: WangSetId): void;
   createSelectedTileCollisionObject(
     shape: "rectangle" | "ellipse" | "point" | "polygon" | "polyline" | "capsule"
   ): ObjectId | undefined;
@@ -1220,6 +1231,46 @@ class InMemoryEditorController implements EditorController {
     }
 
     this.commit(updateTilesetTileAnimationCommand(activeTileset.id, selectedLocalId, animation));
+  }
+
+  createActiveTilesetWangSet(
+    type: WangSetType,
+    name?: string
+  ): WangSetId | undefined {
+    const activeTileset = getActiveTileset(this.history.state);
+
+    if (!activeTileset) {
+      return undefined;
+    }
+
+    const wangSet = createWangSetDefinition({
+      name: name ?? this.naming.defaultWangSetName,
+      type
+    });
+
+    this.commit(createTilesetWangSetCommand(activeTileset.id, wangSet));
+
+    return wangSet.id;
+  }
+
+  updateActiveTilesetWangSet(wangSetId: WangSetId, patch: UpdateWangSetInput): void {
+    const activeTileset = getActiveTileset(this.history.state);
+
+    if (!activeTileset || !getTilesetWangSet(activeTileset, wangSetId)) {
+      return;
+    }
+
+    this.commit(updateTilesetWangSetCommand(activeTileset.id, wangSetId, patch));
+  }
+
+  removeActiveTilesetWangSet(wangSetId: WangSetId): void {
+    const activeTileset = getActiveTileset(this.history.state);
+
+    if (!activeTileset || !getTilesetWangSet(activeTileset, wangSetId)) {
+      return;
+    }
+
+    this.commit(removeTilesetWangSetCommand(activeTileset.id, wangSetId));
   }
 
   createSelectedTileCollisionObject(

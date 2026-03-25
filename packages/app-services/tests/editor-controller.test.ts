@@ -71,7 +71,8 @@ describe("editor controller", () => {
             tile: "图块层",
             object: "对象层"
           },
-          objectNamePrefix: "对象"
+          objectNamePrefix: "对象",
+          defaultWangSetName: "未命名集合"
         }
       }
     );
@@ -114,6 +115,16 @@ describe("editor controller", () => {
     expect(nextObjectLayer?.kind === "object" ? nextObjectLayer.objects[0]?.name : undefined).toBe(
       "对象 1"
     );
+
+    store.createImageCollectionTileset({
+      name: "道具图块集",
+      tileWidth: 32,
+      tileHeight: 32,
+      imageSources: ["/tests/props/prop-1.svg"]
+    });
+    store.createActiveTilesetWangSet("mixed");
+
+    expect(store.getSnapshot().activeTileset?.wangSets[0]?.name).toBe("未命名集合");
   });
 
   it("updates active layer details through the controller", () => {
@@ -183,6 +194,41 @@ describe("editor controller", () => {
       rotation: 15,
       visible: false
     });
+  });
+
+  it("creates, updates, and removes Wang sets through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const activeTileset = store.getSnapshot().activeTileset;
+
+    expect(activeTileset).toBeDefined();
+
+    const wangSetId = store.createActiveTilesetWangSet("mixed", "Core Terrain");
+
+    expect(wangSetId).toBeDefined();
+
+    if (!wangSetId) {
+      throw new Error("Expected Wang set to be created.");
+    }
+
+    store.updateActiveTilesetWangSet(wangSetId, {
+      name: "Road Terrain",
+      type: "edge"
+    });
+
+    let updatedTileset = store.getSnapshot().activeTileset;
+
+    expect(updatedTileset?.wangSets).toMatchObject([
+      {
+        id: wangSetId,
+        name: "Road Terrain",
+        type: "edge"
+      }
+    ]);
+
+    store.removeActiveTilesetWangSet(wangSetId);
+    updatedTileset = store.getSnapshot().activeTileset;
+
+    expect(updatedTileset?.wangSets).toEqual([]);
   });
 
   it("upserts and removes map, layer, and object custom properties through the controller", () => {

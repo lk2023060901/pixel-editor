@@ -25,7 +25,9 @@ import {
   type TilesetDefinition,
   type TilesetFillMode,
   type TilesetObjectAlignment,
-  type TilesetTileRenderSize
+  type TilesetTileRenderSize,
+  type WangSetDefinition,
+  type WangSetType
 } from "./tileset";
 
 function getExplicitTileCount(tileset: TilesetDefinition): number {
@@ -100,10 +102,21 @@ export interface UpdateTileMetadataInput {
   probability?: number;
 }
 
+export interface UpdateWangSetInput {
+  name?: string;
+  type?: WangSetType;
+}
+
 function cloneTileAnimationFrame(frame: TileAnimationFrame): TileAnimationFrame {
   return {
     tileId: frame.tileId,
     durationMs: frame.durationMs
+  };
+}
+
+function cloneWangSetDefinition(wangSet: WangSetDefinition): WangSetDefinition {
+  return {
+    ...wangSet
   };
 }
 
@@ -209,6 +222,10 @@ function updateTileCollisionLayer(
         }
       : restTile;
   });
+}
+
+function sanitizeWangSetName(name: string): string {
+  return name.trim();
 }
 
 export function createImageTileset(
@@ -484,6 +501,59 @@ export function getTilesetTileCollisionObject(
   }
 
   return getObjectById(tile.collisionLayer, objectId);
+}
+
+export function createTilesetWangSet(
+  tileset: TilesetDefinition,
+  wangSet: WangSetDefinition
+): TilesetDefinition {
+  return {
+    ...tileset,
+    wangSets: [...tileset.wangSets, cloneWangSetDefinition(wangSet)]
+  };
+}
+
+export function updateTilesetWangSet(
+  tileset: TilesetDefinition,
+  wangSetId: WangSetDefinition["id"],
+  patch: UpdateWangSetInput
+): TilesetDefinition {
+  return {
+    ...tileset,
+    wangSets: tileset.wangSets.map((wangSet) => {
+      if (wangSet.id !== wangSetId) {
+        return wangSet;
+      }
+
+      const nextName =
+        patch.name !== undefined
+          ? sanitizeWangSetName(patch.name) || wangSet.name
+          : wangSet.name;
+
+      return {
+        ...wangSet,
+        name: nextName,
+        type: patch.type ?? wangSet.type
+      };
+    })
+  };
+}
+
+export function removeTilesetWangSet(
+  tileset: TilesetDefinition,
+  wangSetId: WangSetDefinition["id"]
+): TilesetDefinition {
+  return {
+    ...tileset,
+    wangSets: tileset.wangSets.filter((wangSet) => wangSet.id !== wangSetId)
+  };
+}
+
+export function getTilesetWangSet(
+  tileset: TilesetDefinition,
+  wangSetId: WangSetDefinition["id"]
+): WangSetDefinition | undefined {
+  return tileset.wangSets.find((wangSet) => wangSet.id === wangSetId);
 }
 
 export function attachTilesetToMap(

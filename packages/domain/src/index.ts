@@ -9,6 +9,7 @@ export {
   type TemplateId,
   type TileId,
   type TilesetId,
+  type WangSetId,
   type WorldId
 } from "./id";
 export {
@@ -51,6 +52,7 @@ export {
 } from "./object-operations";
 export {
   createTileDefinition,
+  createWangSetDefinition,
   createTileset,
   type CreateTilesetInput,
   type TilesetFillMode,
@@ -61,24 +63,29 @@ export {
   type TilesetKind,
   type TilesetObjectAlignment,
   type TilesetTileRenderSize,
-  type WangSetDefinition
+  type WangSetDefinition,
+  type WangSetType
 } from "./tileset";
 export {
   attachTilesetToMap,
+  createTilesetWangSet,
   createTilesetTileCollisionObject,
   createImageCollectionTileset,
   createImageTileset,
+  getTilesetWangSet,
   getTilesetTileCollisionObject,
   getMapGlobalTileGid,
   getTilesetTileByLocalId,
   getTilesetTileCount,
   listTilesetLocalIds,
   moveTilesetTileCollisionObjects,
+  removeTilesetWangSet,
   removeTilesetTileCollisionObjectProperty,
   removeTilesetTileCollisionObjects,
   removeTilesetTileProperty,
   reorderTilesetTileCollisionObjects,
   resolveMapTileGid,
+  updateTilesetWangSet,
   updateTilesetTileCollisionObject,
   updateTilesetTileAnimation,
   updateTilesetDetails,
@@ -88,7 +95,8 @@ export {
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type UpdateTileMetadataInput,
-  type UpdateTilesetDetailsInput
+  type UpdateTilesetDetailsInput,
+  type UpdateWangSetInput
 } from "./tileset-operations";
 export {
   createEmptyTileCell,

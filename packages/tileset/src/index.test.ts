@@ -2,10 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  createImageTileset,
   createMapObject,
   createProperty,
   createTileDefinition,
   createTileset,
+  createWangSetDefinition,
   createProject,
   type TileAnimationFrame,
   type EditorMap
@@ -18,7 +20,9 @@ import {
 import {
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
+  createTilesetWangSetCommand,
   createTilesetTileCollisionObjectCommand,
+  removeTilesetWangSetCommand,
   moveTilesetTileCollisionObjectsCommand,
   removeTilesetTileCollisionObjectPropertyCommand,
   removeTilesetTileCollisionObjectsCommand,
@@ -28,6 +32,7 @@ import {
   setActiveTilesetCommand,
   updateTilesetTileCollisionObjectCommand,
   updateTilesetTileAnimationCommand,
+  updateTilesetWangSetCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
   upsertTilesetTileCollisionObjectPropertyCommand,
@@ -237,6 +242,37 @@ describe("tileset commands", () => {
     expect(history.state.tilesets[0]?.tiles[3]).toMatchObject({
       className: "TerrainCorner"
     });
+  });
+
+  it("creates, updates, and removes Wang sets", () => {
+    const tileset = createImageTileset({
+      name: "terrain",
+      tileWidth: 32,
+      tileHeight: 32,
+      imagePath: "/demo/terrain-core.svg",
+      imageWidth: 192,
+      imageHeight: 128,
+      columns: 6
+    });
+    const wangSet = createWangSetDefinition({
+      name: "Core Terrain",
+      type: "mixed"
+    });
+    const history = new CommandHistory(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets"]
+        }),
+        tilesets: [tileset]
+      })
+    );
+
+    history.execute(createTilesetWangSetCommand(tileset.id, wangSet));
+    history.execute(updateTilesetWangSetCommand(tileset.id, wangSet.id, { type: "edge" }));
+    history.execute(removeTilesetWangSetCommand(tileset.id, wangSet.id));
+
+    expect(history.state.tilesets[0]?.wangSets).toEqual([]);
   });
 
   it("upserts and removes tile properties", () => {

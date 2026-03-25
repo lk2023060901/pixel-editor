@@ -43,6 +43,7 @@ export interface TilesetsPanelProps {
   store: EditorController;
   onOpenTileAnimationEditor?: () => void;
   onOpenTileCollisionEditor?: () => void;
+  onOpenTerrainSets?: () => void;
   embedded?: boolean;
 }
 
@@ -260,7 +261,8 @@ function TilesetsDockContent({
   activeTileLocalId,
   store,
   onOpenTileAnimationEditor,
-  onOpenTileCollisionEditor
+  onOpenTileCollisionEditor,
+  onOpenTerrainSets
 }: Omit<TilesetsPanelProps, "embedded" | "activeStamp">) {
   const { t } = useI18n();
   const [zoom, setZoom] = useState<number>(1);
@@ -439,6 +441,20 @@ function TilesetsDockContent({
             <path d="M9 3l2 2.5L9 8" />
             <path d="M13 10.5H5" />
             <path d="M7 8l-2 2.5L7 13" />
+          </TilesetDockIcon>
+        </TilesetDockToolbarButton>
+        <TilesetDockToolbarButton
+          disabled={!activeTileset || !onOpenTerrainSets}
+          title={t("action.editWangSets")}
+          onClick={onOpenTerrainSets}
+        >
+          <TilesetDockIcon>
+            <path d="M3 12.5h10" />
+            <path d="M4 10.5l2-4 2 2 2-4 2 6" />
+            <circle cx="6" cy="6.5" r="0.8" fill="currentColor" stroke="none" />
+            <circle cx="8" cy="8.5" r="0.8" fill="currentColor" stroke="none" />
+            <circle cx="10" cy="4.5" r="0.8" fill="currentColor" stroke="none" />
+            <circle cx="12" cy="10.5" r="0.8" fill="currentColor" stroke="none" />
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
         <TilesetDockToolbarButton

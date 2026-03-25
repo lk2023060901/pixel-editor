@@ -10,6 +10,7 @@ export {
   mapNamePrefix,
   layerNamePrefixes,
   objectNamePrefix,
+  defaultWangSetName,
   quickMapBlueprint,
   createIndexedName,
   createIndexedSlug

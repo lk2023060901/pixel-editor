@@ -1,4 +1,9 @@
-import { createEntityId, type TileId, type TilesetId } from "./id";
+import {
+  createEntityId,
+  type TileId,
+  type TilesetId,
+  type WangSetId
+} from "./id";
 import type { ObjectLayer } from "./layer";
 import type { PropertyDefinition } from "./property";
 
@@ -42,9 +47,12 @@ export interface TilesetImageSource {
   columns?: number;
 }
 
+export type WangSetType = "corner" | "edge" | "mixed";
+
 export interface WangSetDefinition {
+  id: WangSetId;
   name: string;
-  type: "corner" | "edge" | "mixed";
+  type: WangSetType;
 }
 
 export interface TilesetDefinition {
@@ -86,6 +94,17 @@ export function createTileDefinition(localId: number): TileDefinition {
     probability: 1,
     properties: [],
     animation: []
+  };
+}
+
+export function createWangSetDefinition(input: {
+  name: string;
+  type: WangSetType;
+}): WangSetDefinition {
+  return {
+    id: createEntityId("wangSet"),
+    name: input.name,
+    type: input.type
   };
 }
 

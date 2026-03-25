@@ -449,6 +449,9 @@ export function EditorShell({ store }: EditorShellProps) {
       case "edit-collision":
         setTileCollisionEditorOpen(true);
         return;
+      case "edit-wang-sets":
+        setLowerRightDockTab("terrain-sets");
+        return;
       default:
         return;
     }
@@ -490,6 +493,8 @@ export function EditorShell({ store }: EditorShellProps) {
       <TerrainSetsPanel
         embedded
         activeMap={activeMap}
+        activeTilesetId={snapshot.workspace.session.activeTilesetId}
+        store={store}
         tilesets={snapshot.workspace.tilesets}
       />
     ) : (
@@ -505,6 +510,9 @@ export function EditorShell({ store }: EditorShellProps) {
         }}
         onOpenTileCollisionEditor={() => {
           setTileCollisionEditorOpen(true);
+        }}
+        onOpenTerrainSets={() => {
+          setLowerRightDockTab("terrain-sets");
         }}
         propertyTypes={snapshot.workspace.project.propertyTypes}
         store={store}

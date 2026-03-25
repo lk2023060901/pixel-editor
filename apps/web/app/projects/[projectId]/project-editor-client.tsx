@@ -24,7 +24,8 @@ function createLocalizedEditorNaming(t: TranslationFn): EditorNamingConfig {
       tile: t("naming.tileLayerPrefix"),
       object: t("naming.objectLayerPrefix")
     },
-    objectNamePrefix: t("naming.objectNamePrefix")
+    objectNamePrefix: t("naming.objectNamePrefix"),
+    defaultWangSetName: t("naming.defaultWangSetName")
   };
 }
 

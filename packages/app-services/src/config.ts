@@ -30,6 +30,7 @@ export const layerNamePrefixes = {
 
 export const objectNamePrefix = "Object";
 export const mapNamePrefix = "map";
+export const defaultWangSetName = "Unnamed Set";
 
 export interface EditorNamingConfig {
   mapNamePrefix: string;
@@ -42,13 +43,15 @@ export interface EditorNamingConfig {
     object: string;
   };
   objectNamePrefix: string;
+  defaultWangSetName: string;
 }
 
 export const defaultEditorNamingConfig: EditorNamingConfig = {
   mapNamePrefix,
   defaultMapLayerNames,
   layerNamePrefixes,
-  objectNamePrefix
+  objectNamePrefix,
+  defaultWangSetName
 };
 
 export const quickMapBlueprint: MapBlueprint = {
