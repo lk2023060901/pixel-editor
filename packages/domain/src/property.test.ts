@@ -4,6 +4,8 @@ import {
   clonePropertyDefinition,
   createDefaultPropertyValue,
   createProperty,
+  createSuggestedPropertiesForClassType,
+  mergeSuggestedPropertyDefinitions,
   type PropertyTypeDefinition,
   removePropertyDefinition,
   upsertPropertyDefinition
@@ -102,5 +104,59 @@ describe("property helpers", () => {
     expect(clone).toEqual(property);
     expect(clone).not.toBe(property);
     expect(clone.value).not.toBe(property.value);
+  });
+
+  it("creates suggested properties from a class type for a matching useAs target", () => {
+    const propertyTypes: PropertyTypeDefinition[] = [
+      {
+        id: "propertyType_biome" as never,
+        kind: "enum",
+        name: "Biome",
+        storageType: "string",
+        values: ["forest", "ruins", "cave"],
+        valuesAsFlags: false
+      },
+      {
+        id: "propertyType_terrain" as never,
+        kind: "class",
+        name: "TerrainTile",
+        useAs: ["tile"],
+        fields: [
+          {
+            name: "biome",
+            valueType: "enum",
+            propertyTypeName: "Biome"
+          },
+          {
+            name: "walkable",
+            valueType: "bool",
+            defaultValue: true
+          }
+        ]
+      }
+    ];
+
+    expect(createSuggestedPropertiesForClassType(propertyTypes, "TerrainTile", "tile")).toEqual([
+      createProperty("biome", "enum", "forest", "Biome"),
+      createProperty("walkable", "bool", true)
+    ]);
+    expect(createSuggestedPropertiesForClassType(propertyTypes, "TerrainTile", "object")).toEqual([]);
+  });
+
+  it("merges explicit properties over suggested class defaults", () => {
+    const suggested = [
+      createProperty("biome", "enum", "forest", "Biome"),
+      createProperty("walkable", "bool", true)
+    ];
+    const explicit = [
+      createProperty("biome", "enum", "ruins", "Biome"),
+      createProperty("spawnWeight", "int", 4)
+    ];
+
+    expect(mergeSuggestedPropertyDefinitions(explicit, suggested)).toEqual([
+      createProperty("biome", "enum", "ruins", "Biome"),
+      createProperty("walkable", "bool", true),
+      createProperty("spawnWeight", "int", 4)
+    ]);
   });
 });

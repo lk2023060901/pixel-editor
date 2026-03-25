@@ -1,6 +1,7 @@
 import type {
   CreateMapInput,
   ClassPropertyFieldDefinition,
+  PropertyTypeName,
   PropertyValue
 } from "@pixel-editor/domain";
 
@@ -55,6 +56,7 @@ export type ExampleTilesetDescriptor =
       margin?: number;
       spacing?: number;
       columns?: number;
+      tiles?: ExampleTileDescriptor[];
     }
   | {
       key: string;
@@ -63,7 +65,22 @@ export type ExampleTilesetDescriptor =
       tileWidth: number;
       tileHeight: number;
       imageSources: string[];
+      tiles?: ExampleTileDescriptor[];
     };
+
+export interface ExamplePropertyDefinition {
+  name: string;
+  type: PropertyTypeName;
+  value: PropertyValue;
+  propertyTypeName?: string;
+}
+
+export interface ExampleTileDescriptor {
+  localId: number;
+  className?: string;
+  probability?: number;
+  properties?: ExamplePropertyDefinition[];
+}
 
 export type ExampleMapDescriptor = Omit<CreateMapInput, "tilesetIds"> & {
   tilesetKeys: string[];

@@ -97,12 +97,14 @@ export function PropertyBrowserSelectRow(props: {
   label: string;
   value: string;
   options: Array<{ value: string; label: string }>;
+  disabled?: boolean;
   onChange: (value: string) => void;
 }) {
   return (
     <PropertyBrowserRow label={props.label}>
       <select
         className={fieldClassName()}
+        disabled={props.disabled}
         value={props.value}
         onChange={(event) => {
           props.onChange(event.target.value);

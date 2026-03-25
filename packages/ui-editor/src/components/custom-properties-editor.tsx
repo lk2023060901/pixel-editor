@@ -6,6 +6,7 @@ import {
   createProperty,
   getClassPropertyTypeDefinitionByName,
   getEnumPropertyTypeDefinitionByName,
+  mergeSuggestedPropertyDefinitions,
   type ClassPropertyTypeDefinition,
   type ClassPropertyValue,
   type PrimitivePropertyType,
@@ -14,7 +15,7 @@ import {
   type PropertyValue
 } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useRef, useState, type RefObject } from "react";
+import { startTransition, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { NumberField, SelectField, TextField } from "./editor-fields";
 import { getPropertyTypeLabel } from "./i18n-helpers";
@@ -586,6 +587,7 @@ function ClassMemberField(props: {
 
 function PropertyDraftEditor(props: {
   draft: PropertyDraft;
+  identityLocked?: boolean;
   propertyTypes: readonly PropertyTypeDefinition[];
   objectReferenceOptions: readonly ObjectReferenceOption[];
   supportedPropertyTypes: Array<{ label: string; value: string }>;
@@ -593,6 +595,7 @@ function PropertyDraftEditor(props: {
   onChange: (draft: PropertyDraft) => void;
 }) {
   const { t } = useI18n();
+  const identityLocked = props.identityLocked ?? false;
   const enumType = getEnumPropertyTypeDefinitionByName(
     props.propertyTypes,
     props.draft.propertyTypeName
@@ -605,6 +608,7 @@ function PropertyDraftEditor(props: {
   return (
     <>
       <PropertyBrowserTextRow
+        disabled={identityLocked}
         inputRef={props.nameInputRef}
         label={t("common.name")}
         value={props.draft.name}
@@ -616,6 +620,7 @@ function PropertyDraftEditor(props: {
         }}
       />
       <PropertyBrowserSelectRow
+        disabled={identityLocked}
         label={t("common.type")}
         options={props.supportedPropertyTypes}
         value={getDraftTypeSelectValue(props.draft)}
@@ -741,6 +746,7 @@ function PropertyDraftEditor(props: {
 
 function PropertyListRow(props: {
   property: PropertyDefinition;
+  explicit: boolean;
   selected: boolean;
   propertyTypes: readonly PropertyTypeDefinition[];
   objectReferenceOptions: readonly ObjectReferenceOption[];
@@ -756,7 +762,9 @@ function PropertyListRow(props: {
       onClick={props.onSelect}
       type="button"
     >
-      <span className="min-w-0 truncate text-sm">{props.property.name}</span>
+      <span className={`min-w-0 truncate text-sm ${props.explicit ? "" : "italic text-slate-400"}`}>
+        {props.property.name}
+      </span>
       <span className="min-w-0 truncate text-right text-xs text-slate-400">
         {getPropertyValueSummary(
           props.property,
@@ -771,6 +779,7 @@ function PropertyListRow(props: {
 
 export interface CustomPropertiesEditorProps {
   properties: readonly PropertyDefinition[];
+  suggestedProperties?: readonly PropertyDefinition[];
   propertyTypes: readonly PropertyTypeDefinition[] | undefined;
   objectReferenceOptions: readonly ObjectReferenceOption[] | undefined;
   onUpsert: (property: PropertyDefinition, previousName?: string) => void;
@@ -783,6 +792,7 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
   const { t } = useI18n();
   const propertyTypes = props.propertyTypes ?? [];
   const objectReferenceOptions = props.objectReferenceOptions ?? [];
+  const suggestedProperties = props.suggestedProperties ?? [];
   const nameInputRef = useRef<HTMLInputElement>(null);
   const supportedPropertyTypes: Array<{ label: string; value: string }> = [
     { label: t("propertyType.string"), value: "string" },
@@ -805,13 +815,21 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
   const [activeDraft, setActiveDraft] = useState<PropertyDraft | null>(null);
   const [previousName, setPreviousName] = useState<string | undefined>(undefined);
   const [nameFocusToken, setNameFocusToken] = useState(0);
+  const explicitPropertyNames = useMemo(
+    () => new Set(props.properties.map((property) => property.name)),
+    [props.properties]
+  );
+  const mergedProperties = useMemo(
+    () => mergeSuggestedPropertyDefinitions(props.properties, suggestedProperties),
+    [props.properties, suggestedProperties]
+  );
 
   useEffect(() => {
     if (!activePropertyKey || activePropertyKey === NEW_PROPERTY_KEY) {
       return;
     }
 
-    const property = props.properties.find((item) => item.name === activePropertyKey);
+    const property = mergedProperties.find((item) => item.name === activePropertyKey);
 
     if (!property) {
       setActivePropertyKey(null);
@@ -821,8 +839,8 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
     }
 
     setActiveDraft(createPropertyDraft(property, propertyTypes));
-    setPreviousName(property.name);
-  }, [activePropertyKey, props.properties, propertyTypes]);
+    setPreviousName(explicitPropertyNames.has(property.name) ? property.name : undefined);
+  }, [activePropertyKey, explicitPropertyNames, mergedProperties, propertyTypes]);
 
   useEffect(() => {
     if (nameFocusToken === 0) {
@@ -837,6 +855,13 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
     activePropertyKey && activePropertyKey !== NEW_PROPERTY_KEY
       ? props.properties.find((property) => property.name === activePropertyKey)
       : undefined;
+  const selectedMergedProperty =
+    activePropertyKey && activePropertyKey !== NEW_PROPERTY_KEY
+      ? mergedProperties.find((property) => property.name === activePropertyKey)
+      : undefined;
+  const selectedPropertyIsExplicit = selectedMergedProperty
+    ? explicitPropertyNames.has(selectedMergedProperty.name)
+    : false;
 
   function beginCreate(): void {
     setActivePropertyKey(NEW_PROPERTY_KEY);
@@ -899,13 +924,14 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
   return (
     <div className={props.className}>
       <PropertyBrowserGroup title={t("propertiesEditor.customProperties")}>
-        {props.properties.length === 0 ? (
+        {mergedProperties.length === 0 ? (
           <div className="border-b border-slate-800 bg-slate-950 px-2 py-2 text-sm text-slate-400">
             {t("propertiesEditor.noCustomProperties")}
           </div>
         ) : (
-          props.properties.map((property) => (
+          mergedProperties.map((property) => (
             <PropertyListRow
+              explicit={explicitPropertyNames.has(property.name)}
               key={property.name}
               objectReferenceOptions={objectReferenceOptions}
               property={property}
@@ -922,6 +948,7 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
           <div className="border-t border-slate-700">
             <PropertyDraftEditor
               draft={activeDraft}
+              identityLocked={activePropertyKey !== NEW_PROPERTY_KEY && !selectedPropertyIsExplicit}
               nameInputRef={nameInputRef}
               objectReferenceOptions={objectReferenceOptions}
               propertyTypes={propertyTypes}
@@ -941,7 +968,7 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
           </button>
           <button
             className="border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-            disabled={!selectedExistingProperty}
+            disabled={!selectedPropertyIsExplicit}
             onClick={removeSelectedProperty}
             type="button"
           >
@@ -949,7 +976,7 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
           </button>
           <button
             className="border border-slate-700 bg-slate-900 px-2 py-1 text-xs text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-            disabled={!activeDraft}
+            disabled={!activeDraft || (activePropertyKey !== NEW_PROPERTY_KEY && !selectedPropertyIsExplicit)}
             onClick={focusPropertyName}
             type="button"
           >

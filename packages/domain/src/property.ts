@@ -55,18 +55,19 @@ export interface ClassPropertyTypeDefinition {
   id: PropertyTypeId;
   kind: "class";
   name: string;
-  useAs: Array<
-    | "map"
-    | "layer"
-    | "object"
-    | "tile"
-    | "tileset"
-    | "project"
-    | "world"
-    | "template"
-  >;
+  useAs: PropertyTypeUseAs[];
   fields: ClassPropertyFieldDefinition[];
 }
+
+export type PropertyTypeUseAs =
+  | "map"
+  | "layer"
+  | "object"
+  | "tile"
+  | "tileset"
+  | "project"
+  | "world"
+  | "template";
 
 export type PropertyTypeDefinition =
   | EnumPropertyTypeDefinition
@@ -216,6 +217,62 @@ export function createDefaultPropertyValue(
   propertyTypes: readonly PropertyTypeDefinition[]
 ): PropertyValue {
   return createDefaultPropertyValueInternal(valueType, propertyTypeName, propertyTypes, []);
+}
+
+export function createSuggestedPropertiesForClassType(
+  propertyTypes: readonly PropertyTypeDefinition[],
+  classTypeName: string | undefined,
+  useAs: PropertyTypeUseAs
+): PropertyDefinition[] {
+  const classType = getClassPropertyTypeDefinitionByName(propertyTypes, classTypeName);
+
+  if (!classType || !classType.useAs.includes(useAs)) {
+    return [];
+  }
+
+  return classType.fields.map((field) =>
+    createProperty(
+      field.name,
+      field.valueType,
+      field.defaultValue !== undefined
+        ? clonePropertyValue(field.defaultValue)
+        : createDefaultPropertyValue(
+            field.valueType,
+            field.propertyTypeName,
+            propertyTypes
+          ),
+      field.propertyTypeName
+    )
+  );
+}
+
+export function mergeSuggestedPropertyDefinitions(
+  explicitProperties: readonly PropertyDefinition[],
+  suggestedProperties: readonly PropertyDefinition[]
+): PropertyDefinition[] {
+  const explicitPropertiesByName = new Map(
+    explicitProperties.map((property) => [property.name, property])
+  );
+  const mergedProperties: PropertyDefinition[] = [];
+
+  for (const suggestedProperty of suggestedProperties) {
+    mergedProperties.push(
+      clonePropertyDefinition(
+        explicitPropertiesByName.get(suggestedProperty.name) ?? suggestedProperty
+      )
+    );
+    explicitPropertiesByName.delete(suggestedProperty.name);
+  }
+
+  for (const explicitProperty of explicitProperties) {
+    if (!explicitPropertiesByName.has(explicitProperty.name)) {
+      continue;
+    }
+
+    mergedProperties.push(clonePropertyDefinition(explicitProperty));
+  }
+
+  return mergedProperties;
 }
 
 function sanitizePropertyName(name: string): string {

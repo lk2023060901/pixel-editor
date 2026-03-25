@@ -32,6 +32,24 @@
             "defaultValue": 2
           }
         ]
+      },
+      {
+        "kind": "class",
+        "name": "TerrainTile",
+        "useAs": ["tile"],
+        "fields": [
+          {
+            "name": "biome",
+            "valueType": "enum",
+            "propertyTypeName": "Biome",
+            "defaultValue": "forest"
+          },
+          {
+            "name": "walkable",
+            "valueType": "bool",
+            "defaultValue": true
+          }
+        ]
       }
     ]
   },
@@ -45,7 +63,25 @@
       "imagePath": "assets/terrain-core.svg",
       "imageWidth": 192,
       "imageHeight": 128,
-      "columns": 6
+      "columns": 6,
+      "tiles": [
+        {
+          "localId": 0,
+          "className": "TerrainTile",
+          "properties": [
+            {
+              "name": "biome",
+              "type": "enum",
+              "propertyTypeName": "Biome",
+              "value": "ruins"
+            }
+          ]
+        },
+        {
+          "localId": 1,
+          "className": "TerrainTile"
+        }
+      ]
     },
     {
       "key": "props-collection",

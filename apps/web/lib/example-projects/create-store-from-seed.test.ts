@@ -104,4 +104,95 @@ describe("createEditorStoreFromExampleSeed", () => {
       }
     ]);
   });
+
+  it("applies seeded tile metadata and leaves typed tile class defaults to the UI layer", () => {
+    const seed: ExampleProjectSeed = {
+      projectId: "demo-project",
+      project: {
+        name: "Example Terrain Project",
+        assetRoots: ["maps", "tilesets", "templates"],
+        propertyTypes: [
+          {
+            kind: "enum",
+            name: "Biome",
+            storageType: "string",
+            values: ["forest", "ruins", "cave"],
+            valuesAsFlags: false
+          },
+          {
+            kind: "class",
+            name: "TerrainTile",
+            useAs: ["tile"],
+            fields: [
+              {
+                name: "biome",
+                valueType: "enum",
+                propertyTypeName: "Biome",
+                defaultValue: "forest"
+              },
+              {
+                name: "walkable",
+                valueType: "bool",
+                defaultValue: true
+              }
+            ]
+          }
+        ]
+      },
+      tilesets: [
+        {
+          key: "terrain-core",
+          kind: "image",
+          name: "Terrain Core",
+          tileWidth: 32,
+          tileHeight: 32,
+          imagePath: "/terrain-core.svg",
+          imageWidth: 64,
+          imageHeight: 32,
+          columns: 2,
+          tiles: [
+            {
+              localId: 0,
+              className: "TerrainTile",
+              properties: [
+                {
+                  name: "biome",
+                  type: "enum",
+                  propertyTypeName: "Biome",
+                  value: "ruins"
+                }
+              ]
+            }
+          ]
+        }
+      ],
+      maps: [
+        {
+          name: "starter-map",
+          orientation: "orthogonal",
+          width: 8,
+          height: 8,
+          tileWidth: 32,
+          tileHeight: 32,
+          tilesetKeys: ["terrain-core"]
+        }
+      ]
+    };
+
+    const store = createEditorStoreFromExampleSeed(seed);
+    const seededTile = store.getState().tilesets[0]?.tiles[0];
+
+    expect(seededTile).toMatchObject({
+      localId: 0,
+      className: "TerrainTile",
+      properties: [
+        {
+          name: "biome",
+          type: "enum",
+          propertyTypeName: "Biome",
+          value: "ruins"
+        }
+      ]
+    });
+  });
 });

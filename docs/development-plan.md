@@ -74,7 +74,7 @@ Last updated: 2026-03-25
 | UI-002 | Web 壳 | 项目路由与编辑页入口 | FND-004 | 开发中 | 已实现 `/projects/[projectId]` 页面与 web-host 装配层，当前从 `examples/` 加载示例项目 seed，UI 不再直接绑定 demo store |
 | UI-003 | Web 壳 | Toolbar 与工具切换 | UI-001, SES-003 | 开发中 | 已按 Tiled 的 main/tools/tool-options 三段结构重建顶部 toolbar，并按 `mainwindow.ui` / `mainwindow.cpp` 接入 File/Edit/View/World/Map/Layer/Project/Help 菜单层级、可见性、文案与快捷键展示；现有工具切换、New split button 与 shape fill tool options 已接通，未实现动作仍保留禁用占位 |
 | UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已收敛为 Tiled 风格的 layer dock：反向层级列表、图层类型图标、visible/locked 状态列与底部工具条；当前已接通选择、新建、删除、重排，visibility/lock/duplicate/highlight 交互待后续 `LYR-003` 补齐 |
-| UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已接入 Map / Layer / Object 基础 inspector 编辑与 primitive + enum + class + object reference custom properties editor，并将左侧 Properties 收成连续 property rows、移除分段 Apply、改为字段 blur/change 即提交的 controller/command 链路；Custom Properties 已补齐紧凑列表、底部工具条、单项选择与内联新增/重命名编辑，typed tiles 与更完整的 property browser 细节待补 |
+| UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已接入 Map / Layer / Object 基础 inspector 编辑与 primitive + enum + class + object reference custom properties editor，并将左侧 Properties 收成连续 property rows、移除分段 Apply、改为字段 blur/change 即提交的 controller/command 链路；Custom Properties 已补齐紧凑列表、底部工具条、单项选择与内联新增/重命名编辑，更完整的 property browser 细节待补 |
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
 | UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动；检索与属性面板待补 |
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
@@ -102,9 +102,9 @@ Last updated: 2026-03-25
 | TSET-001 | Tileset | 新建 sprite sheet tileset | DOM-004, UI-006 | 开发中 | 已支持基础创建流、自动切 tile、挂载到当前 map 与后续参数编辑，待补上传 |
 | TSET-002 | Tileset | 新建 image collection tileset | DOM-004, UI-006 | 开发中 | 已支持基础创建流、挂载到当前 map 与属性编辑链路，待补批量导入与排序 |
 | TSET-003 | Tileset | Tileset 参数编辑 | TSET-001, TSET-002, CMD-001 | 已完成 | 已支持 name、tile size、tile offset、alignment、render size、fill mode 与 sprite source 参数编辑，并通过命令/控制器测试 |
-| TSET-004 | Tileset | Tile 属性编辑 | TSET-003, DOM-006 | 开发中 | 已支持 tile class 与 primitive + enum + class + object reference custom properties 编辑，并将 Tile Properties 收成连续 property rows、移除 Apply 元数据按钮、接入紧凑 custom properties browser；typed tiles 与更完整的 property browser 细节待补 |
+| TSET-004 | Tileset | Tile 属性编辑 | TSET-003, DOM-006 | 开发中 | 已支持 tile class 与 primitive + enum + class + object reference custom properties 编辑，并将 Tile Properties 收成连续 property rows、移除 Apply 元数据按钮、接入紧凑 custom properties browser；property browser 细节与高级 tile 元数据待补 |
 | TSET-005 | Tileset | Tile Probability | TSET-004 | 已完成 | 已在 Tile Properties 中接入概率 property row、即时提交与 controller/domain 测试链路，为 random mode 提供 tile 权重元数据 |
-| TSET-006 | Tileset | Typed Tiles | TSET-004, DOM-006 | 未开始 | tile 级 class 与继承 |
+| TSET-006 | Tileset | Typed Tiles | TSET-004, DOM-006 | 已完成 | 已接入 tile class 对应的 suggested/inherited properties 解析、显式属性覆盖合并、继承属性在 Tile Properties 中的展示与覆写编辑，并通过 domain/seed 测试链路验证 |
 | TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 未开始 | frame 列表与 duration |
 | TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 未开始 | tile 内 objectgroup 编辑 |
 | TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 未开始 | tileset 高级能力入口 |

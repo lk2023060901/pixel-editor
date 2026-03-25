@@ -1,10 +1,11 @@
 "use client";
 
 import type { EditorController } from "@pixel-editor/app-services";
-import type {
-  EditorMap,
-  PropertyTypeDefinition,
-  TilesetDefinition
+import {
+  createSuggestedPropertiesForClassType,
+  type EditorMap,
+  type PropertyTypeDefinition,
+  type TilesetDefinition
 } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
@@ -32,6 +33,11 @@ export function TilePropertiesEditor(props: {
     selectedLocalId !== null
       ? props.tileset.tiles.find((tile) => tile.localId === selectedLocalId)
       : undefined;
+  const suggestedProperties = createSuggestedPropertiesForClassType(
+    props.propertyTypes ?? [],
+    selectedTile?.className,
+    "tile"
+  );
   const [className, setClassName] = useState(selectedTile?.className ?? "");
   const [probability, setProbability] = useState(String(selectedTile?.probability ?? 1));
 
@@ -105,6 +111,7 @@ export function TilePropertiesEditor(props: {
             properties={selectedTile.properties}
             objectReferenceOptions={objectReferenceOptions}
             propertyTypes={props.propertyTypes}
+            suggestedProperties={suggestedProperties}
             onRemove={(propertyName) => {
               props.store.removeSelectedTileProperty(propertyName);
             }}

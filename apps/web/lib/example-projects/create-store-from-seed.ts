@@ -82,6 +82,25 @@ export function createEditorStoreFromExampleSeed(
 
     if (createdTileset) {
       tilesetIdsByKey.set(tileset.key, createdTileset.id);
+
+      if (tileset.tiles?.length) {
+        store.setActiveTileset(createdTileset.id);
+
+        for (const tile of tileset.tiles) {
+          store.selectStampTile(createdTileset.id, tile.localId);
+
+          if (tile.className !== undefined || tile.probability !== undefined) {
+            store.updateSelectedTileMetadata({
+              ...(tile.className !== undefined ? { className: tile.className } : {}),
+              ...(tile.probability !== undefined ? { probability: tile.probability } : {})
+            });
+          }
+
+          for (const property of tile.properties ?? []) {
+            store.upsertSelectedTileProperty(property);
+          }
+        }
+      }
     }
   }
 
