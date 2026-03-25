@@ -13,6 +13,22 @@ import {
 import { createTestEditorStore } from "./support/create-test-editor-store";
 
 describe("editor controller", () => {
+  it("returns a stable snapshot reference until state changes", () => {
+    const store = createTestEditorStore("demo");
+
+    const firstSnapshot = store.getSnapshot();
+    const secondSnapshot = store.getSnapshot();
+
+    expect(secondSnapshot).toBe(firstSnapshot);
+
+    store.zoomIn();
+
+    const thirdSnapshot = store.getSnapshot();
+
+    expect(thirdSnapshot).not.toBe(firstSnapshot);
+    expect(store.getSnapshot()).toBe(thirdSnapshot);
+  });
+
   it("creates a quick map through the controller preset API", () => {
     const store = createTestEditorStore("demo");
     const initialMapCount = store.getState().maps.length;
@@ -30,6 +46,16 @@ describe("editor controller", () => {
       tileWidth: 32,
       tileHeight: 32
     });
+  });
+
+  it("sets viewport zoom directly for status bar controls", () => {
+    const store = createTestEditorStore("demo");
+
+    store.setViewportZoom(2);
+    expect(store.getSnapshot().bootstrap.viewport.zoom).toBe(2);
+
+    store.setViewportZoom(999);
+    expect(store.getSnapshot().bootstrap.viewport.zoom).toBe(8);
   });
 
   it("routes canvas actions through the active tool", () => {
@@ -352,6 +378,147 @@ describe("editor controller", () => {
 
     expect(nextObjectLayer?.kind === "object" ? nextObjectLayer.objects : []).toHaveLength(1);
     expect(store.getState().session.selection).toEqual({ kind: "none" });
+  });
+
+  it("previews and commits object drag moves as a single undoable command", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store.getSnapshot().activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      return;
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const createdObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const targetObject =
+      createdObject?.kind === "object" ? createdObject.objects[0] : undefined;
+
+    expect(targetObject).toBeDefined();
+
+    if (!targetObject) {
+      return;
+    }
+
+    store.beginObjectMove(targetObject.id, 32, 32);
+    store.updateObjectMove(56, 44);
+
+    const preview = store.getSnapshot().runtime.interactions.objectTransformPreview;
+
+    expect(preview.kind).toBe("object-move");
+    expect(
+      preview.kind === "object-move"
+        ? {
+            objectIds: preview.objectIds,
+            deltaX: preview.deltaX,
+            deltaY: preview.deltaY
+          }
+        : null
+    ).toEqual({
+      objectIds: [targetObject.id],
+      deltaX: 24,
+      deltaY: 12
+    });
+
+    store.endObjectMove();
+
+    const movedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const committedObject =
+      movedObject?.kind === "object" ? movedObject.objects[0] : undefined;
+
+    expect(store.getSnapshot().runtime.interactions.objectTransformPreview.kind).toBe("none");
+    expect(committedObject).toMatchObject({
+      id: targetObject.id,
+      x: 56,
+      y: 44,
+      width: 32,
+      height: 32
+    });
+
+    store.undo();
+
+    const revertedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+
+    expect(revertedObject?.kind === "object" ? revertedObject.objects[0] : undefined).toMatchObject({
+      id: targetObject.id,
+      x: 32,
+      y: 32,
+      width: 32,
+      height: 32
+    });
+  });
+
+  it("snaps object drag moves to the tile grid when requested", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store.getSnapshot().activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      return;
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const createdObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const targetObject =
+      createdObject?.kind === "object" ? createdObject.objects[0] : undefined;
+
+    expect(targetObject).toBeDefined();
+
+    if (!targetObject) {
+      return;
+    }
+
+    store.beginObjectMove(targetObject.id, 32, 32);
+    store.updateObjectMove(50, 49, {
+      snapToGrid: true
+    });
+
+    const preview = store.getSnapshot().runtime.interactions.objectTransformPreview;
+
+    expect(preview.kind).toBe("object-move");
+    expect(
+      preview.kind === "object-move"
+        ? {
+            deltaX: preview.deltaX,
+            deltaY: preview.deltaY,
+            modifiers: preview.modifiers
+          }
+        : null
+    ).toEqual({
+      deltaX: 32,
+      deltaY: 32,
+      modifiers: {
+        snapToGrid: true
+      }
+    });
+
+    store.endObjectMove();
+
+    const snappedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+
+    expect(snappedObject?.kind === "object" ? snappedObject.objects[0] : undefined).toMatchObject({
+      id: targetObject.id,
+      x: 64,
+      y: 64,
+      width: 32,
+      height: 32
+    });
   });
 
   it("selects stamps from the active tileset set", () => {

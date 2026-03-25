@@ -4,6 +4,7 @@ import {
 } from "./clipboard";
 import {
   clearCanvasPreview,
+  clearObjectTransformPreview,
   createEditorInteractionState,
   type EditorInteractionState
 } from "./interactions";
@@ -18,20 +19,23 @@ export function createEditorRuntimeState(
 ): EditorRuntimeState {
   return {
     clipboard: overrides.clipboard ?? createEmptyClipboardState(),
-    interactions: overrides.interactions ?? createEditorInteractionState()
+    interactions: createEditorInteractionState(overrides.interactions)
   };
 }
 
 export function clearEditorRuntimeInteractions(
   state: EditorRuntimeState
 ): EditorRuntimeState {
-  if (state.interactions.canvasPreview.kind === "none") {
+  if (
+    state.interactions.canvasPreview.kind === "none" &&
+    state.interactions.objectTransformPreview.kind === "none"
+  ) {
     return state;
   }
 
   return {
     ...state,
-    interactions: clearCanvasPreview(state.interactions)
+    interactions: clearObjectTransformPreview(clearCanvasPreview(state.interactions))
   };
 }
 

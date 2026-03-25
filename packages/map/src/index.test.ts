@@ -22,6 +22,7 @@ import {
   removeLayerCommand,
   selectTileRegionCommand,
   setActiveStampCommand,
+  setViewportZoomCommand,
   toggleGridCommand,
   updateMapDetailsCommand,
   zoomViewportCommand
@@ -67,9 +68,10 @@ describe("map commands", () => {
 
     history.execute(toggleGridCommand());
     history.execute(zoomViewportCommand("in"));
+    history.execute(setViewportZoomCommand(2));
 
     expect(history.state.session.viewport.showGrid).toBe(false);
-    expect(history.state.session.viewport.zoom).toBeGreaterThan(1);
+    expect(history.state.session.viewport.zoom).toBe(2);
   });
 
   it("updates map details and manages layer order", () => {

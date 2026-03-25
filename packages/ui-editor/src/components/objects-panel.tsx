@@ -7,7 +7,7 @@ import {
   type ClipboardState,
   type SelectionState
 } from "@pixel-editor/editor-state";
-import { startTransition } from "react";
+import { startTransition, useMemo, useState } from "react";
 
 import { Panel } from "./panel";
 
@@ -27,19 +27,36 @@ function ActionButton(props: {
   );
 }
 
+function DockActionButton(props: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      className="min-w-0 border border-slate-700 bg-slate-800 px-2 py-1 text-[11px] text-slate-200 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40"
+      disabled={props.disabled}
+      onClick={props.onClick}
+    >
+      {props.label}
+    </button>
+  );
+}
+
 export interface ObjectsPanelProps {
   activeLayer: ObjectLayer | undefined;
   clipboard: ClipboardState;
   selection: SelectionState;
   store: EditorController;
+  embedded?: boolean;
 }
 
-export function ObjectsPanel({
+function ObjectsPanelContent({
   activeLayer,
   clipboard,
   selection,
   store
-}: ObjectsPanelProps) {
+}: Omit<ObjectsPanelProps, "embedded">) {
   const selectedIds = isObjectSelectionState(selection)
     ? new Set(selection.objectIds)
     : new Set();
@@ -48,7 +65,7 @@ export function ObjectsPanel({
     clipboard.kind === "object" ? `${clipboard.objects.length} object(s)` : "Empty";
 
   return (
-    <Panel title="Objects">
+    <>
       <div className="mb-4 grid grid-cols-2 gap-2">
         <ActionButton
           label="Add Rectangle"
@@ -150,6 +167,146 @@ export function ObjectsPanel({
           <p className="text-sm text-slate-400">No objects in the active layer.</p>
         )}
       </div>
-    </Panel>
+    </>
   );
+}
+
+function ObjectsDockContent({
+  activeLayer,
+  clipboard,
+  selection,
+  store
+}: Omit<ObjectsPanelProps, "embedded">) {
+  const [filterText, setFilterText] = useState("");
+  const selectedIds = isObjectSelectionState(selection)
+    ? new Set(selection.objectIds)
+    : new Set();
+  const hasObjectSelection = selectedIds.size > 0;
+  const filteredObjects = useMemo(() => {
+    const keyword = filterText.trim().toLowerCase();
+
+    if (!activeLayer || keyword.length === 0) {
+      return activeLayer?.objects ?? [];
+    }
+
+    return activeLayer.objects.filter((object) => {
+      return (
+        object.name.toLowerCase().includes(keyword) ||
+        object.shape.toLowerCase().includes(keyword)
+      );
+    });
+  }, [activeLayer, filterText]);
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-slate-800 p-1.5">
+        <input
+          className="w-full border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500"
+          placeholder="Filter"
+          value={filterText}
+          onChange={(event) => {
+            setFilterText(event.target.value);
+          }}
+        />
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto">
+        {filteredObjects.map((object) => {
+          const isSelected = selectedIds.has(object.id);
+
+          return (
+            <button
+              key={object.id}
+              className={`grid w-full grid-cols-[1fr_auto] items-center gap-2 border-b border-slate-800 px-2 py-1.5 text-left text-sm transition ${
+                isSelected
+                  ? "bg-slate-800 text-slate-100"
+                  : "bg-slate-900 text-slate-300 hover:bg-slate-800/70"
+              }`}
+              onClick={() => {
+                startTransition(() => {
+                  store.selectObject(object.id);
+                });
+              }}
+            >
+              <span className="min-w-0 truncate font-medium">{object.name}</span>
+              <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
+                {object.shape}
+              </span>
+            </button>
+          );
+        })}
+
+        {!activeLayer && (
+          <div className="px-3 py-3 text-sm text-slate-400">
+            Select an object layer to manage objects.
+          </div>
+        )}
+
+        {activeLayer && filteredObjects.length === 0 && (
+          <div className="px-3 py-3 text-sm text-slate-400">No objects match the current filter.</div>
+        )}
+      </div>
+
+      <div className="flex flex-wrap items-center gap-px border-t border-slate-700 bg-slate-800 p-1">
+        <DockActionButton
+          label="Add"
+          disabled={!activeLayer}
+          onClick={() => {
+            startTransition(() => {
+              store.createRectangleObject();
+            });
+          }}
+        />
+        <DockActionButton
+          label="Delete"
+          disabled={!activeLayer || !hasObjectSelection}
+          onClick={() => {
+            startTransition(() => {
+              store.removeSelectedObjects();
+            });
+          }}
+        />
+        <DockActionButton
+          label="Copy"
+          disabled={!activeLayer || !hasObjectSelection}
+          onClick={() => {
+            startTransition(() => {
+              store.copySelectedObjectsToClipboard();
+            });
+          }}
+        />
+        <DockActionButton
+          label="Cut"
+          disabled={!activeLayer || !hasObjectSelection}
+          onClick={() => {
+            startTransition(() => {
+              store.cutSelectedObjectsToClipboard();
+            });
+          }}
+        />
+        <DockActionButton
+          label="Paste"
+          disabled={!activeLayer || clipboard.kind !== "object"}
+          onClick={() => {
+            startTransition(() => {
+              store.pasteClipboardToActiveObjectLayer();
+            });
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
+export function ObjectsPanel({
+  embedded = false,
+  ...props
+}: ObjectsPanelProps) {
+  const content = embedded ? <ObjectsDockContent {...props} /> : <ObjectsPanelContent {...props} />;
+
+  if (embedded) {
+    return content;
+  }
+
+  return <Panel title="Objects">{content}</Panel>;
 }

@@ -75,6 +75,59 @@ describe("object layer projection", () => {
     expect(pickProjectedObject(projectedObjects, 30, 30)).toBe(frontObject.id);
   });
 
+  it("applies object move previews during projection and picking", () => {
+    const object = createMapObject({
+      name: "Mover",
+      shape: "rectangle",
+      x: 32,
+      y: 48,
+      width: 32,
+      height: 16
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      objects: [object]
+    });
+    const map = createMap({
+      name: "map-1",
+      orientation: "orthogonal",
+      width: 10,
+      height: 10,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [objectLayer]
+    });
+
+    const projectedObjects = collectProjectedMapObjects({
+      map,
+      geometry: {
+        tileWidth: 32,
+        tileHeight: 32,
+        gridOriginX: 0,
+        gridOriginY: 0
+      },
+      viewport: {
+        originX: 0,
+        originY: 0
+      },
+      objectTransformPreview: {
+        kind: "move",
+        objectIds: [object.id],
+        deltaX: 16,
+        deltaY: -8
+      }
+    });
+
+    expect(projectedObjects[0]).toMatchObject({
+      objectId: object.id,
+      screenX: 48,
+      screenY: 40,
+      screenWidth: 32,
+      screenHeight: 16
+    });
+    expect(pickProjectedObject(projectedObjects, 60, 48)).toBe(object.id);
+  });
+
   it("picks polyline and point objects using shape-aware hit testing", () => {
     const polylineObject = createMapObject({
       name: "Path",

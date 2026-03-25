@@ -1,4 +1,6 @@
 @import "tailwindcss";
+@source "../app";
+@source "../../../packages/ui-editor/src";
 
 :root {
   color-scheme: dark;
@@ -25,4 +27,3 @@ a {
   color: inherit;
   text-decoration: none;
 }
-

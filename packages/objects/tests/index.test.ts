@@ -10,6 +10,7 @@ import { createMapDocumentCommand } from "@pixel-editor/map";
 
 import {
   addObjectCommand,
+  moveObjectsCommand,
   pasteObjectClipboardCommand,
   removeSelectedObjectsCommand,
   selectObjectCommand
@@ -75,6 +76,17 @@ describe("object commands", () => {
     ).toMatchObject({
       x: 64,
       y: 96,
+      width: 32,
+      height: 16
+    });
+
+    history.execute(moveObjectsCommand(map.id, objectLayer.id, [object.id], 16, -8));
+
+    const afterMoveLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "object");
+
+    expect(afterMoveLayer?.kind === "object" ? afterMoveLayer.objects[0] : undefined).toMatchObject({
+      x: 48,
+      y: 56,
       width: 32,
       height: 16
     });

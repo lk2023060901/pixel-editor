@@ -267,6 +267,27 @@ export function zoomViewportCommand(
   });
 }
 
+export function setViewportZoomCommand(
+  zoom: number
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "viewport.zoom.set",
+    description: `Set zoom to ${zoom}`,
+    run: (state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        viewport: {
+          ...state.session.viewport,
+          zoom: clampZoom(zoom)
+        }
+      }
+    }),
+    canMerge: (next) => next.id === "viewport.zoom.set",
+    merge: (next) => next
+  });
+}
+
 export function toggleGridCommand(): HistoryCommand<EditorWorkspaceState> {
   return createHistoryCommand({
     id: "viewport.toggleGrid",

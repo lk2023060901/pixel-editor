@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import type { LayerId, MapId } from "@pixel-editor/domain";
+import type { LayerId, MapId, ObjectId } from "@pixel-editor/domain";
 import {
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
+  createObjectMovePreview,
   createShapeFillCanvasPreview,
   createTileClipboardState,
   setEditorRuntimeClipboard
@@ -11,6 +12,7 @@ import {
 
 const mapId = "map-1" as MapId;
 const layerId = "layer-1" as LayerId;
+const objectId = "object-1" as ObjectId;
 
 describe("editor runtime state", () => {
   it("preserves clipboard contents when clearing transient interactions", () => {
@@ -36,6 +38,15 @@ describe("editor runtime state", () => {
           originX: 2,
           originY: 3,
           gid: 23
+        }),
+        objectTransformPreview: createObjectMovePreview({
+          mapId,
+          layerId,
+          objectIds: [objectId],
+          anchorX: 32,
+          anchorY: 48,
+          referenceX: 32,
+          referenceY: 48
         })
       }
     });
@@ -44,6 +55,7 @@ describe("editor runtime state", () => {
 
     expect(nextRuntime.clipboard).toEqual(clipboard);
     expect(nextRuntime.interactions.canvasPreview.kind).toBe("none");
+    expect(nextRuntime.interactions.objectTransformPreview.kind).toBe("none");
   });
 
   it("updates clipboard without mutating the interaction slice", () => {
@@ -56,7 +68,8 @@ describe("editor runtime state", () => {
           originX: 7,
           originY: 9,
           gid: 31
-        })
+        }),
+        objectTransformPreview: { kind: "none" }
       }
     });
     const clipboard = createTileClipboardState({

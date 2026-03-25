@@ -4,7 +4,10 @@ import {
   cloneMapObject,
   createMapObject,
   createProperty,
-  getMapObjectBounds
+  createObjectLayer,
+  getMapObjectBounds,
+  translateMapObject,
+  translateObjectsInLayer
 } from "@pixel-editor/domain";
 
 describe("object operations", () => {
@@ -78,5 +81,41 @@ describe("object operations", () => {
       width: 38,
       height: 24
     });
+  });
+
+  it("translates objects without mutating unrelated layer entries", () => {
+    const target = createMapObject({
+      name: "Mover",
+      shape: "rectangle",
+      x: 32,
+      y: 48,
+      width: 16,
+      height: 12
+    });
+    const untouched = createMapObject({
+      name: "Static",
+      shape: "point",
+      x: 96,
+      y: 128
+    });
+    const layer = createObjectLayer({
+      name: "Objects",
+      objects: [target, untouched]
+    });
+
+    expect(translateMapObject(target, 8, -4)).toMatchObject({
+      id: target.id,
+      x: 40,
+      y: 44
+    });
+
+    const translatedLayer = translateObjectsInLayer(layer, [target.id], 8, -4);
+
+    expect(translatedLayer.objects[0]).toMatchObject({
+      id: target.id,
+      x: 40,
+      y: 44
+    });
+    expect(translatedLayer.objects[1]).toBe(untouched);
   });
 });

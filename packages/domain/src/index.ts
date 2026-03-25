@@ -31,6 +31,8 @@ export {
   getMapObjectBounds,
   getObjectById,
   removeObjectsFromLayer,
+  translateMapObject,
+  translateObjectsInLayer,
   type ObjectBoundsRect
 } from "./object-operations";
 export {

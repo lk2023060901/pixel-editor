@@ -22,6 +22,7 @@ import {
 import {
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
+  createObjectMovePreview,
   createShapeFillCanvasPreview,
   createSingleTileStamp,
   createObjectClipboardState,
@@ -37,12 +38,14 @@ import {
   isTileSelectionState,
   materializeTileStampCells,
   setEditorRuntimeClipboard,
+  updateObjectMovePreview,
   updateShapeFillCanvasPreview,
   updateTileSelectionCanvasPreview,
   type CanvasGestureModifiers,
   type ClipboardState,
   type EditorRuntimeState,
   type EditorToolId,
+  type ObjectMoveGestureModifiers,
   type EditorWorkspaceState,
   type TileStamp,
   type ShapeFillMode
@@ -71,12 +74,14 @@ import {
   setActiveStampCommand,
   setActiveToolCommand,
   setShapeFillModeCommand,
+  setViewportZoomCommand,
   toggleGridCommand,
   updateMapDetailsCommand,
   zoomViewportCommand
 } from "@pixel-editor/map";
 import {
   createRectangleObjectCommand,
+  moveObjectsCommand,
   pasteObjectClipboardCommand,
   removeSelectedObjectsCommand,
   selectObjectCommand
@@ -157,6 +162,14 @@ export interface EditorController {
   cutSelectedObjectsToClipboard(): void;
   pasteClipboardToActiveObjectLayer(): void;
   removeSelectedObjects(): void;
+  beginObjectMove(
+    objectId: ObjectId,
+    x: number,
+    y: number,
+    modifiers?: ObjectMoveGestureModifiers
+  ): void;
+  updateObjectMove(x: number, y: number, modifiers?: ObjectMoveGestureModifiers): void;
+  endObjectMove(): void;
   createSpriteSheetTileset(input: CreateImageTilesetInput): void;
   createImageCollectionTileset(input: CreateImageCollectionTilesetInput): void;
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
@@ -174,6 +187,7 @@ export interface EditorController {
   handleCanvasPrimaryAction(x: number, y: number): void;
   zoomIn(): void;
   zoomOut(): void;
+  setViewportZoom(zoom: number): void;
   panBy(deltaX: number, deltaY: number): void;
   toggleGrid(): void;
   undo(): void;
@@ -231,11 +245,27 @@ function rasterizeLine(
   }
 }
 
+function snapDeltaToGrid(
+  referencePosition: number,
+  rawDelta: number,
+  gridSize: number
+): number {
+  if (gridSize <= 0) {
+    return rawDelta;
+  }
+
+  const targetPosition = referencePosition + rawDelta;
+  const snappedPosition = Math.round(targetPosition / gridSize) * gridSize;
+
+  return snappedPosition - referencePosition;
+}
+
 class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly listeners = new Set<() => void>();
   private canvasStroke: CanvasStrokeState | undefined;
   private runtime = createEditorRuntimeState();
+  private cachedSnapshot: EditorRuntimeSnapshot | undefined;
 
   constructor(initialState: EditorWorkspaceState) {
     this.history = new CommandHistory(initialState);
@@ -246,12 +276,16 @@ class InMemoryEditorController implements EditorController {
   }
 
   getSnapshot(): EditorRuntimeSnapshot {
+    if (this.cachedSnapshot) {
+      return this.cachedSnapshot;
+    }
+
     const workspace = this.history.state;
     const activeMap = getActiveMap(workspace);
     const activeLayer = getActiveLayer(workspace);
     const activeTileset = getActiveTileset(workspace);
 
-    return {
+    this.cachedSnapshot = {
       bootstrap: toEditorBootstrap(workspace),
       workspace,
       runtime: this.runtime,
@@ -261,6 +295,8 @@ class InMemoryEditorController implements EditorController {
       ...(activeLayer ? { activeLayer } : {}),
       ...(activeTileset ? { activeTileset } : {})
     };
+
+    return this.cachedSnapshot;
   }
 
   subscribe(listener: () => void): () => void {
@@ -271,7 +307,13 @@ class InMemoryEditorController implements EditorController {
     };
   }
 
+  private invalidateSnapshot(): void {
+    this.cachedSnapshot = undefined;
+  }
+
   private emit(): void {
+    this.invalidateSnapshot();
+
     for (const listener of this.listeners) {
       listener();
     }
@@ -374,6 +416,52 @@ class InMemoryEditorController implements EditorController {
     return {
       x: sourceBounds.x + activeMap.settings.tileWidth,
       y: sourceBounds.y + activeMap.settings.tileHeight
+    };
+  }
+
+  private resolveObjectMoveSelection(
+    activeLayer: ObjectLayer,
+    objectId: ObjectId
+  ): ObjectId[] {
+    const selection = this.history.state.session.selection;
+
+    if (!isObjectSelectionState(selection) || !selection.objectIds.includes(objectId)) {
+      return [objectId];
+    }
+
+    const availableObjectIds = new Set(activeLayer.objects.map((object) => object.id));
+    return selection.objectIds.filter((candidateId) => availableObjectIds.has(candidateId));
+  }
+
+  private resolveObjectMoveDelta(
+    preview: Extract<
+      EditorRuntimeState["interactions"]["objectTransformPreview"],
+      { kind: "object-move" }
+    >,
+    modifiers: ObjectMoveGestureModifiers = {}
+  ): { deltaX: number; deltaY: number } {
+    const rawDeltaX = preview.currentX - preview.anchorX;
+    const rawDeltaY = preview.currentY - preview.anchorY;
+
+    if (!modifiers.snapToGrid) {
+      return {
+        deltaX: rawDeltaX,
+        deltaY: rawDeltaY
+      };
+    }
+
+    const map = this.history.state.maps.find((entry) => entry.id === preview.mapId);
+
+    if (!map) {
+      return {
+        deltaX: rawDeltaX,
+        deltaY: rawDeltaY
+      };
+    }
+
+    return {
+      deltaX: snapDeltaToGrid(preview.referenceX, rawDeltaX, map.settings.tileWidth),
+      deltaY: snapDeltaToGrid(preview.referenceY, rawDeltaY, map.settings.tileHeight)
     };
   }
 
@@ -482,6 +570,7 @@ class InMemoryEditorController implements EditorController {
     this.runtime = {
       ...this.runtime,
       interactions: {
+        ...this.runtime.interactions,
         canvasPreview: updateShapeFillCanvasPreview(preview, {
           currentX: x,
           currentY: y,
@@ -517,6 +606,7 @@ class InMemoryEditorController implements EditorController {
     this.runtime = {
       ...this.runtime,
       interactions: {
+        ...this.runtime.interactions,
         canvasPreview: createShapeFillCanvasPreview({
           mapId: activeMap.id,
           layerId: activeLayer.id,
@@ -541,6 +631,7 @@ class InMemoryEditorController implements EditorController {
     this.runtime = {
       ...this.runtime,
       interactions: {
+        ...this.runtime.interactions,
         canvasPreview: updateTileSelectionCanvasPreview(preview, {
           currentX: x,
           currentY: y,
@@ -569,6 +660,7 @@ class InMemoryEditorController implements EditorController {
     this.runtime = {
       ...this.runtime,
       interactions: {
+        ...this.runtime.interactions,
         canvasPreview: createTileSelectionCanvasPreview({
           mapId: activeMap.id,
           layerId: activeLayer.id,
@@ -839,6 +931,119 @@ class InMemoryEditorController implements EditorController {
     );
   }
 
+  beginObjectMove(
+    objectId: ObjectId,
+    x: number,
+    y: number,
+    modifiers: ObjectMoveGestureModifiers = {}
+  ): void {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved || !getObjectById(resolved.activeLayer, objectId)) {
+      return;
+    }
+
+    const objectIds = this.resolveObjectMoveSelection(resolved.activeLayer, objectId);
+    const movingObjects = resolved.activeLayer.objects.filter((object) =>
+      objectIds.includes(object.id)
+    );
+    const bounds = getMapObjectBounds(movingObjects);
+    const selection = this.history.state.session.selection;
+    const isSameSingleSelection =
+      isObjectSelectionState(selection) &&
+      selection.objectIds.length === 1 &&
+      selection.objectIds[0] === objectId;
+
+    if (!bounds) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+
+    if (!isSameSingleSelection && objectIds.length === 1 && objectIds[0] === objectId) {
+      this.commit(selectObjectCommand(objectId));
+    }
+
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        ...this.runtime.interactions,
+        objectTransformPreview: createObjectMovePreview({
+          mapId: resolved.activeMap.id,
+          layerId: resolved.activeLayer.id,
+          objectIds,
+          anchorX: x,
+          anchorY: y,
+          referenceX: bounds.x,
+          referenceY: bounds.y,
+          modifiers
+        })
+      }
+    };
+    this.emit();
+  }
+
+  updateObjectMove(
+    x: number,
+    y: number,
+    modifiers: ObjectMoveGestureModifiers = {}
+  ): void {
+    const preview = this.runtime.interactions.objectTransformPreview;
+
+    if (preview.kind !== "object-move") {
+      return;
+    }
+
+    const delta = this.resolveObjectMoveDelta(
+      {
+        ...preview,
+        currentX: x,
+        currentY: y
+      },
+      modifiers
+    );
+
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        ...this.runtime.interactions,
+        objectTransformPreview: updateObjectMovePreview(preview, {
+          currentX: x,
+          currentY: y,
+          deltaX: delta.deltaX,
+          deltaY: delta.deltaY,
+          modifiers
+        })
+      }
+    };
+    this.emit();
+  }
+
+  endObjectMove(): void {
+    const preview = this.runtime.interactions.objectTransformPreview;
+
+    if (preview.kind !== "object-move") {
+      return;
+    }
+
+    this.runtime = clearEditorRuntimeInteractions(this.runtime);
+
+    if (preview.deltaX === 0 && preview.deltaY === 0) {
+      this.emit();
+      return;
+    }
+
+    this.commit(
+      moveObjectsCommand(
+        preview.mapId,
+        preview.layerId,
+        preview.objectIds,
+        preview.deltaX,
+        preview.deltaY
+      )
+    );
+  }
+
   createSpriteSheetTileset(input: CreateImageTilesetInput): void {
     const activeMap = getActiveMap(this.history.state);
 
@@ -1069,7 +1274,7 @@ class InMemoryEditorController implements EditorController {
 
       this.runtime = clearEditorRuntimeInteractions(this.runtime);
 
-      if (getCanvasPreviewTiles({ canvasPreview: preview }).length === 0) {
+      if (preview.coordinates.length === 0) {
         this.emit();
         return;
       }
@@ -1178,6 +1383,10 @@ class InMemoryEditorController implements EditorController {
 
   zoomOut(): void {
     this.commit(zoomViewportCommand("out"));
+  }
+
+  setViewportZoom(zoom: number): void {
+    this.commit(setViewportZoomCommand(zoom));
   }
 
   panBy(deltaX: number, deltaY: number): void {

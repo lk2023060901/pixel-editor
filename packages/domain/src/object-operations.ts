@@ -112,6 +112,22 @@ export function cloneMapObject(
   });
 }
 
+export function translateMapObject(
+  object: MapObject,
+  deltaX: number,
+  deltaY: number
+): MapObject {
+  if (deltaX === 0 && deltaY === 0) {
+    return object;
+  }
+
+  return {
+    ...object,
+    x: object.x + deltaX,
+    y: object.y + deltaY
+  };
+}
+
 export function getMapObjectBounds(
   objects: readonly MapObject[]
 ): ObjectBoundsRect | undefined {
@@ -144,6 +160,36 @@ export function appendObjectsToLayer(
     ...layer,
     objects: [...layer.objects, ...objects]
   };
+}
+
+export function translateObjectsInLayer(
+  layer: ObjectLayer,
+  objectIds: readonly ObjectId[],
+  deltaX: number,
+  deltaY: number
+): ObjectLayer {
+  if (objectIds.length === 0 || (deltaX === 0 && deltaY === 0)) {
+    return layer;
+  }
+
+  const targetIds = new Set(objectIds);
+  let changed = false;
+
+  const objects = layer.objects.map((object) => {
+    if (!targetIds.has(object.id)) {
+      return object;
+    }
+
+    changed = true;
+    return translateMapObject(object, deltaX, deltaY);
+  });
+
+  return changed
+    ? {
+        ...layer,
+        objects
+      }
+    : layer;
 }
 
 export function removeObjectsFromLayer(

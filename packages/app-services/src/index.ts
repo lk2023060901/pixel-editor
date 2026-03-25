@@ -23,5 +23,6 @@ export {
 } from "./controller";
 export type {
   CanvasGestureModifiers,
+  ObjectMoveGestureModifiers,
   TileStamp
 } from "@pixel-editor/editor-state";

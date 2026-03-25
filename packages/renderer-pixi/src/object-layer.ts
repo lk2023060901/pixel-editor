@@ -7,6 +7,7 @@ import type {
   ObjectShape,
   ObjectLayer
 } from "@pixel-editor/domain";
+import { translateMapObject } from "@pixel-editor/domain";
 
 export interface ObjectProjectionGeometry {
   tileWidth: number;
@@ -40,6 +41,15 @@ export interface ProjectedMapObject {
   screenPoints?: ProjectedPoint[];
   textContent?: string;
 }
+
+export type ObjectTransformPreview =
+  | { kind: "none" }
+  | {
+      kind: "move";
+      objectIds: ObjectId[];
+      deltaX: number;
+      deltaY: number;
+    };
 
 interface RenderableObjectLayer {
   layer: ObjectLayer;
@@ -212,21 +222,35 @@ export function collectProjectedMapObjects(input: {
   viewport: ObjectProjectionViewport;
   highlightedLayerId?: LayerId;
   selectedObjectIds?: ObjectId[];
+  objectTransformPreview?: ObjectTransformPreview;
 }): ProjectedMapObject[] {
   const selectedObjectIds = new Set(input.selectedObjectIds ?? []);
+  const movedObjectIds =
+    input.objectTransformPreview?.kind === "move"
+      ? new Set(input.objectTransformPreview.objectIds)
+      : undefined;
   const projectedObjects: ProjectedMapObject[] = [];
 
   for (const entry of collectRenderableObjectLayers(
     input.map.layers,
     input.highlightedLayerId
-  )) {
+    )) {
     for (const object of orderLayerObjects(entry.layer)) {
       if (!object.visible) {
         continue;
       }
 
+      const projectedSource =
+        input.objectTransformPreview?.kind === "move" && movedObjectIds?.has(object.id)
+          ? translateMapObject(
+              object,
+              input.objectTransformPreview.deltaX,
+              input.objectTransformPreview.deltaY
+            )
+          : object;
+
       const screenPoints = projectObjectPoints(
-        object,
+        projectedSource,
         input.map,
         input.geometry,
         input.viewport
@@ -235,16 +259,34 @@ export function collectProjectedMapObjects(input: {
       projectedObjects.push({
         objectId: object.id,
         layerId: entry.layer.id,
-        name: object.name,
-        shape: object.shape,
+        name: projectedSource.name,
+        shape: projectedSource.shape,
         opacity: entry.opacity,
         highlighted: entry.highlighted,
-        selected: selectedObjectIds.has(object.id),
-        screenX: worldToScreenX(object.x, input.map, input.geometry, input.viewport),
-        screenY: worldToScreenY(object.y, input.map, input.geometry, input.viewport),
-        screenWidth: worldLengthToScreenWidth(object.width, input.map, input.geometry),
-        screenHeight: worldLengthToScreenHeight(object.height, input.map, input.geometry),
-        ...(object.text ? { textContent: object.text.content } : {}),
+        selected: selectedObjectIds.has(projectedSource.id),
+        screenX: worldToScreenX(
+          projectedSource.x,
+          input.map,
+          input.geometry,
+          input.viewport
+        ),
+        screenY: worldToScreenY(
+          projectedSource.y,
+          input.map,
+          input.geometry,
+          input.viewport
+        ),
+        screenWidth: worldLengthToScreenWidth(
+          projectedSource.width,
+          input.map,
+          input.geometry
+        ),
+        screenHeight: worldLengthToScreenHeight(
+          projectedSource.height,
+          input.map,
+          input.geometry
+        ),
+        ...(projectedSource.text ? { textContent: projectedSource.text.content } : {}),
         ...(screenPoints ? { screenPoints } : {})
       });
     }

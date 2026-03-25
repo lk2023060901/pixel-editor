@@ -70,9 +70,9 @@ Last updated: 2026-03-25
 | REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 未开始 | 覆盖层级组合 |
 | REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 未开始 | 必须对齐 Tiled 图层视觉语义 |
 | REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |
-| UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现基础 editor shell 布局与面板骨架，且 UI shell 仅通过注入的 `EditorController` 通信 |
+| UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现 Tiled 风格的 editor shell：左侧 `Project / Properties` 双 dock、右侧双 dock stack 与底部 status bar 骨架，去除 news 按钮；UI shell 仍仅通过注入的 `EditorController` 通信 |
 | UI-002 | Web 壳 | 项目路由与编辑页入口 | FND-004 | 开发中 | 已实现 `/projects/[projectId]` 页面与 web-host 装配层，当前从 `examples/` 加载示例项目 seed，UI 不再直接绑定 demo store |
-| UI-003 | Web 壳 | Toolbar 与工具切换 | UI-001, SES-003 | 开发中 | 已接入基础工具栏与 active tool 切换 |
+| UI-003 | Web 壳 | Toolbar 与工具切换 | UI-001, SES-003 | 开发中 | 已按 Tiled 的 main/tools/tool-options 三段结构重建顶部 toolbar，接入现有工具切换、New split button 与 shape fill tool options，未实现动作仍保留禁用占位 |
 | UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已支持图层选择与基础新增、删除、重排操作 |
 | UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已落地 Map Properties 与 tileset/tile inspector 第一阶段，layer/object/property type editor 待补全 |
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
@@ -96,7 +96,7 @@ Last updated: 2026-03-25
 | OBJ-004 | 对象编辑 | Text Object | OBJ-001, DOM-005 | 未开始 | 文本样式与内容编辑 |
 | OBJ-005 | 对象编辑 | Tile Object | OBJ-001, DOM-004, REN-011 | 未开始 | tile 作为 object |
 | OBJ-006 | 对象编辑 | Capsule Object | OBJ-001, DOM-005 | 未开始 | 对齐 Tiled capsule 对象能力 |
-| OBJ-007 | 对象编辑 | Move / Resize / Rotate / Snap | OBJ-002, OBJ-003, OBJ-004, OBJ-005, OBJ-006 | 未开始 | 统一对象变换工具 |
+| OBJ-007 | 对象编辑 | Move / Resize / Rotate / Snap | OBJ-002, OBJ-003, OBJ-004, OBJ-005, OBJ-006 | 开发中 | 对象拖拽移动与网格吸附已完成，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证；resize / rotate 待补 |
 | OBJ-008 | 对象编辑 | 对象排序与分组移动 | OBJ-001, CMD-003 | 未开始 | 支持 raise/lower 等操作 |
 | OBJ-009 | 对象编辑 | Object Reference 属性 | DOM-006, OBJ-001 | 未开始 | 属性面板可引用对象 |
 | TSET-001 | Tileset | 新建 sprite sheet tileset | DOM-004, UI-006 | 开发中 | 已支持基础创建流、自动切 tile、挂载到当前 map 与后续参数编辑，待补上传 |

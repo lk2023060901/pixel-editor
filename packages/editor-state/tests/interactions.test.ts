@@ -4,9 +4,12 @@ import { createEntityId } from "@pixel-editor/domain";
 
 import {
   clearCanvasPreview,
+  clearObjectTransformPreview,
   createEditorInteractionState,
+  createObjectMovePreview,
   createShapeFillCanvasPreview,
   createTileSelectionCanvasPreview,
+  updateObjectMovePreview,
   updateShapeFillCanvasPreview
 } from "../src/index";
 
@@ -61,5 +64,54 @@ describe("editor interaction state", () => {
     expect(preview.coordinates).toEqual([]);
     expect(preview.currentX).toBe(4);
     expect(preview.currentY).toBe(5);
+  });
+
+  it("creates and updates object move previews through explicit helpers", () => {
+    const initial = createEditorInteractionState();
+    const preview = createObjectMovePreview({
+      mapId: createEntityId("map"),
+      layerId: createEntityId("layer"),
+      objectIds: [createEntityId("object"), createEntityId("object")],
+      anchorX: 32,
+      anchorY: 48,
+      referenceX: 16,
+      referenceY: 24
+    });
+
+    const updated = updateObjectMovePreview(preview, {
+      currentX: 44,
+      currentY: 60,
+      deltaX: 16,
+      deltaY: 0,
+      modifiers: {
+        snapToGrid: true
+      }
+    });
+    const next = {
+      ...initial,
+      objectTransformPreview: updated
+    };
+
+    expect(next.objectTransformPreview.kind).toBe("object-move");
+    expect(
+      next.objectTransformPreview.kind === "object-move"
+        ? {
+            objectIds: next.objectTransformPreview.objectIds,
+            deltaX: next.objectTransformPreview.deltaX,
+            deltaY: next.objectTransformPreview.deltaY,
+            modifiers: next.objectTransformPreview.modifiers
+          }
+        : null
+    ).toEqual({
+      objectIds: preview.objectIds,
+      deltaX: 16,
+      deltaY: 0,
+      modifiers: {
+        snapToGrid: true
+      }
+    });
+    expect(clearObjectTransformPreview(next).objectTransformPreview).toEqual({
+      kind: "none"
+    });
   });
 });

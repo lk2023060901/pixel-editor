@@ -6,19 +6,20 @@ export interface PanelProps {
   title: string;
   children: ReactNode;
   className?: string;
+  bodyClassName?: string;
 }
 
-export function Panel({ title, children, className }: PanelProps) {
+export function Panel({ title, children, className, bodyClassName }: PanelProps) {
   return (
     <section
-      className={`rounded-2xl border border-slate-800 bg-slate-950/70 p-4 shadow-[0_20px_60px_rgba(15,23,42,0.35)] ${className ?? ""}`}
+      className={`rounded-md border border-slate-700 bg-slate-900/95 shadow-[0_8px_24px_rgba(2,6,23,0.35)] ${className ?? ""}`}
     >
-      <header className="mb-4 flex items-center justify-between">
-        <h2 className="text-sm font-semibold tracking-[0.14em] text-slate-300 uppercase">
+      <header className="flex items-center justify-between border-b border-slate-700 bg-slate-800/80 px-3 py-2">
+        <h2 className="text-sm font-medium text-slate-200">
           {title}
         </h2>
       </header>
-      {children}
+      <div className={`min-h-0 p-3 ${bodyClassName ?? ""}`}>{children}</div>
     </section>
   );
 }

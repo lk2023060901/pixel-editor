@@ -1,6 +1,7 @@
 import "server-only";
 
 import { promises as fs } from "node:fs";
+import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import {
@@ -18,8 +19,13 @@ function normalizeExampleProjectId(projectId: string): string {
   return projectId;
 }
 
+const exampleProjectsRootDirectory = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  "../../../../examples"
+);
+
 function exampleProjectDirectory(projectId: string): string {
-  return path.resolve(process.cwd(), "examples", normalizeExampleProjectId(projectId));
+  return path.join(exampleProjectsRootDirectory, normalizeExampleProjectId(projectId));
 }
 
 function exampleProjectFilePath(projectId: string): string {

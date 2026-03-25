@@ -7,6 +7,7 @@ import {
   cloneMapObject,
   createMapObject,
   removeObjectsFromLayer,
+  translateObjectsInLayer,
   updateLayerInMap,
   type LayerId,
   type MapId,
@@ -186,6 +187,50 @@ export function pasteObjectClipboardCommand(
         selection: {
           kind: "object",
           objectIds: clonedObjects.map((object) => object.id)
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function moveObjectsCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  objectIds: readonly ObjectId[],
+  deltaX: number,
+  deltaY: number
+): HistoryCommand<EditorWorkspaceState> {
+  if (objectIds.length === 0 || (deltaX === 0 && deltaY === 0)) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "object.move",
+      description: "Move empty object selection",
+      run: (state) => state
+    });
+  }
+
+  const selection = [...objectIds];
+
+  return createHistoryCommand({
+    id: "object.move",
+    description: `Move ${selection.length} object(s)`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) =>
+              layer.kind === "object"
+                ? translateObjectsInLayer(layer, selection, deltaX, deltaY)
+                : layer
+            )
+          : map
+      ),
+      session: {
+        ...state.session,
+        activeLayerId: layerId,
+        selection: {
+          kind: "object",
+          objectIds: selection
         },
         hasUnsavedChanges: true
       }

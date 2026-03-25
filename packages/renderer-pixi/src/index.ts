@@ -14,6 +14,7 @@ import {
 } from "./layout";
 import {
   collectProjectedMapObjects,
+  type ObjectTransformPreview,
   pickProjectedObject
 } from "./object-layer";
 import { drawProjectedObjects } from "./object-layer-render";
@@ -38,6 +39,7 @@ export interface RendererSnapshot {
   selectedObjectIds?: ObjectId[];
   selectedTiles?: Array<{ x: number; y: number }>;
   previewTiles?: Array<{ x: number; y: number }>;
+  objectTransformPreview?: ObjectTransformPreview;
 }
 
 export type RendererPickResult =
@@ -50,10 +52,21 @@ export interface RendererPickOptions {
   mode?: "tile" | "object" | "topmost";
 }
 
+export type RendererLocationResult =
+  | { kind: "none" }
+  | {
+      kind: "map";
+      worldX: number;
+      worldY: number;
+      tileX: number;
+      tileY: number;
+    };
+
 export interface EditorRenderer {
   mount(host: HTMLElement): Promise<void>;
   update(snapshot: RendererSnapshot): void;
   pick(clientX: number, clientY: number, options?: RendererPickOptions): RendererPickResult;
+  locate(clientX: number, clientY: number): RendererLocationResult;
   destroy(): void;
 }
 
@@ -76,6 +89,16 @@ interface RenderableTileLayer {
   layer: TileLayer;
   opacity: number;
   highlighted: boolean;
+}
+
+interface LocatedMapPoint {
+  localX: number;
+  localY: number;
+  geometry: ViewportGeometry;
+  worldX: number;
+  worldY: number;
+  tileX: number;
+  tileY: number;
 }
 
 function positiveModulo(value: number, divisor: number): number {
@@ -183,6 +206,59 @@ function collectRenderableTileLayers(
 function colorForGid(gid: number): number {
   const seed = (gid * 2654435761) % 0xffffff;
   return (seed | 0x335500) & 0xffffff;
+}
+
+function locateMapPoint(
+  host: HTMLElement,
+  snapshot: RendererSnapshot,
+  clientX: number,
+  clientY: number,
+  layout: RendererLayoutMetrics,
+  options: {
+    requireInsideCanvas?: boolean;
+  } = {}
+): LocatedMapPoint | undefined {
+  if (!snapshot.map) {
+    return undefined;
+  }
+
+  const rect = host.getBoundingClientRect();
+  const localX = clientX - rect.left;
+  const localY = clientY - rect.top;
+  const geometry = buildViewportGeometry(
+    snapshot.map,
+    snapshot.viewport,
+    host.clientWidth,
+    host.clientHeight,
+    layout
+  );
+
+  if (
+    options.requireInsideCanvas !== false &&
+    (localX < geometry.canvasX ||
+      localY < geometry.canvasY ||
+      localX > geometry.canvasX + geometry.canvasWidth ||
+      localY > geometry.canvasY + geometry.canvasHeight)
+  ) {
+    return undefined;
+  }
+
+  const worldX =
+    ((localX - geometry.gridOriginX + snapshot.viewport.originX) / geometry.tileWidth) *
+    snapshot.map.settings.tileWidth;
+  const worldY =
+    ((localY - geometry.gridOriginY + snapshot.viewport.originY) / geometry.tileHeight) *
+    snapshot.map.settings.tileHeight;
+
+  return {
+    localX,
+    localY,
+    geometry,
+    worldX,
+    worldY,
+    tileX: Math.floor(worldX / snapshot.map.settings.tileWidth),
+    tileY: Math.floor(worldY / snapshot.map.settings.tileHeight)
+  };
 }
 
 function drawTileLayers(scene: Container, snapshot: RendererSnapshot, geometry: ViewportGeometry): void {
@@ -295,6 +371,9 @@ function drawObjectLayers(
       : {}),
     ...(snapshot.selectedObjectIds !== undefined
       ? { selectedObjectIds: snapshot.selectedObjectIds }
+      : {}),
+    ...(snapshot.objectTransformPreview !== undefined
+      ? { objectTransformPreview: snapshot.objectTransformPreview }
       : {})
   });
 
@@ -333,207 +412,221 @@ export function createPixiEditorRenderer(options: {
   let app: Application | undefined;
   let mountedHost: HTMLElement | undefined;
   let lastSnapshot: RendererSnapshot | undefined;
+  let mountGeneration = 0;
   const layout = createRendererLayoutMetrics(options.layout);
+
+  function renderSnapshot(snapshot: RendererSnapshot): void {
+    if (!mountedHost || !app) {
+      return;
+    }
+
+    mountedHost.dataset.activeMap = snapshot.map?.id ?? "";
+    mountedHost.dataset.zoom = String(snapshot.viewport.zoom);
+
+    for (const child of app.stage.removeChildren()) {
+      child.destroy({ children: true });
+    }
+
+    const scene = new Container();
+    app.stage.addChild(scene);
+
+    const width = app.renderer.width;
+    const height = app.renderer.height;
+    const frameWidth = Math.max(
+      layout.minFrameWidth,
+      width - layout.framePadding * 2
+    );
+    const frameHeight = Math.max(
+      layout.minFrameHeight,
+      height - layout.framePadding * 2
+    );
+
+    const background = new Graphics();
+    background.roundRect(
+      layout.framePadding,
+      layout.framePadding,
+      frameWidth,
+      frameHeight,
+      layout.frameRadius
+    );
+    background.fill({ color: 0x020617, alpha: 0.92 });
+    background.stroke({ color: 0x334155, width: 1.5, alpha: 0.95 });
+    scene.addChild(background);
+
+    if (!snapshot.map) {
+      const emptyText = new Text({
+        text: "No active map",
+        style: {
+          fill: 0xe2e8f0,
+          fontSize: 18,
+          fontFamily: "IBM Plex Sans, sans-serif"
+        }
+      });
+      emptyText.position.set(
+        layout.framePadding + layout.emptyStateOffsetX,
+        layout.framePadding + layout.emptyStateOffsetY
+      );
+      scene.addChild(emptyText);
+      return;
+    }
+
+    const map = snapshot.map;
+    const zoom = snapshot.viewport.zoom;
+    const geometry = buildViewportGeometry(
+      map,
+      snapshot.viewport,
+      width,
+      height,
+      layout
+    );
+
+    if (snapshot.viewport.showGrid) {
+      const grid = new Graphics();
+
+      for (let column = 0; column <= geometry.endTileX - geometry.startTileX; column += 1) {
+        const x = geometry.gridOriginX + column * geometry.tileWidth;
+        grid.moveTo(x, geometry.gridOriginY);
+        grid.lineTo(x, geometry.gridOriginY + geometry.canvasHeight);
+      }
+
+      for (let row = 0; row <= geometry.endTileY - geometry.startTileY; row += 1) {
+        const y = geometry.gridOriginY + row * geometry.tileHeight;
+        grid.moveTo(geometry.gridOriginX, y);
+        grid.lineTo(geometry.gridOriginX + geometry.canvasWidth, y);
+      }
+
+      grid.stroke({ color: 0x1e293b, width: 1, alpha: 0.9 });
+      scene.addChild(grid);
+    }
+
+    const titleText = new Text({
+      text: `${map.name} · ${map.settings.orientation}`,
+      style: {
+        fill: 0xf8fafc,
+        fontSize: 20,
+        fontWeight: "600",
+        fontFamily: "IBM Plex Sans, sans-serif"
+      }
+    });
+    titleText.position.set(
+      layout.framePadding + layout.titleOffsetX,
+      layout.framePadding + layout.titleOffsetY
+    );
+    scene.addChild(titleText);
+
+    const subtitleText = new Text({
+      text: `Layers ${map.layers.length} · Tiles ${map.settings.tileWidth}×${map.settings.tileHeight} · Zoom ${zoom.toFixed(2)}x`,
+      style: {
+        fill: 0x94a3b8,
+        fontSize: 13,
+        fontFamily: "IBM Plex Sans, sans-serif"
+      }
+    });
+    subtitleText.position.set(
+      layout.framePadding + layout.titleOffsetX,
+      layout.framePadding + layout.subtitleOffsetY
+    );
+    scene.addChild(subtitleText);
+
+    if (!map.settings.infinite) {
+      const bounds = new Graphics();
+      bounds.roundRect(
+        geometry.gridOriginX - snapshot.viewport.originX,
+        geometry.gridOriginY - snapshot.viewport.originY,
+        map.settings.width * geometry.tileWidth,
+        map.settings.height * geometry.tileHeight,
+        14
+      );
+      bounds.stroke({ color: 0x475569, width: 1.5, alpha: 0.8 });
+      scene.addChild(bounds);
+    }
+
+    drawTileLayers(scene, snapshot, geometry);
+    drawObjectLayers(scene, snapshot, geometry);
+    drawPreviewOverlay(scene, snapshot, geometry);
+    drawSelectionOverlay(scene, snapshot, geometry);
+  }
 
   return {
     async mount(host) {
       mountedHost = host;
-      app = new Application();
-      await app.init({
+      const nextApp = new Application();
+      const currentGeneration = ++mountGeneration;
+
+      await nextApp.init({
         resizeTo: host,
         antialias: true,
         backgroundAlpha: 0
       });
+
+      if (mountGeneration !== currentGeneration || mountedHost !== host) {
+        nextApp.destroy(true, {
+          children: true
+        });
+        return;
+      }
+
+      app = nextApp;
       mountedHost.dataset.renderer = "pixi-shell";
       mountedHost.replaceChildren(app.canvas);
+
+      if (lastSnapshot) {
+        renderSnapshot(lastSnapshot);
+      }
     },
     update(snapshot) {
       lastSnapshot = snapshot;
-
-      if (mountedHost && app) {
-        mountedHost.dataset.activeMap = snapshot.map?.id ?? "";
-        mountedHost.dataset.zoom = String(snapshot.viewport.zoom);
-
-        for (const child of app.stage.removeChildren()) {
-          child.destroy({ children: true });
-        }
-
-        const scene = new Container();
-        app.stage.addChild(scene);
-
-        const width = app.renderer.width;
-        const height = app.renderer.height;
-        const frameWidth = Math.max(
-          layout.minFrameWidth,
-          width - layout.framePadding * 2
-        );
-        const frameHeight = Math.max(
-          layout.minFrameHeight,
-          height - layout.framePadding * 2
-        );
-
-        const background = new Graphics();
-        background.roundRect(
-          layout.framePadding,
-          layout.framePadding,
-          frameWidth,
-          frameHeight,
-          layout.frameRadius
-        );
-        background.fill({ color: 0x020617, alpha: 0.92 });
-        background.stroke({ color: 0x334155, width: 1.5, alpha: 0.95 });
-        scene.addChild(background);
-
-        if (!snapshot.map) {
-          const emptyText = new Text({
-            text: "No active map",
-            style: {
-              fill: 0xe2e8f0,
-              fontSize: 18,
-              fontFamily: "IBM Plex Sans, sans-serif"
-            }
-          });
-          emptyText.position.set(
-            layout.framePadding + layout.emptyStateOffsetX,
-            layout.framePadding + layout.emptyStateOffsetY
-          );
-          scene.addChild(emptyText);
-          return;
-        }
-
-        const map = snapshot.map;
-        const zoom = snapshot.viewport.zoom;
-        const geometry = buildViewportGeometry(
-          map,
-          snapshot.viewport,
-          width,
-          height,
-          layout
-        );
-
-        if (snapshot.viewport.showGrid) {
-          const grid = new Graphics();
-
-          for (let column = 0; column <= geometry.endTileX - geometry.startTileX; column += 1) {
-            const x = geometry.gridOriginX + column * geometry.tileWidth;
-            grid.moveTo(x, geometry.gridOriginY);
-            grid.lineTo(x, geometry.gridOriginY + geometry.canvasHeight);
-          }
-
-          for (let row = 0; row <= geometry.endTileY - geometry.startTileY; row += 1) {
-            const y = geometry.gridOriginY + row * geometry.tileHeight;
-            grid.moveTo(geometry.gridOriginX, y);
-            grid.lineTo(geometry.gridOriginX + geometry.canvasWidth, y);
-          }
-
-          grid.stroke({ color: 0x1e293b, width: 1, alpha: 0.9 });
-          scene.addChild(grid);
-        }
-
-        const titleText = new Text({
-          text: `${map.name} · ${map.settings.orientation}`,
-          style: {
-            fill: 0xf8fafc,
-            fontSize: 20,
-            fontWeight: "600",
-            fontFamily: "IBM Plex Sans, sans-serif"
-          }
-        });
-        titleText.position.set(
-          layout.framePadding + layout.titleOffsetX,
-          layout.framePadding + layout.titleOffsetY
-        );
-        scene.addChild(titleText);
-
-        const subtitleText = new Text({
-          text: `Layers ${map.layers.length} · Tiles ${map.settings.tileWidth}×${map.settings.tileHeight} · Zoom ${zoom.toFixed(2)}x`,
-          style: {
-            fill: 0x94a3b8,
-            fontSize: 13,
-            fontFamily: "IBM Plex Sans, sans-serif"
-          }
-        });
-        subtitleText.position.set(
-          layout.framePadding + layout.titleOffsetX,
-          layout.framePadding + layout.subtitleOffsetY
-        );
-        scene.addChild(subtitleText);
-
-        if (!map.settings.infinite) {
-          const bounds = new Graphics();
-          bounds.roundRect(
-            geometry.gridOriginX - snapshot.viewport.originX,
-            geometry.gridOriginY - snapshot.viewport.originY,
-            map.settings.width * geometry.tileWidth,
-            map.settings.height * geometry.tileHeight,
-            14
-          );
-          bounds.stroke({ color: 0x475569, width: 1.5, alpha: 0.8 });
-          scene.addChild(bounds);
-        }
-
-        drawTileLayers(scene, snapshot, geometry);
-        drawObjectLayers(scene, snapshot, geometry);
-        drawPreviewOverlay(scene, snapshot, geometry);
-        drawSelectionOverlay(scene, snapshot, geometry);
-      }
+      renderSnapshot(snapshot);
     },
     pick(clientX, clientY, options = {}) {
       if (!mountedHost || !lastSnapshot?.map) {
         return { kind: "none" };
       }
 
-      const rect = mountedHost.getBoundingClientRect();
-      const localX = clientX - rect.left;
-      const localY = clientY - rect.top;
-      const geometry = buildViewportGeometry(
-        lastSnapshot.map,
-        lastSnapshot.viewport,
-        mountedHost.clientWidth,
-        mountedHost.clientHeight,
+      const locatedPoint = locateMapPoint(
+        mountedHost,
+        lastSnapshot,
+        clientX,
+        clientY,
         layout
       );
 
-      if (
-        localX < geometry.canvasX ||
-        localY < geometry.canvasY ||
-        localX > geometry.canvasX + geometry.canvasWidth ||
-        localY > geometry.canvasY + geometry.canvasHeight
-      ) {
+      if (!locatedPoint) {
         return { kind: "none" };
       }
 
       const projectedObjects = collectProjectedMapObjects({
         map: lastSnapshot.map,
-        geometry,
+        geometry: locatedPoint.geometry,
         viewport: lastSnapshot.viewport,
         ...(lastSnapshot.highlightedLayerId !== undefined
           ? { highlightedLayerId: lastSnapshot.highlightedLayerId }
           : {}),
         ...(lastSnapshot.selectedObjectIds !== undefined
           ? { selectedObjectIds: lastSnapshot.selectedObjectIds }
+          : {}),
+        ...(lastSnapshot.objectTransformPreview !== undefined
+          ? { objectTransformPreview: lastSnapshot.objectTransformPreview }
           : {})
       });
-      const pickedObjectId = pickProjectedObject(projectedObjects, localX, localY);
+      const pickedObjectId = pickProjectedObject(
+        projectedObjects,
+        locatedPoint.localX,
+        locatedPoint.localY
+      );
 
       if (options.mode === "object") {
         return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : { kind: "none" };
       }
 
-      const tileX = Math.floor(
-        (localX - geometry.gridOriginX + lastSnapshot.viewport.originX) / geometry.tileWidth
-      );
-      const tileY = Math.floor(
-        (localY - geometry.gridOriginY + lastSnapshot.viewport.originY) / geometry.tileHeight
-      );
-
-      if (tileX < 0 || tileY < 0) {
+      if (locatedPoint.tileX < 0 || locatedPoint.tileY < 0) {
         return { kind: "none" };
       }
 
       if (
         !lastSnapshot.map.settings.infinite &&
-        (tileX >= lastSnapshot.map.settings.width || tileY >= lastSnapshot.map.settings.height)
+        (locatedPoint.tileX >= lastSnapshot.map.settings.width ||
+          locatedPoint.tileY >= lastSnapshot.map.settings.height)
       ) {
         return options.mode === "topmost" && pickedObjectId
           ? { kind: "object", objectId: pickedObjectId }
@@ -542,8 +635,8 @@ export function createPixiEditorRenderer(options: {
 
       const tilePick: RendererPickResult = {
         kind: "tile",
-        x: tileX,
-        y: tileY
+        x: locatedPoint.tileX,
+        y: locatedPoint.tileY
       };
 
       if (options.mode === "tile") {
@@ -552,7 +645,30 @@ export function createPixiEditorRenderer(options: {
 
       return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : tilePick;
     },
+    locate(clientX, clientY) {
+      if (!mountedHost || !lastSnapshot) {
+        return { kind: "none" };
+      }
+
+      const point = locateMapPoint(mountedHost, lastSnapshot, clientX, clientY, layout, {
+        requireInsideCanvas: false
+      });
+
+      if (!point) {
+        return { kind: "none" };
+      }
+
+      return {
+        kind: "map",
+        worldX: point.worldX,
+        worldY: point.worldY,
+        tileX: point.tileX,
+        tileY: point.tileY
+      };
+    },
     destroy() {
+      mountGeneration += 1;
+
       if (app) {
         app.destroy(true, {
           children: true

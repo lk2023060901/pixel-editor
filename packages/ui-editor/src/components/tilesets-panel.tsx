@@ -15,7 +15,7 @@ import {
   getTileStampPrimaryGid,
   type TileStamp
 } from "@pixel-editor/editor-state";
-import { startTransition, useMemo } from "react";
+import { startTransition, useMemo, useState } from "react";
 
 import { Panel } from "./panel";
 import { TilePropertiesEditor } from "./tile-properties-editor";
@@ -30,16 +30,17 @@ export interface TilesetsPanelProps {
   activeTileLocalId: number | null;
   activeStamp: TileStamp;
   store: EditorController;
+  embedded?: boolean;
 }
 
-export function TilesetsPanel({
+function TilesetsPanelContent({
   activeMap,
   tilesets,
   activeTilesetId,
   activeTileLocalId,
   activeStamp,
   store
-}: TilesetsPanelProps) {
+}: Omit<TilesetsPanelProps, "embedded">) {
   const availableTilesets = useMemo(() => {
     if (!activeMap) {
       return tilesets;
@@ -71,7 +72,7 @@ export function TilesetsPanel({
       : undefined;
 
   return (
-    <Panel title="Tilesets">
+    <>
       {!availableTilesets.length && (
         <p className="text-sm text-slate-400">No tilesets attached to the active map.</p>
       )}
@@ -186,6 +187,154 @@ export function TilesetsPanel({
       )}
 
       <TilesetCreateForms store={store} />
-    </Panel>
+    </>
   );
+}
+
+function TilesetsDockContent({
+  activeMap,
+  tilesets,
+  activeTilesetId,
+  activeTileLocalId,
+  activeStamp,
+  store
+}: Omit<TilesetsPanelProps, "embedded">) {
+  const [filterText, setFilterText] = useState("");
+  const availableTilesets = useMemo(() => {
+    if (!activeMap) {
+      return tilesets;
+    }
+
+    return activeMap.tilesetIds
+      .map((tilesetId) => tilesets.find((tileset) => tileset.id === tilesetId))
+      .filter((tileset): tileset is TilesetDefinition => tileset !== undefined);
+  }, [activeMap, tilesets]);
+  const activeStampGid = getTileStampPrimaryGid(activeStamp);
+  const activeTileset =
+    availableTilesets.find((tileset) => tileset.id === activeTilesetId) ??
+    availableTilesets[0];
+  const activeTileIds = activeTileset ? listTilesetLocalIds(activeTileset) : [];
+  const filteredTileIds = activeTileIds.filter((localId) => {
+    const keyword = filterText.trim().toLowerCase();
+
+    if (keyword.length === 0) {
+      return true;
+    }
+
+    const tile = getTilesetTileByLocalId(activeTileset!, localId);
+    return (
+      String(localId).includes(keyword) ||
+      tile?.className?.toLowerCase().includes(keyword) === true
+    );
+  });
+  const selectedLocalId =
+    activeTileset && activeTileLocalId !== null && activeTileIds.includes(activeTileLocalId)
+      ? activeTileLocalId
+      : activeTileIds[0] ?? null;
+
+  if (!availableTilesets.length) {
+    return (
+      <div className="flex h-full min-h-[220px] items-center justify-center px-6 text-center text-sm text-slate-400">
+        No tilesets attached to the active map.
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-full min-h-0 flex-col">
+      <div className="border-b border-slate-800 p-1.5">
+        <input
+          className="w-full border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500"
+          placeholder="Filter"
+          value={filterText}
+          onChange={(event) => {
+            setFilterText(event.target.value);
+          }}
+        />
+      </div>
+
+      <div className="flex items-center gap-px border-b border-slate-800 bg-slate-800 px-1 pt-1">
+        {availableTilesets.map((tileset) => {
+          const isActive = tileset.id === activeTileset?.id;
+
+          return (
+            <button
+              key={tileset.id}
+              className={`border border-b-0 px-2 py-1 text-xs transition ${
+                isActive
+                  ? "border-slate-700 bg-slate-900 text-slate-100"
+                  : "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+              }`}
+              onClick={() => {
+                startTransition(() => {
+                  store.setActiveTileset(tileset.id);
+                });
+              }}
+            >
+              {tileset.name}
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="min-h-0 flex-1 overflow-y-auto p-2">
+        {activeTileset ? (
+          <div className="grid grid-cols-4 gap-2">
+            {filteredTileIds.map((localId) => {
+              const gid = activeMap
+                ? getMapGlobalTileGid(activeMap, tilesets, activeTileset.id, localId)
+                : undefined;
+              const isSelected = selectedLocalId === localId;
+
+              return (
+                <button
+                  key={`${activeTileset.id}:${localId}`}
+                  className={`flex aspect-square flex-col items-center justify-center border text-[11px] transition ${
+                    isSelected
+                      ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
+                      : "border-slate-700 bg-slate-900 text-slate-200 hover:border-slate-500"
+                  }`}
+                  disabled={gid === undefined}
+                  onClick={() => {
+                    startTransition(() => {
+                      store.selectStampTile(activeTileset.id, localId);
+                    });
+                  }}
+                >
+                  <TilePreview
+                    tileset={activeTileset}
+                    localId={localId}
+                    {...(gid !== undefined ? { gid } : {})}
+                  />
+                  <span>#{localId}</span>
+                </button>
+              );
+            })}
+          </div>
+        ) : null}
+      </div>
+
+      <div className="flex items-center justify-between border-t border-slate-700 bg-slate-800 px-2 py-1 text-[11px] text-slate-300">
+        <span>{activeTileset?.name ?? "No Tileset"}</span>
+        <span>
+          {selectedLocalId !== null && activeStampGid !== null
+            ? `Tile ${selectedLocalId} · gid ${activeStampGid}`
+            : "No Selection"}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+export function TilesetsPanel({
+  embedded = false,
+  ...props
+}: TilesetsPanelProps) {
+  const content = embedded ? <TilesetsDockContent {...props} /> : <TilesetsPanelContent {...props} />;
+
+  if (embedded) {
+    return content;
+  }
+
+  return <Panel title="Tilesets">{content}</Panel>;
 }
