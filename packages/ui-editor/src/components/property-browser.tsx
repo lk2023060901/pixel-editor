@@ -93,6 +93,28 @@ export function PropertyBrowserTextRow(props: {
   );
 }
 
+export function PropertyBrowserTextareaRow(props: {
+  label: string;
+  value: string;
+  disabled?: boolean;
+  onChange: (value: string) => void;
+  onCommit?: () => void;
+}) {
+  return (
+    <PropertyBrowserRow label={props.label} multiLine>
+      <textarea
+        className={`${fieldClassName()} min-h-[72px] resize-y`}
+        disabled={props.disabled}
+        value={props.value}
+        onBlur={props.onCommit}
+        onChange={(event) => {
+          props.onChange(event.target.value);
+        }}
+      />
+    </PropertyBrowserRow>
+  );
+}
+
 export function PropertyBrowserSelectRow(props: {
   label: string;
   value: string;

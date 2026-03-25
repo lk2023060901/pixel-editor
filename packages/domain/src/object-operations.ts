@@ -82,6 +82,7 @@ export interface UpdateMapObjectDetailsInput {
   height?: number;
   rotation?: number;
   visible?: boolean;
+  points?: Point[];
   properties?: PropertyDefinition[];
 }
 
@@ -98,6 +99,7 @@ export function updateMapObject(
     ...(patch.height !== undefined ? { height: patch.height } : {}),
     ...(patch.rotation !== undefined ? { rotation: patch.rotation } : {}),
     ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
+    ...(patch.points !== undefined ? { points: patch.points.map(clonePoint) } : {}),
     ...(patch.properties !== undefined
       ? { properties: patch.properties.map(clonePropertyDefinition) }
       : {})
@@ -210,6 +212,63 @@ export function removeObjectsFromLayer(
     ...layer,
     objects: layer.objects.filter((object) => !targetIds.has(object.id))
   };
+}
+
+export function reorderObjectsInLayer(
+  layer: ObjectLayer,
+  objectIds: readonly ObjectId[],
+  direction: "up" | "down"
+): ObjectLayer {
+  if (objectIds.length === 0) {
+    return layer;
+  }
+
+  const targetIds = new Set(objectIds);
+  const objects = [...layer.objects];
+  let changed = false;
+
+  if (direction === "up") {
+    for (let index = 1; index < objects.length; index += 1) {
+      const currentObject = objects[index];
+      const previousObject = objects[index - 1];
+
+      if (!currentObject || !previousObject) {
+        continue;
+      }
+
+      if (!targetIds.has(currentObject.id) || targetIds.has(previousObject.id)) {
+        continue;
+      }
+
+      objects[index - 1] = currentObject;
+      objects[index] = previousObject;
+      changed = true;
+    }
+  } else {
+    for (let index = objects.length - 2; index >= 0; index -= 1) {
+      const currentObject = objects[index];
+      const nextObject = objects[index + 1];
+
+      if (!currentObject || !nextObject) {
+        continue;
+      }
+
+      if (!targetIds.has(currentObject.id) || targetIds.has(nextObject.id)) {
+        continue;
+      }
+
+      objects[index] = nextObject;
+      objects[index + 1] = currentObject;
+      changed = true;
+    }
+  }
+
+  return changed
+    ? {
+        ...layer,
+        objects
+      }
+    : layer;
 }
 
 export function getObjectById(

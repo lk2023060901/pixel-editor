@@ -42,6 +42,7 @@ export interface TilesetsPanelProps {
   propertyTypes: readonly PropertyTypeDefinition[] | undefined;
   store: EditorController;
   onOpenTileAnimationEditor?: () => void;
+  onOpenTileCollisionEditor?: () => void;
   embedded?: boolean;
 }
 
@@ -258,7 +259,8 @@ function TilesetsDockContent({
   activeTilesetId,
   activeTileLocalId,
   store,
-  onOpenTileAnimationEditor
+  onOpenTileAnimationEditor,
+  onOpenTileCollisionEditor
 }: Omit<TilesetsPanelProps, "embedded" | "activeStamp">) {
   const { t } = useI18n();
   const [zoom, setZoom] = useState<number>(1);
@@ -437,6 +439,16 @@ function TilesetsDockContent({
             <path d="M9 3l2 2.5L9 8" />
             <path d="M13 10.5H5" />
             <path d="M7 8l-2 2.5L7 13" />
+          </TilesetDockIcon>
+        </TilesetDockToolbarButton>
+        <TilesetDockToolbarButton
+          disabled={selectedLocalId === null || !onOpenTileCollisionEditor}
+          title={t("action.editCollision")}
+          onClick={onOpenTileCollisionEditor}
+        >
+          <TilesetDockIcon>
+            <rect x="3" y="4" width="4" height="8" rx="0.8" />
+            <circle cx="11.25" cy="8" r="2.25" />
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
         <TilesetDockToolbarButton

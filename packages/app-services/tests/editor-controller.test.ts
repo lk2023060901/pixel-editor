@@ -856,4 +856,58 @@ describe("editor controller", () => {
     expect(snapshot.workspace.session.activeTilesetTileLocalId).toBe(3);
     expect(snapshot.activeTileset?.tiles[3]?.animation).toEqual(frames);
   });
+
+  it("edits collision objects on the selected tile through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const firstTilesetId = store.getState().tilesets[0]!.id;
+
+    store.setActiveTileset(firstTilesetId);
+    store.selectStampTile(firstTilesetId, 2);
+
+    const objectId = store.createSelectedTileCollisionObject("rectangle");
+
+    expect(objectId).toBeDefined();
+
+    if (!objectId) {
+      throw new Error("Expected collision object to be created.");
+    }
+
+    store.updateSelectedTileCollisionObjectDetails(objectId, {
+      name: "Hitbox",
+      x: 6,
+      y: 8,
+      width: 18,
+      height: 12
+    });
+    store.upsertSelectedTileCollisionObjectProperty(
+      objectId,
+      createProperty("kind", "string", "solid")
+    );
+    store.moveSelectedTileCollisionObjects([objectId], 4, -2);
+    store.reorderSelectedTileCollisionObjects([objectId], "down");
+    store.removeSelectedTileCollisionObjectProperty(objectId, "kind");
+
+    let snapshot = store.getSnapshot();
+    let collisionObject = snapshot.activeTileset?.tiles[2]?.collisionLayer?.objects.find(
+      (object) => object.id === objectId
+    );
+
+    expect(collisionObject).toMatchObject({
+      name: "Hitbox",
+      x: 10,
+      y: 6,
+      width: 18,
+      height: 12,
+      properties: []
+    });
+
+    store.removeSelectedTileCollisionObjects([objectId]);
+
+    snapshot = store.getSnapshot();
+    collisionObject = snapshot.activeTileset?.tiles[2]?.collisionLayer?.objects.find(
+      (object) => object.id === objectId
+    );
+
+    expect(collisionObject).toBeUndefined();
+  });
 });

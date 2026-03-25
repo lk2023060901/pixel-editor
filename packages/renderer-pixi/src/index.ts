@@ -14,7 +14,10 @@ import {
 } from "./layout";
 import {
   collectProjectedMapObjects,
+  type ObjectProjectionGeometry,
+  type ObjectProjectionViewport,
   type ObjectTransformPreview,
+  type ProjectedMapObject,
   pickProjectedObject
 } from "./object-layer";
 import { drawProjectedObjects } from "./object-layer-render";
@@ -24,6 +27,14 @@ export {
   defaultRendererLayoutMetrics,
   type RendererLayoutMetrics
 } from "./layout";
+export {
+  collectProjectedMapObjects,
+  pickProjectedObject,
+  type ObjectProjectionGeometry,
+  type ObjectProjectionViewport,
+  type ObjectTransformPreview,
+  type ProjectedMapObject
+} from "./object-layer";
 
 export interface RendererViewportSnapshot {
   zoom: number;

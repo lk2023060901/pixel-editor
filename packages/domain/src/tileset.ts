@@ -1,4 +1,5 @@
 import { createEntityId, type TileId, type TilesetId } from "./id";
+import type { ObjectLayer } from "./layer";
 import type { PropertyDefinition } from "./property";
 
 export type TilesetKind = "image" | "image-collection";
@@ -29,6 +30,7 @@ export interface TileDefinition {
   properties: PropertyDefinition[];
   imageSource?: string;
   animation: TileAnimationFrame[];
+  collisionLayer?: ObjectLayer;
 }
 
 export interface TilesetImageSource {

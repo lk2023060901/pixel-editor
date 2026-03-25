@@ -26,6 +26,7 @@ import {
   type ToolbarActionSpec
 } from "./toolbar-spec";
 import { TileAnimationEditorDialog } from "./tile-animation-editor-dialog";
+import { TileCollisionEditorDialog } from "./tile-collision-editor-dialog";
 import { TilesetsPanel } from "./tilesets-panel";
 
 export interface EditorShellProps {
@@ -236,6 +237,7 @@ export function EditorShell({ store }: EditorShellProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [tileAnimationEditorOpen, setTileAnimationEditorOpen] = useState(false);
+  const [tileCollisionEditorOpen, setTileCollisionEditorOpen] = useState(false);
   const [statusInfo, setStatusInfo] = useState("");
   const menuBarRef = useRef<HTMLDivElement | null>(null);
   const snapshot = useSyncExternalStore(
@@ -444,6 +446,9 @@ export function EditorShell({ store }: EditorShellProps) {
       case "tile-animation-editor":
         setTileAnimationEditorOpen(true);
         return;
+      case "edit-collision":
+        setTileCollisionEditorOpen(true);
+        return;
       default:
         return;
     }
@@ -497,6 +502,9 @@ export function EditorShell({ store }: EditorShellProps) {
         activeStamp={activeStamp}
         onOpenTileAnimationEditor={() => {
           setTileAnimationEditorOpen(true);
+        }}
+        onOpenTileCollisionEditor={() => {
+          setTileCollisionEditorOpen(true);
         }}
         propertyTypes={snapshot.workspace.project.propertyTypes}
         store={store}
@@ -737,6 +745,17 @@ export function EditorShell({ store }: EditorShellProps) {
             tileset={snapshot.activeTileset}
             onClose={() => {
               setTileAnimationEditorOpen(false);
+            }}
+          />
+        ) : null}
+        {tileCollisionEditorOpen && snapshot.activeTileset ? (
+          <TileCollisionEditorDialog
+            propertyTypes={snapshot.workspace.project.propertyTypes}
+            selectedLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
+            store={store}
+            tileset={snapshot.activeTileset}
+            onClose={() => {
+              setTileCollisionEditorOpen(false);
             }}
           />
         ) : null}

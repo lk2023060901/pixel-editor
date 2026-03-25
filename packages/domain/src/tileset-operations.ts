@@ -1,5 +1,16 @@
 import type { TilesetId } from "./id";
+import { createObjectLayer, type ObjectLayer } from "./layer";
 import type { EditorMap } from "./map";
+import type { MapObject } from "./object";
+import {
+  appendObjectsToLayer,
+  getObjectById,
+  removeObjectsFromLayer,
+  reorderObjectsInLayer,
+  translateObjectsInLayer,
+  updateMapObject,
+  type UpdateMapObjectDetailsInput
+} from "./object-operations";
 import {
   removePropertyDefinition,
   upsertPropertyDefinition,
@@ -96,6 +107,13 @@ function cloneTileAnimationFrame(frame: TileAnimationFrame): TileAnimationFrame 
   };
 }
 
+function createDefaultTileCollisionLayer(): ObjectLayer {
+  return createObjectLayer({
+    name: "collision",
+    drawOrder: "index"
+  });
+}
+
 function assertPositiveDimension(name: string, value: number): void {
   if (value <= 0) {
     throw new Error(`${name} must be greater than zero`);
@@ -173,6 +191,24 @@ function updateTileDefinition(
     ...tileset,
     tiles: nextTiles
   };
+}
+
+function updateTileCollisionLayer(
+  tileset: TilesetDefinition,
+  localId: number,
+  updater: (layer: ObjectLayer) => ObjectLayer
+): TilesetDefinition {
+  return updateTileDefinition(tileset, localId, (tile) => {
+    const nextLayer = updater(tile.collisionLayer ?? createDefaultTileCollisionLayer());
+    const { collisionLayer: _previousCollisionLayer, ...restTile } = tile;
+
+    return nextLayer.objects.length > 0
+      ? {
+          ...restTile,
+          collisionLayer: nextLayer
+        }
+      : restTile;
+  });
 }
 
 export function createImageTileset(
@@ -340,6 +376,114 @@ export function updateTilesetTileAnimation(
     ...tile,
     animation: animation.map(cloneTileAnimationFrame)
   }));
+}
+
+export function createTilesetTileCollisionObject(
+  tileset: TilesetDefinition,
+  localId: number,
+  object: MapObject
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) =>
+    appendObjectsToLayer(layer, [object])
+  );
+}
+
+export function updateTilesetTileCollisionObject(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectId: MapObject["id"],
+  patch: UpdateMapObjectDetailsInput
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) => ({
+    ...layer,
+    objects: layer.objects.map((object) =>
+      object.id === objectId ? updateMapObject(object, patch) : object
+    )
+  }));
+}
+
+export function upsertTilesetTileCollisionObjectProperty(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectId: MapObject["id"],
+  property: PropertyDefinition,
+  previousName = property.name
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) => ({
+    ...layer,
+    objects: layer.objects.map((object) =>
+      object.id === objectId
+        ? updateMapObject(object, {
+            properties: upsertPropertyDefinition(object.properties, property, previousName)
+          })
+        : object
+    )
+  }));
+}
+
+export function removeTilesetTileCollisionObjectProperty(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectId: MapObject["id"],
+  propertyName: string
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) => ({
+    ...layer,
+    objects: layer.objects.map((object) =>
+      object.id === objectId
+        ? updateMapObject(object, {
+            properties: removePropertyDefinition(object.properties, propertyName)
+          })
+        : object
+    )
+  }));
+}
+
+export function removeTilesetTileCollisionObjects(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectIds: readonly MapObject["id"][]
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) =>
+    removeObjectsFromLayer(layer, objectIds)
+  );
+}
+
+export function moveTilesetTileCollisionObjects(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectIds: readonly MapObject["id"][],
+  deltaX: number,
+  deltaY: number
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) =>
+    translateObjectsInLayer(layer, objectIds, deltaX, deltaY)
+  );
+}
+
+export function reorderTilesetTileCollisionObjects(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectIds: readonly MapObject["id"][],
+  direction: "up" | "down"
+): TilesetDefinition {
+  return updateTileCollisionLayer(tileset, localId, (layer) =>
+    reorderObjectsInLayer(layer, objectIds, direction)
+  );
+}
+
+export function getTilesetTileCollisionObject(
+  tileset: TilesetDefinition,
+  localId: number,
+  objectId: MapObject["id"]
+): MapObject | undefined {
+  const tile = getTilesetTileByLocalId(tileset, localId);
+
+  if (!tile?.collisionLayer) {
+    return undefined;
+  }
+
+  return getObjectById(tile.collisionLayer, objectId);
 }
 
 export function attachTilesetToMap(

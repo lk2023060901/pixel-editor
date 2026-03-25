@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  createMapObject,
   createProperty,
   createTileDefinition,
   createTileset,
@@ -17,12 +18,19 @@ import {
 import {
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
+  createTilesetTileCollisionObjectCommand,
+  moveTilesetTileCollisionObjectsCommand,
+  removeTilesetTileCollisionObjectPropertyCommand,
+  removeTilesetTileCollisionObjectsCommand,
   removeTilesetTilePropertyCommand,
+  reorderTilesetTileCollisionObjectsCommand,
   selectTilesetStampCommand,
   setActiveTilesetCommand,
+  updateTilesetTileCollisionObjectCommand,
   updateTilesetTileAnimationCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
+  upsertTilesetTileCollisionObjectPropertyCommand,
   upsertTilesetTilePropertyCommand
 } from "./index";
 
@@ -298,5 +306,62 @@ describe("tileset commands", () => {
     history.execute(updateTilesetTileAnimationCommand(tileset.id, 1, frames));
 
     expect(history.state.tilesets[0]?.tiles[1]?.animation).toEqual(frames);
+  });
+
+  it("creates, updates and removes collision objects on tiles", () => {
+    const tileset = {
+      ...createTileset({
+        name: "terrain",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1)]
+    };
+    const history = new CommandHistory(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets"]
+        }),
+        tilesets: [tileset]
+      })
+    );
+    const object = createMapObject({
+      name: "Object 1",
+      shape: "rectangle",
+      x: 2,
+      y: 3,
+      width: 10,
+      height: 12
+    });
+
+    history.execute(createTilesetTileCollisionObjectCommand(tileset.id, 0, object));
+    history.execute(
+      updateTilesetTileCollisionObjectCommand(tileset.id, 0, object.id, {
+        width: 14,
+        height: 16
+      })
+    );
+    history.execute(
+      upsertTilesetTileCollisionObjectPropertyCommand(
+        tileset.id,
+        0,
+        object.id,
+        createProperty("kind", "string", "solid")
+      )
+    );
+    history.execute(
+      moveTilesetTileCollisionObjectsCommand(tileset.id, 0, [object.id], 5, -1)
+    );
+    history.execute(
+      reorderTilesetTileCollisionObjectsCommand(tileset.id, 0, [object.id], "up")
+    );
+    history.execute(
+      removeTilesetTileCollisionObjectPropertyCommand(tileset.id, 0, object.id, "kind")
+    );
+    history.execute(removeTilesetTileCollisionObjectsCommand(tileset.id, 0, [object.id]));
+
+    expect(history.state.tilesets[0]?.tiles[0]?.collisionLayer).toBeUndefined();
   });
 });

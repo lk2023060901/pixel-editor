@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createMap,
+  createMapObject,
   createProperty,
   type TileAnimationFrame,
   createTileDefinition,
@@ -9,16 +10,24 @@ import {
 } from "./index";
 import {
   attachTilesetToMap,
+  createTilesetTileCollisionObject,
   createImageCollectionTileset,
   createImageTileset,
+  moveTilesetTileCollisionObjects,
   getMapGlobalTileGid,
+  getTilesetTileCollisionObject,
   getTilesetTileCount,
   listTilesetLocalIds,
+  removeTilesetTileCollisionObjectProperty,
+  removeTilesetTileCollisionObjects,
   removeTilesetTileProperty,
+  reorderTilesetTileCollisionObjects,
   resolveMapTileGid,
+  updateTilesetTileCollisionObject,
   updateTilesetTileAnimation,
   updateTilesetDetails,
   updateTilesetTileMetadata,
+  upsertTilesetTileCollisionObjectProperty,
   upsertTilesetTileProperty
 } from "./tileset-operations";
 
@@ -234,5 +243,75 @@ describe("tileset operations", () => {
 
     expect(updated.tiles[1]?.animation).toEqual(animation);
     expect(updated.tiles[1]?.animation).not.toBe(animation);
+  });
+
+  it("edits tile collision objects by local id", () => {
+    const tileset = createImageCollectionTileset({
+      name: "props",
+      tileWidth: 32,
+      tileHeight: 32,
+      imageSources: ["/demo/props/prop-1.svg", "/demo/props/prop-2.svg"]
+    });
+    const collisionObject = createMapObject({
+      name: "Object 1",
+      shape: "rectangle",
+      x: 4,
+      y: 6,
+      width: 20,
+      height: 16
+    });
+
+    const withObject = createTilesetTileCollisionObject(tileset, 0, collisionObject);
+    const moved = moveTilesetTileCollisionObjects(withObject, 0, [collisionObject.id], 3, -2);
+    const updated = updateTilesetTileCollisionObject(moved, 0, collisionObject.id, {
+      name: "Hitbox",
+      width: 24
+    });
+    const withProperty = upsertTilesetTileCollisionObjectProperty(
+      updated,
+      0,
+      collisionObject.id,
+      createProperty("kind", "string", "solid")
+    );
+    const reordered = reorderTilesetTileCollisionObjects(
+      createTilesetTileCollisionObject(
+        withProperty,
+        0,
+        createMapObject({
+          name: "Object 2",
+          shape: "ellipse",
+          x: 8,
+          y: 8,
+          width: 8,
+          height: 8
+        })
+      ),
+      0,
+      [collisionObject.id],
+      "down"
+    );
+    const withoutProperty = removeTilesetTileCollisionObjectProperty(
+      reordered,
+      0,
+      collisionObject.id,
+      "kind"
+    );
+    const cleaned = removeTilesetTileCollisionObjects(withoutProperty, 0, [collisionObject.id]);
+
+    expect(getTilesetTileCollisionObject(withObject, 0, collisionObject.id)).toMatchObject({
+      name: "Object 1"
+    });
+    expect(getTilesetTileCollisionObject(moved, 0, collisionObject.id)).toMatchObject({
+      x: 7,
+      y: 4
+    });
+    expect(getTilesetTileCollisionObject(withProperty, 0, collisionObject.id)?.properties).toEqual([
+      createProperty("kind", "string", "solid")
+    ]);
+    expect(reordered.tiles[0]?.collisionLayer?.objects.at(-1)?.id).toBe(collisionObject.id);
+    expect(getTilesetTileCollisionObject(withoutProperty, 0, collisionObject.id)?.properties).toEqual([]);
+    expect(cleaned.tiles[0]?.collisionLayer?.objects).toEqual([
+      expect.objectContaining({ name: "Object 2" })
+    ]);
   });
 });

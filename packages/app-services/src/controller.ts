@@ -1,9 +1,12 @@
 import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  createMapObject,
   getLayerById,
   getMapObjectBounds,
   getObjectById,
+  getTilesetTileByLocalId,
+  type Point,
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type CreateMapInput,
@@ -14,6 +17,7 @@ import {
   type MapObject,
   type ObjectId,
   type ObjectLayer,
+  type ObjectShape,
   type PropertyDefinition,
   type TileAnimationFrame,
   type TilesetDefinition,
@@ -101,12 +105,19 @@ import {
 import {
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
+  createTilesetTileCollisionObjectCommand,
+  moveTilesetTileCollisionObjectsCommand,
+  removeTilesetTileCollisionObjectPropertyCommand,
+  removeTilesetTileCollisionObjectsCommand,
   removeTilesetTilePropertyCommand,
+  reorderTilesetTileCollisionObjectsCommand,
   selectTilesetStampCommand,
   setActiveTilesetCommand,
   updateTilesetTileAnimationCommand,
+  updateTilesetTileCollisionObjectCommand,
   updateTilesetDetailsCommand,
   updateTilesetTileMetadataCommand,
+  upsertTilesetTileCollisionObjectPropertyCommand,
   upsertTilesetTilePropertyCommand
 } from "@pixel-editor/tileset";
 
@@ -192,6 +203,29 @@ export interface EditorController {
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
   updateSelectedTileMetadata(patch: UpdateTileMetadataInput): void;
   updateSelectedTileAnimation(animation: readonly TileAnimationFrame[]): void;
+  createSelectedTileCollisionObject(
+    shape: "rectangle" | "ellipse" | "point" | "polygon" | "polyline" | "capsule"
+  ): ObjectId | undefined;
+  updateSelectedTileCollisionObjectDetails(
+    objectId: ObjectId,
+    patch: UpdateMapObjectDetailsInput
+  ): void;
+  upsertSelectedTileCollisionObjectProperty(
+    objectId: ObjectId,
+    property: PropertyDefinition,
+    previousName?: string
+  ): void;
+  removeSelectedTileCollisionObjectProperty(objectId: ObjectId, propertyName: string): void;
+  removeSelectedTileCollisionObjects(objectIds: ObjectId[]): void;
+  moveSelectedTileCollisionObjects(
+    objectIds: readonly ObjectId[],
+    deltaX: number,
+    deltaY: number
+  ): void;
+  reorderSelectedTileCollisionObjects(
+    objectIds: readonly ObjectId[],
+    direction: "up" | "down"
+  ): void;
   upsertSelectedTileProperty(property: PropertyDefinition, previousName?: string): void;
   removeSelectedTileProperty(propertyName: string): void;
   updateActiveMapDetails(patch: UpdateMapDetailsInput): void;
@@ -390,6 +424,26 @@ class InMemoryEditorController implements EditorController {
     return {
       activeMap,
       activeLayer
+    };
+  }
+
+  private resolveSelectedTileContext():
+    | {
+        activeTileset: TilesetDefinition;
+        selectedLocalId: number;
+      }
+    | undefined {
+    const state = this.history.state;
+    const activeTileset = getActiveTileset(state);
+    const selectedLocalId = state.session.activeTilesetTileLocalId;
+
+    if (!activeTileset || selectedLocalId === null) {
+      return undefined;
+    }
+
+    return {
+      activeTileset,
+      selectedLocalId
     };
   }
 
@@ -1166,6 +1220,198 @@ class InMemoryEditorController implements EditorController {
     }
 
     this.commit(updateTilesetTileAnimationCommand(activeTileset.id, selectedLocalId, animation));
+  }
+
+  createSelectedTileCollisionObject(
+    shape: "rectangle" | "ellipse" | "point" | "polygon" | "polyline" | "capsule"
+  ): ObjectId | undefined {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved) {
+      return undefined;
+    }
+
+    const selectedTile = getTilesetTileByLocalId(
+      resolved.activeTileset,
+      resolved.selectedLocalId
+    );
+    const existingCount = selectedTile?.collisionLayer?.objects.length ?? 0;
+    const tileWidth = resolved.activeTileset.tileWidth;
+    const tileHeight = resolved.activeTileset.tileHeight;
+    const defaultWidth = Math.max(8, tileWidth * 0.5);
+    const defaultHeight = Math.max(8, tileHeight * 0.5);
+    const originX = Math.max(0, (tileWidth - defaultWidth) * 0.5);
+    const originY = Math.max(0, (tileHeight - defaultHeight) * 0.5);
+
+    const objectInput: {
+      shape: ObjectShape;
+      x: number;
+      y: number;
+      width?: number;
+      height?: number;
+      points?: Point[];
+    } = {
+      shape,
+      x: originX,
+      y: originY
+    };
+
+    if (shape === "point") {
+      objectInput.x = tileWidth * 0.5;
+      objectInput.y = tileHeight * 0.5;
+    } else {
+      objectInput.width = defaultWidth;
+      objectInput.height = defaultHeight;
+
+      if (shape === "polygon") {
+        objectInput.points = [
+          { x: defaultWidth * 0.5, y: 0 },
+          { x: defaultWidth, y: defaultHeight },
+          { x: 0, y: defaultHeight }
+        ];
+      } else if (shape === "polyline") {
+        objectInput.points = [
+          { x: 0, y: defaultHeight },
+          { x: defaultWidth * 0.5, y: 0 },
+          { x: defaultWidth, y: defaultHeight }
+        ];
+      }
+    }
+
+    const object = createMapObject({
+      name: createIndexedName(this.naming.objectNamePrefix, existingCount + 1),
+      ...objectInput
+    });
+
+    this.commit(
+      createTilesetTileCollisionObjectCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        object
+      )
+    );
+
+    return object.id;
+  }
+
+  updateSelectedTileCollisionObjectDetails(
+    objectId: ObjectId,
+    patch: UpdateMapObjectDetailsInput
+  ): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      updateTilesetTileCollisionObjectCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectId,
+        patch
+      )
+    );
+  }
+
+  upsertSelectedTileCollisionObjectProperty(
+    objectId: ObjectId,
+    property: PropertyDefinition,
+    previousName?: string
+  ): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      upsertTilesetTileCollisionObjectPropertyCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectId,
+        property,
+        previousName
+      )
+    );
+  }
+
+  removeSelectedTileCollisionObjectProperty(
+    objectId: ObjectId,
+    propertyName: string
+  ): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      removeTilesetTileCollisionObjectPropertyCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectId,
+        propertyName
+      )
+    );
+  }
+
+  removeSelectedTileCollisionObjects(objectIds: ObjectId[]): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved || objectIds.length === 0) {
+      return;
+    }
+
+    this.commit(
+      removeTilesetTileCollisionObjectsCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectIds
+      )
+    );
+  }
+
+  moveSelectedTileCollisionObjects(
+    objectIds: readonly ObjectId[],
+    deltaX: number,
+    deltaY: number
+  ): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved || objectIds.length === 0 || (deltaX === 0 && deltaY === 0)) {
+      return;
+    }
+
+    this.commit(
+      moveTilesetTileCollisionObjectsCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectIds,
+        deltaX,
+        deltaY
+      )
+    );
+  }
+
+  reorderSelectedTileCollisionObjects(
+    objectIds: readonly ObjectId[],
+    direction: "up" | "down"
+  ): void {
+    const resolved = this.resolveSelectedTileContext();
+
+    if (!resolved || objectIds.length === 0) {
+      return;
+    }
+
+    this.commit(
+      reorderTilesetTileCollisionObjectsCommand(
+        resolved.activeTileset.id,
+        resolved.selectedLocalId,
+        objectIds,
+        direction
+      )
+    );
   }
 
   upsertSelectedTileProperty(

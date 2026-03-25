@@ -1,15 +1,25 @@
 import { createHistoryCommand, type HistoryCommand } from "@pixel-editor/command-engine";
 import {
   attachTilesetToMap,
+  createTilesetTileCollisionObject,
   createImageCollectionTileset,
   createImageTileset,
+  getTilesetTileCollisionObject,
   getMapGlobalTileGid,
   getTilesetTileCount,
+  moveTilesetTileCollisionObjects,
+  removeTilesetTileCollisionObjectProperty,
+  removeTilesetTileCollisionObjects,
   removeTilesetTileProperty,
+  reorderTilesetTileCollisionObjects,
+  type MapObject,
   updateTilesetTileAnimation,
+  updateTilesetTileCollisionObject,
   updateTilesetDetails,
   updateTilesetTileMetadata,
+  type UpdateMapObjectDetailsInput,
   upsertTilesetTileProperty,
+  upsertTilesetTileCollisionObjectProperty,
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type MapId,
@@ -270,4 +280,140 @@ export function updateTilesetTileAnimationCommand(
     canMerge: (next) => next.id === `tileset.tile.animation:${tilesetId}:${localId}`,
     merge: (next) => next
   });
+}
+
+export function createTilesetTileCollisionObjectCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  object: MapObject
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.add:${tilesetId}:${localId}`,
+    description: `Add collision object ${object.name} to tile ${localId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        createTilesetTileCollisionObject(tileset, localId, object)
+      )
+  });
+}
+
+export function updateTilesetTileCollisionObjectCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectId: MapObject["id"],
+  patch: UpdateMapObjectDetailsInput
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.update:${tilesetId}:${localId}:${objectId}`,
+    description: `Update collision object ${objectId} on tile ${localId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        updateTilesetTileCollisionObject(tileset, localId, objectId, patch)
+      ),
+    canMerge: (next) =>
+      next.id === `tileset.tile.collision.object.update:${tilesetId}:${localId}:${objectId}`,
+    merge: (next) => next
+  });
+}
+
+export function upsertTilesetTileCollisionObjectPropertyCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectId: MapObject["id"],
+  property: PropertyDefinition,
+  previousName?: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.property.upsert:${tilesetId}:${localId}:${objectId}`,
+    description: `Upsert property ${property.name} on collision object ${objectId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        upsertTilesetTileCollisionObjectProperty(
+          tileset,
+          localId,
+          objectId,
+          property,
+          previousName
+        )
+      )
+  });
+}
+
+export function removeTilesetTileCollisionObjectPropertyCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectId: MapObject["id"],
+  propertyName: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.property.remove:${tilesetId}:${localId}:${objectId}:${propertyName}`,
+    description: `Remove property ${propertyName} from collision object ${objectId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        removeTilesetTileCollisionObjectProperty(tileset, localId, objectId, propertyName)
+      )
+  });
+}
+
+export function removeTilesetTileCollisionObjectsCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectIds: readonly MapObject["id"][]
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.remove:${tilesetId}:${localId}`,
+    description: `Remove ${objectIds.length} collision object(s) from tile ${localId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        removeTilesetTileCollisionObjects(tileset, localId, objectIds)
+      )
+  });
+}
+
+export function moveTilesetTileCollisionObjectsCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectIds: readonly MapObject["id"][],
+  deltaX: number,
+  deltaY: number
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.move:${tilesetId}:${localId}`,
+    description: `Move ${objectIds.length} collision object(s) on tile ${localId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        moveTilesetTileCollisionObjects(tileset, localId, objectIds, deltaX, deltaY)
+      )
+  });
+}
+
+export function reorderTilesetTileCollisionObjectsCommand(
+  tilesetId: TilesetId,
+  localId: number,
+  objectIds: readonly MapObject["id"][],
+  direction: "up" | "down"
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `tileset.tile.collision.object.reorder:${tilesetId}:${localId}:${direction}`,
+    description: `Reorder ${objectIds.length} collision object(s) ${direction} on tile ${localId}`,
+    run: (state) =>
+      updateWorkspaceTileset(state, tilesetId, (tileset) =>
+        reorderTilesetTileCollisionObjects(tileset, localId, objectIds, direction)
+      )
+  });
+}
+
+export function getActiveTilesetTileCollisionObject(
+  state: EditorWorkspaceState,
+  tilesetId: TilesetId,
+  localId: number,
+  objectId: MapObject["id"]
+): MapObject | undefined {
+  const tileset = state.tilesets.find((entry) => entry.id === tilesetId);
+
+  if (!tileset) {
+    return undefined;
+  }
+
+  return getTilesetTileCollisionObject(tileset, localId, objectId);
 }

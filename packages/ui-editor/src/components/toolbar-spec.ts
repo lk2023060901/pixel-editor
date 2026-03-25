@@ -512,7 +512,7 @@ export function getTiledMainMenus(
     items: [
       menuAction("tile-animation-editor", t("action.tileAnimationEditor"), { implemented: true }),
       menuAction("rearrange-tiles", t("action.rearrangeTiles"), { implemented: false }),
-      menuAction("edit-collision", t("action.editCollision"), { implemented: false }),
+      menuAction("edit-collision", t("action.editCollision"), { implemented: true }),
       menuAction("edit-wang-sets", t("action.editWangSets"), { implemented: false }),
       menuSeparator,
       menuAction("add-tiles", t("action.addTiles"), { implemented: false }),
