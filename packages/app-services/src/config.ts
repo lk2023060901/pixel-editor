@@ -18,12 +18,38 @@ export const foundationFeatureStatuses: FeatureStatusSummary[] = [
 
 export const defaultProjectAssetRoots = ["maps", "tilesets", "templates"] as const;
 
+export const defaultMapLayerNames = {
+  tile: "Ground",
+  object: "Objects"
+} as const;
+
 export const layerNamePrefixes = {
   tile: "Tile Layer",
   object: "Object Layer"
 } as const;
 
 export const objectNamePrefix = "Object";
+export const mapNamePrefix = "map";
+
+export interface EditorNamingConfig {
+  mapNamePrefix: string;
+  defaultMapLayerNames: {
+    tile: string;
+    object: string;
+  };
+  layerNamePrefixes: {
+    tile: string;
+    object: string;
+  };
+  objectNamePrefix: string;
+}
+
+export const defaultEditorNamingConfig: EditorNamingConfig = {
+  mapNamePrefix,
+  defaultMapLayerNames,
+  layerNamePrefixes,
+  objectNamePrefix
+};
 
 export const quickMapBlueprint: MapBlueprint = {
   orientation: "orthogonal",

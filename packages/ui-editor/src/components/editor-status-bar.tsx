@@ -1,6 +1,7 @@
 "use client";
 
 import type { LayerDefinition, LayerId } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { useEffect, useMemo, useState } from "react";
 
 const TILED_ZOOM_FACTORS = [
@@ -73,6 +74,7 @@ export interface EditorStatusBarProps {
 }
 
 export function EditorStatusBar(props: EditorStatusBarProps) {
+  const { t } = useI18n();
   const [zoomDraft, setZoomDraft] = useState(() => formatZoom(props.zoom));
 
   useEffect(() => {
@@ -101,7 +103,7 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
       <div className="flex items-center gap-2 overflow-x-auto text-sm text-slate-200">
         <button
           className="flex h-7 w-7 items-center justify-center rounded-sm border border-slate-600 bg-slate-700/40 transition hover:border-slate-500 hover:bg-slate-700/70"
-          title="Console"
+          title={t("statusBar.console")}
           type="button"
           onClick={props.onToggleConsole}
         >
@@ -115,7 +117,10 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
 
         <button
           className="flex h-7 items-center gap-2 rounded-sm border border-slate-600 bg-slate-700/40 px-2 transition hover:border-slate-500 hover:bg-slate-700/70"
-          title={`${props.errorCount} error(s), ${props.warningCount} warning(s)`}
+          title={t("statusBar.issuesSummary", {
+            errorCount: props.errorCount,
+            warningCount: props.warningCount
+          })}
           type="button"
           onClick={props.onToggleIssues}
         >
@@ -164,7 +169,7 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
               }}
             >
               {layerOptions.length === 0 ? (
-                <option value="">No Layer</option>
+                <option value="">{t("statusBar.noLayer")}</option>
               ) : (
                 layerOptions.map((layer) => (
                   <option key={layer.id} value={layer.id}>

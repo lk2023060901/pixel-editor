@@ -7,8 +7,14 @@ import type {
   TilesetObjectAlignment,
   TilesetTileRenderSize
 } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
+import {
+  getTilesetFillModeLabel,
+  getTilesetObjectAlignmentLabel,
+  getTilesetRenderSizeLabel
+} from "./i18n-helpers";
 import { NumberField, SelectField, TextField } from "./editor-fields";
 
 interface TilesetDetailsDraft {
@@ -27,29 +33,6 @@ interface TilesetDetailsDraft {
   spacing: string;
   columns: string;
 }
-
-const objectAlignmentOptions: Array<{ label: string; value: TilesetObjectAlignment }> = [
-  { label: "Unspecified", value: "unspecified" },
-  { label: "Top Left", value: "topleft" },
-  { label: "Top", value: "top" },
-  { label: "Top Right", value: "topright" },
-  { label: "Left", value: "left" },
-  { label: "Center", value: "center" },
-  { label: "Right", value: "right" },
-  { label: "Bottom Left", value: "bottomleft" },
-  { label: "Bottom", value: "bottom" },
-  { label: "Bottom Right", value: "bottomright" }
-];
-
-const tileRenderSizeOptions: Array<{ label: string; value: TilesetTileRenderSize }> = [
-  { label: "Tile", value: "tile" },
-  { label: "Grid", value: "grid" }
-];
-
-const fillModeOptions: Array<{ label: string; value: TilesetFillMode }> = [
-  { label: "Stretch", value: "stretch" },
-  { label: "Preserve Aspect Fit", value: "preserve-aspect-fit" }
-];
 
 function createDetailsDraft(tileset: TilesetDefinition): TilesetDetailsDraft {
   return {
@@ -93,6 +76,36 @@ export function TilesetDetailsForm(props: {
   tileset: TilesetDefinition;
   store: EditorController;
 }) {
+  const { t } = useI18n();
+  const objectAlignmentOptions: Array<{ label: string; value: TilesetObjectAlignment }> = ([
+    "unspecified",
+    "topleft",
+    "top",
+    "topright",
+    "left",
+    "center",
+    "right",
+    "bottomleft",
+    "bottom",
+    "bottomright"
+  ] as const).map((value) => ({
+    label: getTilesetObjectAlignmentLabel(value, t),
+    value
+  }));
+  const tileRenderSizeOptions: Array<{ label: string; value: TilesetTileRenderSize }> = ([
+    "tile",
+    "grid"
+  ] as const).map((value) => ({
+    label: getTilesetRenderSizeLabel(value, t),
+    value
+  }));
+  const fillModeOptions: Array<{ label: string; value: TilesetFillMode }> = ([
+    "stretch",
+    "preserve-aspect-fit"
+  ] as const).map((value) => ({
+    label: getTilesetFillModeLabel(value, t),
+    value
+  }));
   const [draft, setDraft] = useState(() => createDetailsDraft(props.tileset));
 
   useEffect(() => {
@@ -102,7 +115,9 @@ export function TilesetDetailsForm(props: {
   return (
     <div className="mt-6 space-y-4 border-t border-slate-800 pt-4">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">Tileset Parameters</p>
+        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
+          {t("tilesetDetails.parameters")}
+        </p>
         <button
           className="rounded-xl border border-amber-500/50 bg-amber-500/10 px-3 py-2 text-xs font-medium text-amber-100 transition hover:bg-amber-500/20"
           onClick={() => {
@@ -155,13 +170,13 @@ export function TilesetDetailsForm(props: {
             });
           }}
         >
-          Apply Tileset Changes
+          {t("tilesetDetails.applyChanges")}
         </button>
       </div>
 
       <div className="grid gap-3">
         <TextField
-          label="Name"
+          label={t("common.name")}
           value={draft.name}
           onChange={(value) => {
             setDraft((current) => ({ ...current, name: value }));
@@ -169,28 +184,28 @@ export function TilesetDetailsForm(props: {
         />
         <div className="grid grid-cols-2 gap-3">
           <NumberField
-            label="Tile Width"
+            label={t("common.tileWidth")}
             value={draft.tileWidth}
             onChange={(value) => {
               setDraft((current) => ({ ...current, tileWidth: value }));
             }}
           />
           <NumberField
-            label="Tile Height"
+            label={t("common.tileHeight")}
             value={draft.tileHeight}
             onChange={(value) => {
               setDraft((current) => ({ ...current, tileHeight: value }));
             }}
           />
           <NumberField
-            label="Tile Offset X"
+            label={t("tilesetDetails.tileOffsetX")}
             value={draft.tileOffsetX}
             onChange={(value) => {
               setDraft((current) => ({ ...current, tileOffsetX: value }));
             }}
           />
           <NumberField
-            label="Tile Offset Y"
+            label={t("tilesetDetails.tileOffsetY")}
             value={draft.tileOffsetY}
             onChange={(value) => {
               setDraft((current) => ({ ...current, tileOffsetY: value }));
@@ -199,7 +214,7 @@ export function TilesetDetailsForm(props: {
         </div>
         <div className="grid grid-cols-3 gap-3">
           <SelectField
-            label="Object Alignment"
+            label={t("tilesetDetails.objectAlignment")}
             value={draft.objectAlignment}
             options={objectAlignmentOptions}
             onChange={(value) => {
@@ -210,7 +225,7 @@ export function TilesetDetailsForm(props: {
             }}
           />
           <SelectField
-            label="Render Size"
+            label={t("tilesetDetails.renderSize")}
             value={draft.tileRenderSize}
             options={tileRenderSizeOptions}
             onChange={(value) => {
@@ -221,7 +236,7 @@ export function TilesetDetailsForm(props: {
             }}
           />
           <SelectField
-            label="Fill Mode"
+            label={t("tilesetDetails.fillMode")}
             value={draft.fillMode}
             options={fillModeOptions}
             onChange={(value) => {
@@ -236,7 +251,7 @@ export function TilesetDetailsForm(props: {
         {props.tileset.kind === "image" && (
           <>
             <TextField
-              label="Image Path"
+              label={t("common.imagePath")}
               value={draft.imagePath}
               onChange={(value) => {
                 setDraft((current) => ({ ...current, imagePath: value }));
@@ -244,35 +259,35 @@ export function TilesetDetailsForm(props: {
             />
             <div className="grid grid-cols-2 gap-3">
               <NumberField
-                label="Image Width"
+                label={t("common.imageWidth")}
                 value={draft.imageWidth}
                 onChange={(value) => {
                   setDraft((current) => ({ ...current, imageWidth: value }));
                 }}
               />
               <NumberField
-                label="Image Height"
+                label={t("common.imageHeight")}
                 value={draft.imageHeight}
                 onChange={(value) => {
                   setDraft((current) => ({ ...current, imageHeight: value }));
                 }}
               />
               <NumberField
-                label="Margin"
+                label={t("common.margin")}
                 value={draft.margin}
                 onChange={(value) => {
                   setDraft((current) => ({ ...current, margin: value }));
                 }}
               />
               <NumberField
-                label="Spacing"
+                label={t("common.spacing")}
                 value={draft.spacing}
                 onChange={(value) => {
                   setDraft((current) => ({ ...current, spacing: value }));
                 }}
               />
               <NumberField
-                label="Columns"
+                label={t("common.columns")}
                 value={draft.columns}
                 onChange={(value) => {
                   setDraft((current) => ({ ...current, columns: value }));

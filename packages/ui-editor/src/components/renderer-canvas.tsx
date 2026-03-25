@@ -6,6 +6,7 @@ import type {
   ObjectMoveGestureModifiers
 } from "@pixel-editor/app-services";
 import type { ObjectId } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { createPixiEditorRenderer } from "@pixel-editor/renderer-pixi";
 import { useDeferredValue, useEffect, useRef } from "react";
 
@@ -51,8 +52,15 @@ export function RendererCanvas({
   onObjectMove,
   onObjectMoveEnd
 }: RendererCanvasProps) {
+  const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const rendererRef = useRef(createPixiEditorRenderer());
+  const rendererRef = useRef(
+    createPixiEditorRenderer({
+      labels: {
+        noActiveMap: t("canvas.noActiveMap")
+      }
+    })
+  );
   const deferredSnapshot = useDeferredValue(snapshot);
   const isStrokeActiveRef = useRef(false);
   const lastPickedTileRef = useRef<{ x: number; y: number } | undefined>(undefined);

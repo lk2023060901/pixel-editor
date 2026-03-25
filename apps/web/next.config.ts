@@ -6,6 +6,7 @@ const nextConfig: NextConfig = {
     "@pixel-editor/command-engine",
     "@pixel-editor/contracts",
     "@pixel-editor/domain",
+    "@pixel-editor/i18n",
     "@pixel-editor/editor-state",
     "@pixel-editor/map",
     "@pixel-editor/objects",

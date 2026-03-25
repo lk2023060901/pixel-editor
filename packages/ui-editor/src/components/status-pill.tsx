@@ -1,6 +1,9 @@
 "use client";
 
 import type { FeatureStatusValue } from "@pixel-editor/contracts";
+import { useI18n } from "@pixel-editor/i18n/client";
+
+import { getFeatureStatusLabel } from "./i18n-helpers";
 
 const statusClassNames: Record<FeatureStatusValue, string> = {
   未开始: "border-slate-700 bg-slate-900 text-slate-300",
@@ -14,11 +17,13 @@ export interface StatusPillProps {
 }
 
 export function StatusPill({ status }: StatusPillProps) {
+  const { t } = useI18n();
+
   return (
     <span
       className={`rounded-full border px-2 py-1 text-[11px] font-medium ${statusClassNames[status]}`}
     >
-      {status}
+      {getFeatureStatusLabel(status, t)}
     </span>
   );
 }

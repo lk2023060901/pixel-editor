@@ -454,6 +454,9 @@ function drawGridOverlay(
 
 export function createPixiEditorRenderer(options: {
   layout?: Partial<RendererLayoutMetrics>;
+  labels?: {
+    noActiveMap?: string;
+  };
 } = {}): EditorRenderer {
   let app: Application | undefined;
   let mountedHost: HTMLElement | undefined;
@@ -486,7 +489,7 @@ export function createPixiEditorRenderer(options: {
 
     if (!snapshot.map) {
       const emptyText = new Text({
-        text: "No active map",
+        text: options.labels?.noActiveMap ?? "",
         style: {
           fill: 0xe2e8f0,
           fontSize: 18,

@@ -1,3 +1,4 @@
+import type { TranslationFn } from "@pixel-editor/i18n";
 import type { EditorToolId, ShapeFillMode } from "@pixel-editor/editor-state";
 
 export type ToolbarIconId =
@@ -178,177 +179,190 @@ const menuSeparator: TiledMenuSeparatorSpec = {
   kind: "separator"
 };
 
-export function getTiledMainMenus(context: TiledMenuContext): TiledMenuSpec[] {
+export function getTiledMainMenus(
+  context: TiledMenuContext,
+  t: TranslationFn
+): TiledMenuSpec[] {
   const fileMenu: TiledMenuSpec = {
     id: "file",
-    label: "File",
+    label: t("menu.file"),
     items: [
-      menuSubmenu("file-new", "New", [
-        menuAction("new-project", "New Project...", {
+      menuSubmenu("file-new", t("menu.new"), [
+        menuAction("new-project", t("action.newProject"), {
           implemented: false,
           shortcut: "Ctrl+Shift+N"
         }),
         menuSeparator,
-        menuAction("new-map", "New Map...", { implemented: true }),
-        menuAction("new-tileset", "New Tileset...", { implemented: false })
+        menuAction("new-map", t("action.newMap"), { implemented: true }),
+        menuAction("new-tileset", t("action.newTileset"), { implemented: false })
       ]),
-      menuAction("open", "Open File or Project...", { implemented: false }),
-      menuAction("open-file-in-project", "Open File in Project...", {
+      menuAction("open", t("action.openFileOrProject"), { implemented: false }),
+      menuAction("open-file-in-project", t("action.openFileInProject"), {
         implemented: false,
         shortcut: "Ctrl+P"
       }),
-      menuSubmenu("recent-files", "Recent Files", [
-        menuAction("reopen-closed-file", "Reopen Closed File", {
+      menuSubmenu("recent-files", t("menu.recentFiles"), [
+        menuAction("reopen-closed-file", t("action.reopenClosedFile"), {
           implemented: false,
           shortcut: "Ctrl+Shift+T"
         }),
         menuSeparator,
-        menuAction("clear-recent-files", "Clear Recent Files", { implemented: false })
+        menuAction("clear-recent-files", t("action.clearRecentFiles"), { implemented: false })
       ]),
-      menuSubmenu("recent-projects", "Recent Projects", [
-        menuAction("clear-recent-projects", "Clear Recent Projects", { implemented: false })
+      menuSubmenu("recent-projects", t("menu.recentProjects"), [
+        menuAction("clear-recent-projects", t("action.clearRecentProjects"), {
+          implemented: false
+        })
       ]),
       menuSeparator,
-      menuAction("save", "Save", { implemented: false }),
-      menuAction("save-as", "Save As...", {
+      menuAction("save", t("action.save"), { implemented: false }),
+      menuAction("save-as", t("action.saveAs"), {
         implemented: false,
         shortcut: "Ctrl+Shift+S"
       }),
-      menuAction("save-all", "Save All", { implemented: false }),
-      menuAction("export", "Export", {
+      menuAction("save-all", t("action.saveAll"), { implemented: false }),
+      menuAction("export", t("action.export"), {
         implemented: false,
         shortcut: "Ctrl+E"
       }),
-      menuAction("export-as", "Export As...", {
+      menuAction("export-as", t("action.exportAs"), {
         implemented: false,
         shortcut: "Ctrl+Shift+E"
       }),
-      menuAction("export-as-image", "Export As Image...", { implemented: false }),
-      menuAction("reload", "Reload", {
+      menuAction("export-as-image", t("action.exportAsImage"), { implemented: false }),
+      menuAction("reload", t("action.reload"), {
         implemented: false,
         shortcut: "Ctrl+R"
       }),
       menuSeparator,
-      menuSubmenu("commands", "Commands", [
-        menuAction("edit-commands", "Edit Commands...", { implemented: false })
+      menuSubmenu("commands", t("menu.commands"), [
+        menuAction("edit-commands", t("action.editCommands"), { implemented: false })
       ]),
       menuSeparator,
-      menuAction("close", "Close", { implemented: false }),
-      menuAction("close-all", "Close All", {
+      menuAction("close", t("action.close"), { implemented: false }),
+      menuAction("close-all", t("action.closeAll"), {
         implemented: false,
         shortcut: "Ctrl+Shift+W"
       }),
-      menuAction("close-project", "Close Project", { implemented: false }),
-      menuAction("quit", "Quit", { implemented: false })
+      menuAction("close-project", t("action.closeProject"), { implemented: false }),
+      menuAction("quit", t("action.quit"), { implemented: false })
     ]
   };
 
   const editMenu: TiledMenuSpec = {
     id: "edit",
-    label: "Edit",
+    label: t("menu.edit"),
     items: [
-      menuAction("undo", "Undo", {
+      menuAction("undo", t("action.undo"), {
         implemented: true,
         disabled: !context.canUndo
       }),
-      menuAction("redo", "Redo", {
+      menuAction("redo", t("action.redo"), {
         implemented: true,
         disabled: !context.canRedo
       }),
       menuSeparator,
-      menuAction("cut", "Cut", { implemented: false }),
-      menuAction("copy", "Copy", { implemented: false }),
-      menuAction("paste", "Paste", { implemented: false }),
-      menuAction("paste-in-place", "Paste in Place", {
+      menuAction("cut", t("action.cut"), { implemented: false }),
+      menuAction("copy", t("action.copy"), { implemented: false }),
+      menuAction("paste", t("action.paste"), { implemented: false }),
+      menuAction("paste-in-place", t("action.pasteInPlace"), {
         implemented: false,
         shortcut: "Ctrl+Shift+V"
       }),
-      menuAction("delete", "Delete", { implemented: false }),
+      menuAction("delete", t("action.delete"), { implemented: false }),
       menuSeparator,
-      menuAction("select-all", "Select All", {
+      menuAction("select-all", t("action.selectAll"), {
         implemented: false,
         shortcut: "Ctrl+A"
       }),
-      menuAction("invert-selection", "Invert Selection", {
+      menuAction("invert-selection", t("action.invertSelection"), {
         implemented: false,
         shortcut: "Ctrl+I"
       }),
-      menuAction("select-none", "Select None", {
+      menuAction("select-none", t("action.selectNone"), {
         implemented: false,
         shortcut: "Ctrl+Shift+A"
       }),
       menuSeparator,
-      menuAction("preferences", "Preferences...", { implemented: false })
+      menuAction("preferences", t("action.preferences"), { implemented: false })
     ]
   };
 
   const viewMenu: TiledMenuSpec = {
     id: "view",
-    label: "View",
+    label: t("menu.view"),
     items: [
-      menuAction("search-actions", "Search Actions...", { implemented: false }),
-      menuAction("show-grid", "Show Grid", {
+      menuAction("search-actions", t("action.searchActions"), { implemented: false }),
+      menuAction("show-grid", t("action.showGrid"), {
         implemented: true,
         checked: context.showGrid,
         shortcut: "Ctrl+G"
       }),
-      menuAction("show-tile-object-outlines", "Show Tile Object Outlines", { implemented: false }),
-      menuAction("show-object-references", "Show Object References", { implemented: false }),
-      menuSubmenu("show-object-names", "Show Object Names", [
-        menuAction("show-object-names-none", "Never", {
+      menuAction("show-tile-object-outlines", t("action.showTileObjectOutlines"), {
+        implemented: false
+      }),
+      menuAction("show-object-references", t("action.showObjectReferences"), {
+        implemented: false
+      }),
+      menuSubmenu("show-object-names", t("menu.showObjectNames"), [
+        menuAction("show-object-names-none", t("action.showObjectNamesNever"), {
           implemented: false,
           checked: false
         }),
-        menuAction("show-object-names-selected", "For Selected Objects", {
+        menuAction("show-object-names-selected", t("action.showObjectNamesSelected"), {
           implemented: false,
           checked: true
         }),
-        menuAction("show-object-names-all", "For All Objects", {
+        menuAction("show-object-names-all", t("action.showObjectNamesAll"), {
           implemented: false,
           checked: false
         }),
         menuSeparator,
-        menuAction("show-object-names-hovered", "For Hovered Object", {
+        menuAction("show-object-names-hovered", t("action.showObjectNamesHovered"), {
           implemented: false,
           checked: false
         })
       ]),
-      menuAction("show-tile-animations", "Show Tile Animations", { implemented: false }),
-      menuAction("show-tile-collision-shapes", "Show Tile Collision Shapes", { implemented: false }),
-      menuAction("enable-worlds", "Show World", { implemented: false }),
-      menuAction("enable-parallax", "Enable Parallax", { implemented: false }),
-      menuAction("highlight-current-layer", "Highlight Current Layer", {
+      menuAction("show-tile-animations", t("action.showTileAnimations"), { implemented: false }),
+      menuAction("show-tile-collision-shapes", t("action.showTileCollisionShapes"), {
+        implemented: false
+      }),
+      menuAction("enable-worlds", t("action.showWorld"), { implemented: false }),
+      menuAction("enable-parallax", t("action.enableParallax"), { implemented: false }),
+      menuAction("highlight-current-layer", t("action.highlightCurrentLayer"), {
         implemented: false,
         shortcut: "H"
       }),
-      menuAction("highlight-hovered-object", "Highlight Hovered Object", { implemented: false }),
+      menuAction("highlight-hovered-object", t("action.highlightHoveredObject"), {
+        implemented: false
+      }),
       menuSeparator,
-      menuSubmenu("snapping", "Snapping", [
-        menuAction("snap-nothing", "No Snapping", {
+      menuSubmenu("snapping", t("menu.snapping"), [
+        menuAction("snap-nothing", t("action.noSnapping"), {
           implemented: false,
           checked: true
         }),
-        menuAction("snap-to-grid", "Snap to Grid", { implemented: false }),
-        menuAction("snap-to-fine-grid", "Snap to Fine Grid", { implemented: false }),
-        menuAction("snap-to-pixels", "Snap to Pixels", { implemented: false })
+        menuAction("snap-to-grid", t("action.snapToGrid"), { implemented: false }),
+        menuAction("snap-to-fine-grid", t("action.snapToFineGrid"), { implemented: false }),
+        menuAction("snap-to-pixels", t("action.snapToPixels"), { implemented: false })
       ]),
       menuSeparator,
-      menuAction("zoom-in", "Zoom In", { implemented: true }),
-      menuAction("zoom-out", "Zoom Out", { implemented: true }),
-      menuAction("zoom-normal", "Normal Size", {
+      menuAction("zoom-in", t("action.zoomIn"), { implemented: true }),
+      menuAction("zoom-out", t("action.zoomOut"), { implemented: true }),
+      menuAction("zoom-normal", t("action.normalSize"), {
         implemented: true,
         shortcut: "Ctrl+0"
       }),
-      menuAction("fit-in-view", "Fit Map in View", {
+      menuAction("fit-in-view", t("action.fitMapInView"), {
         implemented: false,
         shortcut: "Ctrl+/"
       }),
       menuSeparator,
-      menuAction("full-screen", "Full Screen", {
+      menuAction("full-screen", t("action.fullScreen"), {
         implemented: false,
         shortcut: "F11"
       }),
-      menuAction("clear-view", "Clear View", {
+      menuAction("clear-view", t("action.clearView"), {
         implemented: false,
         shortcut: "Tab"
       })
@@ -357,171 +371,183 @@ export function getTiledMainMenus(context: TiledMenuContext): TiledMenuSpec[] {
 
   const worldMenu: TiledMenuSpec = {
     id: "world",
-    label: "World",
+    label: t("menu.world"),
     items: [
-      menuAction("new-world", "New World...", { implemented: false }),
-      menuAction("load-world", "Load World...", { implemented: false }),
+      menuAction("new-world", t("action.newWorld"), { implemented: false }),
+      menuAction("load-world", t("action.loadWorld"), { implemented: false }),
       menuSeparator,
-      menuSubmenu("unload-world", "Unload World", [
-        menuAction("unload-all-worlds", "Unload All Worlds", { implemented: false })
+      menuSubmenu("unload-world", t("menu.unloadWorld"), [
+        menuAction("unload-all-worlds", t("action.unloadAllWorlds"), { implemented: false })
       ]),
-      menuSubmenu("save-world", "Save World", []),
+      menuSubmenu("save-world", t("menu.saveWorld"), []),
       menuSeparator,
-      menuAction("world-properties", "World Properties...", { implemented: false })
+      menuAction("world-properties", t("action.worldProperties"), { implemented: false })
     ]
   };
 
   const mapMenu: TiledMenuSpec = {
     id: "map",
-    label: "Map",
+    label: t("menu.map"),
     items: [
-      menuAction("add-external-tileset", "Add External Tileset...", { implemented: false }),
-      menuAction("add-automapping-rules-tileset", "Add Automapping Rules Tileset", { implemented: false }),
+      menuAction("add-external-tileset", t("action.addExternalTileset"), { implemented: false }),
+      menuAction("add-automapping-rules-tileset", t("action.addAutomappingRulesTileset"), {
+        implemented: false
+      }),
       menuSeparator,
-      menuAction("resize-map", "Resize Map...", { implemented: false }),
-      menuAction("crop-to-selection", "Crop to Selection", { implemented: false }),
-      menuAction("autocrop", "Autocrop", { implemented: false }),
-      menuAction("offset-map", "Offset Map...", { implemented: false }),
+      menuAction("resize-map", t("action.resizeMap"), { implemented: false }),
+      menuAction("crop-to-selection", t("action.cropToSelection"), { implemented: false }),
+      menuAction("autocrop", t("action.autocrop"), { implemented: false }),
+      menuAction("offset-map", t("action.offsetMap"), { implemented: false }),
       menuSeparator,
-      menuAction("auto-map", "AutoMap", {
+      menuAction("auto-map", t("action.autoMap"), {
         implemented: false,
         shortcut: "Ctrl+M"
       }),
-      menuAction("auto-map-while-drawing", "AutoMap While Drawing", { implemented: false }),
+      menuAction("auto-map-while-drawing", t("action.autoMapWhileDrawing"), {
+        implemented: false
+      }),
       menuSeparator,
-      menuAction("select-previous-tileset", "Select Previous Tileset", { implemented: false }),
-      menuAction("select-next-tileset", "Select Next Tileset", { implemented: false }),
+      menuAction("select-previous-tileset", t("action.selectPreviousTileset"), {
+        implemented: false
+      }),
+      menuAction("select-next-tileset", t("action.selectNextTileset"), {
+        implemented: false
+      }),
       menuSeparator,
-      menuAction("go-to-tile", "Go to Tile...", {
+      menuAction("go-to-tile", t("action.goToTile"), {
         implemented: false,
         shortcut: "Ctrl+Shift+G"
       }),
       menuSeparator,
-      menuAction("map-properties", "Map Properties...", { implemented: false })
+      menuAction("map-properties", t("action.mapProperties"), { implemented: false })
     ]
   };
 
   const layerMenu: TiledMenuSpec = {
     id: "layer",
-    label: "Layer",
+    label: t("menu.layer"),
     items: [
-      menuSubmenu("new-layer", "New", [
-        menuAction("add-tile-layer", "Tile Layer", {
+      menuSubmenu("new-layer", t("menu.new"), [
+        menuAction("add-tile-layer", t("action.addTileLayer"), {
           implemented: true,
           disabled: !context.hasActiveMap
         }),
-        menuAction("add-object-layer", "Object Layer", {
+        menuAction("add-object-layer", t("action.addObjectLayer"), {
           implemented: true,
           disabled: !context.hasActiveMap
         }),
-        menuAction("add-image-layer", "Image Layer", { implemented: false }),
-        menuAction("add-group-layer", "Group Layer", { implemented: false }),
+        menuAction("add-image-layer", t("action.addImageLayer"), { implemented: false }),
+        menuAction("add-group-layer", t("action.addGroupLayer"), { implemented: false }),
         menuSeparator,
-        menuAction("layer-via-copy", "Layer via Copy", {
+        menuAction("layer-via-copy", t("action.layerViaCopy"), {
           implemented: false,
           shortcut: "Ctrl+J"
         }),
-        menuAction("layer-via-cut", "Layer via Cut", {
+        menuAction("layer-via-cut", t("action.layerViaCut"), {
           implemented: false,
           shortcut: "Ctrl+Shift+J"
         })
       ]),
-      menuSubmenu("group-layer", "Group", [
-        menuAction("group-layers", "Group Layers", { implemented: false }),
-        menuAction("ungroup-layers", "Ungroup Layers", { implemented: false })
+      menuSubmenu("group-layer", t("menu.layerGroup"), [
+        menuAction("group-layers", t("action.groupLayers"), { implemented: false }),
+        menuAction("ungroup-layers", t("action.ungroupLayers"), { implemented: false })
       ]),
-      menuAction("duplicate-layers", "Duplicate Layers", {
+      menuAction("duplicate-layers", t("action.duplicateLayers"), {
         implemented: false,
         shortcut: "Ctrl+Shift+D"
       }),
-      menuAction("merge-layer-down", "Merge Layer Down", { implemented: false }),
-      menuAction("remove-layers", "Remove Layers", {
+      menuAction("merge-layer-down", t("action.mergeLayerDown"), { implemented: false }),
+      menuAction("remove-layers", t("action.removeLayers"), {
         implemented: true,
         disabled: !context.hasActiveLayer
       }),
       menuSeparator,
-      menuAction("select-previous-layer", "Select Previous Layer", {
+      menuAction("select-previous-layer", t("action.selectPreviousLayer"), {
         implemented: false,
         shortcut: "Ctrl+PageDown"
       }),
-      menuAction("select-next-layer", "Select Next Layer", {
+      menuAction("select-next-layer", t("action.selectNextLayer"), {
         implemented: false,
         shortcut: "Ctrl+PageUp"
       }),
-      menuAction("select-all-layers", "Select All Layers", {
+      menuAction("select-all-layers", t("action.selectAllLayers"), {
         implemented: false,
         shortcut: "Ctrl+Alt+A"
       }),
-      menuAction("raise-layers", "Raise Layers", {
+      menuAction("raise-layers", t("action.raiseLayers"), {
         implemented: true,
         disabled: !context.canMoveLayerUp,
         shortcut: "Ctrl+Shift+Up"
       }),
-      menuAction("lower-layers", "Lower Layers", {
+      menuAction("lower-layers", t("action.lowerLayers"), {
         implemented: true,
         disabled: !context.canMoveLayerDown,
         shortcut: "Ctrl+Shift+Down"
       }),
       menuSeparator,
-      menuAction("show-hide-layers", "Show/Hide Layers", {
+      menuAction("show-hide-layers", t("action.showHideLayers"), {
         implemented: false,
         shortcut: "Ctrl+H"
       }),
-      menuAction("lock-unlock-layers", "Lock/Unlock Layers", {
+      menuAction("lock-unlock-layers", t("action.lockUnlockLayers"), {
         implemented: false,
         shortcut: "Ctrl+L"
       }),
-      menuAction("show-hide-other-layers", "Show/Hide Other Layers", {
+      menuAction("show-hide-other-layers", t("action.showHideOtherLayers"), {
         implemented: false,
         shortcut: "Ctrl+Shift+H"
       }),
-      menuAction("lock-unlock-other-layers", "Lock/Unlock Other Layers", {
+      menuAction("lock-unlock-other-layers", t("action.lockUnlockOtherLayers"), {
         implemented: false,
         shortcut: "Ctrl+Shift+L"
       }),
       menuSeparator,
-      menuAction("layer-properties", "Layer Properties...", { implemented: false })
+      menuAction("layer-properties", t("action.layerProperties"), { implemented: false })
     ]
   };
 
   const tilesetMenu: TiledMenuSpec = {
     id: "tileset",
-    label: "Tileset",
+    label: t("menu.tileset"),
     items: [
-      menuAction("tile-animation-editor", "Tile Animation Editor", { implemented: false }),
-      menuAction("rearrange-tiles", "Rearrange Tiles", { implemented: false }),
-      menuAction("edit-collision", "Edit Collision", { implemented: false }),
-      menuAction("edit-wang-sets", "Edit Wang Sets", { implemented: false }),
+      menuAction("tile-animation-editor", t("action.tileAnimationEditor"), { implemented: false }),
+      menuAction("rearrange-tiles", t("action.rearrangeTiles"), { implemented: false }),
+      menuAction("edit-collision", t("action.editCollision"), { implemented: false }),
+      menuAction("edit-wang-sets", t("action.editWangSets"), { implemented: false }),
       menuSeparator,
-      menuAction("add-tiles", "Add Tiles", { implemented: false }),
-      menuAction("remove-tiles", "Remove Tiles", { implemented: false }),
+      menuAction("add-tiles", t("action.addTiles"), { implemented: false }),
+      menuAction("remove-tiles", t("action.removeTiles"), { implemented: false }),
       menuSeparator,
-      menuAction("edit-tileset-image-parameters", "Edit Tileset Image Parameters...", { implemented: false }),
+      menuAction("edit-tileset-image-parameters", t("action.editTilesetImageParameters"), {
+        implemented: false
+      }),
       menuSeparator,
-      menuAction("tileset-properties", "Tileset Properties...", { implemented: false })
+      menuAction("tileset-properties", t("action.tilesetProperties"), { implemented: false })
     ]
   };
 
   const projectMenu: TiledMenuSpec = {
     id: "project",
-    label: "Project",
+    label: t("menu.project"),
     items: [
-      menuAction("add-folder-to-project", "Add Folder to Project...", { implemented: false }),
-      menuAction("refresh-project-folders", "Refresh Folders", { implemented: false }),
+      menuAction("add-folder-to-project", t("action.addFolderToProject"), {
+        implemented: false
+      }),
+      menuAction("refresh-project-folders", t("action.refreshFolders"), { implemented: false }),
       menuSeparator,
-      menuAction("project-properties", "Project Properties...", { implemented: false })
+      menuAction("project-properties", t("action.projectProperties"), { implemented: false })
     ]
   };
 
   const helpMenu: TiledMenuSpec = {
     id: "help",
-    label: "Help",
+    label: t("menu.help"),
     items: [
-      menuAction("documentation", "User Manual ↗", { implemented: false }),
-      menuAction("forum", "Community Forum ↗", { implemented: false }),
+      menuAction("documentation", t("action.userManual"), { implemented: false }),
+      menuAction("forum", t("action.communityForum"), { implemented: false }),
       menuSeparator,
-      menuAction("donate", "Support Tiled Development ↗", { implemented: false }),
-      menuAction("about", "About Tiled", { implemented: false })
+      menuAction("donate", t("action.supportTiledDevelopment"), { implemented: false }),
+      menuAction("about", t("action.aboutTiled"), { implemented: false })
     ]
   };
 
@@ -536,252 +562,258 @@ export function getTiledMainMenus(context: TiledMenuContext): TiledMenuSpec[] {
   return [fileMenu, editMenu, viewMenu, projectMenu, helpMenu];
 }
 
-export const tiledNewMenuItems: ToolbarMenuItemSpec[] = [
-  {
-    id: "new-map",
-    label: "New Map",
-    implemented: true
-  },
-  {
-    id: "new-tileset",
-    label: "New Tileset",
-    implemented: false
-  }
-];
+export function getTiledNewMenuItems(t: TranslationFn): ToolbarMenuItemSpec[] {
+  return [
+    {
+      id: "new-map",
+      label: t("action.newMap"),
+      implemented: true
+    },
+    {
+      id: "new-tileset",
+      label: t("action.newTileset"),
+      implemented: false
+    }
+  ];
+}
 
-export const tiledMainToolbarActions: ToolbarActionSpec[] = [
-  {
-    id: "new",
-    label: "New",
-    icon: "document-new",
-    implemented: true
-  },
-  {
-    id: "open",
-    label: "Open",
-    icon: "document-open",
-    implemented: false
-  },
-  {
-    id: "save",
-    label: "Save",
-    icon: "document-save",
-    implemented: false
-  },
-  {
-    id: "undo",
-    label: "Undo",
-    icon: "edit-undo",
-    implemented: true
-  },
-  {
-    id: "redo",
-    label: "Redo",
-    icon: "edit-redo",
-    implemented: true
-  },
-  {
-    id: "command",
-    label: "Execute Command",
-    icon: "system-run",
-    implemented: false
-  }
-];
+export function getTiledMainToolbarActions(t: TranslationFn): ToolbarActionSpec[] {
+  return [
+    {
+      id: "new",
+      label: t("menu.new"),
+      icon: "document-new",
+      implemented: true
+    },
+    {
+      id: "open",
+      label: t("action.openFileOrProject"),
+      icon: "document-open",
+      implemented: false
+    },
+    {
+      id: "save",
+      label: t("action.save"),
+      icon: "document-save",
+      implemented: false
+    },
+    {
+      id: "undo",
+      label: t("action.undo"),
+      icon: "edit-undo",
+      implemented: true
+    },
+    {
+      id: "redo",
+      label: t("action.redo"),
+      icon: "edit-redo",
+      implemented: true
+    },
+    {
+      id: "command",
+      label: t("action.executeCommand"),
+      icon: "system-run",
+      implemented: false
+    }
+  ];
+}
 
-export const tiledToolToolbarItems: ToolbarItemSpec[] = [
-  {
-    kind: "button",
-    action: {
-      id: "stamp",
-      label: "Stamp Brush",
-      icon: "stamp-brush",
-      implemented: true,
-      editorToolId: "stamp"
+export function getTiledToolToolbarItems(t: TranslationFn): ToolbarItemSpec[] {
+  return [
+    {
+      kind: "button",
+      action: {
+        id: "stamp",
+        label: t("action.stampBrush"),
+        icon: "stamp-brush",
+        implemented: true,
+        editorToolId: "stamp"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "terrain-brush",
+        label: t("action.terrainBrush"),
+        icon: "terrain-brush",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "bucket-fill",
+        label: t("action.bucketFillTool"),
+        icon: "bucket-fill",
+        implemented: true,
+        editorToolId: "bucket-fill"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "shape-fill",
+        label: t("action.shapeFillTool"),
+        icon: "shape-fill",
+        implemented: true,
+        editorToolId: "shape-fill"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "eraser",
+        label: t("action.eraser"),
+        icon: "eraser",
+        implemented: true,
+        editorToolId: "eraser"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "select",
+        label: t("action.rectangularSelect"),
+        icon: "tile-select",
+        implemented: true,
+        editorToolId: "select"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "magic-wand",
+        label: t("action.magicWand"),
+        icon: "magic-wand",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "select-same",
+        label: t("action.selectSameTile"),
+        icon: "magic-wand",
+        implemented: false
+      }
+    },
+    {
+      kind: "separator"
+    },
+    {
+      kind: "button",
+      action: {
+        id: "object-select",
+        label: t("action.selectObjects"),
+        icon: "object-select",
+        implemented: true,
+        editorToolId: "object-select"
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "edit-polygons",
+        label: t("action.editPolygons"),
+        icon: "edit-polygons",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-rectangle",
+        label: t("action.insertRectangle"),
+        icon: "insert-rectangle",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-point",
+        label: t("action.insertPoint"),
+        icon: "insert-point",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-ellipse",
+        label: t("action.insertEllipse"),
+        icon: "insert-ellipse",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-capsule",
+        label: t("action.insertCapsule"),
+        icon: "insert-capsule",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-polygon",
+        label: t("action.insertPolygon"),
+        icon: "insert-polygon",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-tile",
+        label: t("action.insertTile"),
+        icon: "insert-tile",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-template",
+        label: t("action.insertTemplate"),
+        icon: "insert-template",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "insert-text",
+        label: t("action.insertText"),
+        icon: "insert-text",
+        implemented: false
+      }
+    },
+    {
+      kind: "separator"
+    },
+    {
+      kind: "button",
+      action: {
+        id: "world-tool",
+        label: t("action.worldTool"),
+        icon: "world-tool",
+        implemented: false
+      }
+    },
+    {
+      kind: "button",
+      action: {
+        id: "layer-offset",
+        label: t("action.offsetLayers"),
+        icon: "layer-offset",
+        implemented: false
+      }
     }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "terrain-brush",
-      label: "Terrain Brush",
-      icon: "terrain-brush",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "bucket-fill",
-      label: "Bucket Fill Tool",
-      icon: "bucket-fill",
-      implemented: true,
-      editorToolId: "bucket-fill"
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "shape-fill",
-      label: "Shape Fill Tool",
-      icon: "shape-fill",
-      implemented: true,
-      editorToolId: "shape-fill"
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "eraser",
-      label: "Eraser",
-      icon: "eraser",
-      implemented: true,
-      editorToolId: "eraser"
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "select",
-      label: "Rectangular Select",
-      icon: "tile-select",
-      implemented: true,
-      editorToolId: "select"
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "magic-wand",
-      label: "Magic Wand",
-      icon: "magic-wand",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "select-same",
-      label: "Select Same Tile",
-      icon: "magic-wand",
-      implemented: false
-    }
-  },
-  {
-    kind: "separator"
-  },
-  {
-    kind: "button",
-    action: {
-      id: "object-select",
-      label: "Select Objects",
-      icon: "object-select",
-      implemented: true,
-      editorToolId: "object-select"
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "edit-polygons",
-      label: "Edit Polygons",
-      icon: "edit-polygons",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-rectangle",
-      label: "Insert Rectangle",
-      icon: "insert-rectangle",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-point",
-      label: "Insert Point",
-      icon: "insert-point",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-ellipse",
-      label: "Insert Ellipse",
-      icon: "insert-ellipse",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-capsule",
-      label: "Insert Capsule",
-      icon: "insert-capsule",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-polygon",
-      label: "Insert Polygon",
-      icon: "insert-polygon",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-tile",
-      label: "Insert Tile",
-      icon: "insert-tile",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-template",
-      label: "Insert Template",
-      icon: "insert-template",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "insert-text",
-      label: "Insert Text",
-      icon: "insert-text",
-      implemented: false
-    }
-  },
-  {
-    kind: "separator"
-  },
-  {
-    kind: "button",
-    action: {
-      id: "world-tool",
-      label: "World Tool",
-      icon: "world-tool",
-      implemented: false
-    }
-  },
-  {
-    kind: "button",
-    action: {
-      id: "layer-offset",
-      label: "Offset Layers",
-      icon: "layer-offset",
-      implemented: false
-    }
-  }
-];
+  ];
+}
 
 function button(action: ToolbarActionSpec): ToolbarButtonSpec {
   return {
@@ -790,45 +822,48 @@ function button(action: ToolbarActionSpec): ToolbarButtonSpec {
   };
 }
 
-export function getTiledToolOptionItems(input: {
-  activeTool: EditorToolId;
-  shapeFillMode: ShapeFillMode;
-}): ToolbarItemSpec[] {
+export function getTiledToolOptionItems(
+  input: {
+    activeTool: EditorToolId;
+    shapeFillMode: ShapeFillMode;
+  },
+  t: TranslationFn
+): ToolbarItemSpec[] {
   const stampTransformOptions: ToolbarItemSpec[] = [
     button({
       id: "random-mode",
-      label: "Random Mode",
+      label: t("action.randomMode"),
       icon: "random-mode",
       implemented: false
     }),
     button({
       id: "terrain-fill-mode",
-      label: "Terrain Fill Mode",
+      label: t("action.terrainFillMode"),
       icon: "terrain-fill-mode",
       implemented: false
     }),
     { kind: "separator" },
     button({
       id: "flip-horizontal",
-      label: "Flip Horizontally",
+      label: t("action.flipHorizontally"),
       icon: "flip-horizontal",
       implemented: false
     }),
     button({
       id: "flip-vertical",
-      label: "Flip Vertically",
+      label: t("action.flipVertically"),
       icon: "flip-vertical",
       implemented: false
     }),
     button({
       id: "rotate-left",
-      label: "Rotate Left",
+      label: t("action.rotateLeft"),
       icon: "rotate-left",
       implemented: false
     }),
     button({
       id: "rotate-right",
-      label: "Rotate Right",
+      label: t("action.rotateRight"),
       icon: "rotate-right",
       implemented: false
     })
@@ -844,13 +879,13 @@ export function getTiledToolOptionItems(input: {
       { kind: "separator" },
       button({
         id: "shape-fill-rectangle",
-        label: "Rectangle Fill",
+        label: t("action.rectangleFill"),
         icon: "shape-fill",
         implemented: true
       }),
       button({
         id: "shape-fill-ellipse",
-        label: "Circle Fill",
+        label: t("action.circleFill"),
         icon: "ellipse-fill",
         implemented: true
       })
@@ -861,25 +896,25 @@ export function getTiledToolOptionItems(input: {
     return [
       button({
         id: "selection-replace",
-        label: "Replace Selection",
+        label: t("action.replaceSelection"),
         icon: "selection-replace",
         implemented: false
       }),
       button({
         id: "selection-add",
-        label: "Add Selection",
+        label: t("action.addSelection"),
         icon: "selection-add",
         implemented: false
       }),
       button({
         id: "selection-subtract",
-        label: "Subtract Selection",
+        label: t("action.subtractSelection"),
         icon: "selection-subtract",
         implemented: false
       }),
       button({
         id: "selection-intersect",
-        label: "Intersect Selection",
+        label: t("action.intersectSelection"),
         icon: "selection-intersect",
         implemented: false
       })
@@ -890,38 +925,38 @@ export function getTiledToolOptionItems(input: {
     return [
       button({
         id: "object-flip-horizontal",
-        label: "Flip Horizontally",
+        label: t("action.flipHorizontally"),
         icon: "flip-horizontal",
         implemented: false
       }),
       button({
         id: "object-flip-vertical",
-        label: "Flip Vertically",
+        label: t("action.flipVertically"),
         icon: "flip-vertical",
         implemented: false
       }),
       button({
         id: "object-rotate-left",
-        label: "Rotate Left",
+        label: t("action.rotateLeft"),
         icon: "rotate-left",
         implemented: false
       }),
       button({
         id: "object-rotate-right",
-        label: "Rotate Right",
+        label: t("action.rotateRight"),
         icon: "rotate-right",
         implemented: false
       }),
       { kind: "separator" },
       button({
         id: "select-touch",
-        label: "Select Touched Objects",
+        label: t("action.selectTouchedObjects"),
         icon: "select-touch",
         implemented: false
       }),
       button({
         id: "select-enclose",
-        label: "Select Enclosed Objects",
+        label: t("action.selectEnclosedObjects"),
         icon: "select-enclose",
         implemented: false
       })

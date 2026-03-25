@@ -2,6 +2,7 @@
 
 import type { EditorController } from "@pixel-editor/app-services";
 import type { ShapeFillMode } from "@pixel-editor/editor-state";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition } from "react";
 
 export interface ShapeFillControlsProps {
@@ -9,19 +10,20 @@ export interface ShapeFillControlsProps {
   store: EditorController;
 }
 
-const shapeModes: Array<{ id: ShapeFillMode; label: string }> = [
-  { id: "rectangle", label: "Rectangle" },
-  { id: "ellipse", label: "Ellipse" }
-];
-
 export function ShapeFillControls({
   activeMode,
   store
 }: ShapeFillControlsProps) {
+  const { t } = useI18n();
+  const shapeModes: Array<{ id: ShapeFillMode; label: string }> = [
+    { id: "rectangle", label: t("shapeFill.rectangle") },
+    { id: "ellipse", label: t("shapeFill.ellipse") }
+  ];
+
   return (
     <div className="mt-4 space-y-2">
       <p className="text-[11px] tracking-[0.18em] text-slate-500 uppercase">
-        Shape Mode
+        {t("shapeFill.title")}
       </p>
       <div className="flex flex-wrap gap-2">
         {shapeModes.map((mode) => {
@@ -47,8 +49,7 @@ export function ShapeFillControls({
         })}
       </div>
       <p className="text-xs text-slate-400">
-        Hold <span className="font-medium text-slate-200">Shift</span> for square/circle. Hold{" "}
-        <span className="font-medium text-slate-200">Alt</span> to draw from center.
+        {t("shapeFill.hint")}
       </p>
     </div>
   );

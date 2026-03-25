@@ -1,12 +1,15 @@
 "use client";
 
+import type { DocumentSummary } from "@pixel-editor/contracts";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition } from "react";
 
 import { DockPanel } from "./dock-panel";
+import { getDocumentKindLabel } from "./i18n-helpers";
 
 export interface ProjectDockDocument {
   id: string;
-  kind: string;
+  kind: DocumentSummary["kind"];
   name: string;
 }
 
@@ -22,6 +25,8 @@ function ProjectDockContent({
   activeDocumentId,
   onDocumentActivate
 }: Omit<ProjectDockProps, "embedded">) {
+  const { t } = useI18n();
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
@@ -41,13 +46,13 @@ function ProjectDockContent({
           >
             <span className="min-w-0 truncate">{document.name}</span>
             <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-              {document.kind}
+              {getDocumentKindLabel(document.kind, t)}
             </span>
           </button>
         ))}
 
         {documents.length === 0 ? (
-          <div className="px-3 py-3 text-sm text-slate-400">No project files.</div>
+          <div className="px-3 py-3 text-sm text-slate-400">{t("project.noFiles")}</div>
         ) : null}
       </div>
     </div>
@@ -58,11 +63,12 @@ export function ProjectDock({
   embedded = false,
   ...props
 }: ProjectDockProps) {
+  const { t } = useI18n();
   const content = <ProjectDockContent {...props} />;
 
   if (embedded) {
     return content;
   }
 
-  return <DockPanel title="Project">{content}</DockPanel>;
+  return <DockPanel title={t("project.title")}>{content}</DockPanel>;
 }

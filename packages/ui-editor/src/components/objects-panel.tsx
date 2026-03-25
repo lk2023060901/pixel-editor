@@ -2,6 +2,7 @@
 
 import type { EditorController } from "@pixel-editor/app-services";
 import type { ObjectLayer } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import {
   isObjectSelectionState,
   type ClipboardState,
@@ -9,6 +10,7 @@ import {
 } from "@pixel-editor/editor-state";
 import { startTransition, useMemo, useState } from "react";
 
+import { getObjectShapeLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
 function ActionButton(props: {
@@ -57,18 +59,21 @@ function ObjectsPanelContent({
   selection,
   store
 }: Omit<ObjectsPanelProps, "embedded">) {
+  const { t } = useI18n();
   const selectedIds = isObjectSelectionState(selection)
     ? new Set(selection.objectIds)
     : new Set();
   const hasObjectSelection = selectedIds.size > 0;
   const clipboardSummary =
-    clipboard.kind === "object" ? `${clipboard.objects.length} object(s)` : "Empty";
+    clipboard.kind === "object"
+      ? t("common.objectCount", { count: clipboard.objects.length })
+      : t("common.empty");
 
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-2">
         <ActionButton
-          label="Add Rectangle"
+          label={t("objects.addRectangle")}
           disabled={!activeLayer}
           onClick={() => {
             startTransition(() => {
@@ -77,7 +82,7 @@ function ObjectsPanelContent({
           }}
         />
         <ActionButton
-          label="Remove Selected"
+          label={t("objects.removeSelected")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -89,7 +94,7 @@ function ObjectsPanelContent({
 
       <div className="mb-4 flex flex-wrap gap-2">
         <ActionButton
-          label="Copy"
+          label={t("common.copy")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -98,7 +103,7 @@ function ObjectsPanelContent({
           }}
         />
         <ActionButton
-          label="Cut"
+          label={t("common.cut")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -107,7 +112,7 @@ function ObjectsPanelContent({
           }}
         />
         <ActionButton
-          label="Paste"
+          label={t("common.paste")}
           disabled={!activeLayer || clipboard.kind !== "object"}
           onClick={() => {
             startTransition(() => {
@@ -120,7 +125,7 @@ function ObjectsPanelContent({
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-300">
         <div className="flex items-center justify-between gap-3">
           <span className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-            Clipboard
+            {t("objects.clipboard")}
           </span>
           <span className="text-sm text-slate-100">{clipboardSummary}</span>
         </div>
@@ -147,7 +152,7 @@ function ObjectsPanelContent({
               <div className="flex items-center justify-between gap-3">
                 <strong className="text-sm text-slate-100">{object.name}</strong>
                 <span className="text-[11px] uppercase tracking-[0.18em] text-slate-500">
-                  {object.shape}
+                  {getObjectShapeLabel(object.shape, t)}
                 </span>
               </div>
               <p className="mt-2 text-xs text-slate-400">
@@ -158,13 +163,11 @@ function ObjectsPanelContent({
         })}
 
         {!activeLayer && (
-          <p className="text-sm text-slate-400">
-            Select an object layer to manage objects.
-          </p>
+          <p className="text-sm text-slate-400">{t("objects.selectObjectLayer")}</p>
         )}
 
         {activeLayer && activeLayer.objects.length === 0 && (
-          <p className="text-sm text-slate-400">No objects in the active layer.</p>
+          <p className="text-sm text-slate-400">{t("objects.noObjects")}</p>
         )}
       </div>
     </>
@@ -177,6 +180,7 @@ function ObjectsDockContent({
   selection,
   store
 }: Omit<ObjectsPanelProps, "embedded">) {
+  const { t } = useI18n();
   const [filterText, setFilterText] = useState("");
   const selectedIds = isObjectSelectionState(selection)
     ? new Set(selection.objectIds)
@@ -192,17 +196,17 @@ function ObjectsDockContent({
     return activeLayer.objects.filter((object) => {
       return (
         object.name.toLowerCase().includes(keyword) ||
-        object.shape.toLowerCase().includes(keyword)
+        getObjectShapeLabel(object.shape, t).toLowerCase().includes(keyword)
       );
     });
-  }, [activeLayer, filterText]);
+  }, [activeLayer, filterText, t]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="border-b border-slate-800 p-1.5">
         <input
           className="w-full border border-slate-700 bg-slate-950 px-2 py-1 text-sm text-slate-100 outline-none placeholder:text-slate-500 focus:border-slate-500"
-          placeholder="Filter"
+          placeholder={t("common.filter")}
           value={filterText}
           onChange={(event) => {
             setFilterText(event.target.value);
@@ -230,26 +234,26 @@ function ObjectsDockContent({
             >
               <span className="min-w-0 truncate font-medium">{object.name}</span>
               <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                {object.shape}
+                {getObjectShapeLabel(object.shape, t)}
               </span>
             </button>
           );
         })}
 
         {!activeLayer && (
-          <div className="px-3 py-3 text-sm text-slate-400">
-            Select an object layer to manage objects.
-          </div>
+          <div className="px-3 py-3 text-sm text-slate-400">{t("objects.selectObjectLayer")}</div>
         )}
 
         {activeLayer && filteredObjects.length === 0 && (
-          <div className="px-3 py-3 text-sm text-slate-400">No objects match the current filter.</div>
+          <div className="px-3 py-3 text-sm text-slate-400">
+            {t("objects.noObjectsMatchFilter")}
+          </div>
         )}
       </div>
 
       <div className="flex flex-wrap items-center gap-px border-t border-slate-700 bg-slate-800 p-1">
         <DockActionButton
-          label="Add"
+          label={t("common.add")}
           disabled={!activeLayer}
           onClick={() => {
             startTransition(() => {
@@ -258,7 +262,7 @@ function ObjectsDockContent({
           }}
         />
         <DockActionButton
-          label="Delete"
+          label={t("common.delete")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -267,7 +271,7 @@ function ObjectsDockContent({
           }}
         />
         <DockActionButton
-          label="Copy"
+          label={t("common.copy")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -276,7 +280,7 @@ function ObjectsDockContent({
           }}
         />
         <DockActionButton
-          label="Cut"
+          label={t("common.cut")}
           disabled={!activeLayer || !hasObjectSelection}
           onClick={() => {
             startTransition(() => {
@@ -285,7 +289,7 @@ function ObjectsDockContent({
           }}
         />
         <DockActionButton
-          label="Paste"
+          label={t("common.paste")}
           disabled={!activeLayer || clipboard.kind !== "object"}
           onClick={() => {
             startTransition(() => {
@@ -302,11 +306,12 @@ export function ObjectsPanel({
   embedded = false,
   ...props
 }: ObjectsPanelProps) {
+  const { t } = useI18n();
   const content = embedded ? <ObjectsDockContent {...props} /> : <ObjectsPanelContent {...props} />;
 
   if (embedded) {
     return content;
   }
 
-  return <Panel title="Objects">{content}</Panel>;
+  return <Panel title={t("objects.title")}>{content}</Panel>;
 }

@@ -4,8 +4,12 @@ export {
 } from "./bootstrap";
 export {
   defaultProjectAssetRoots,
+  defaultMapLayerNames,
+  defaultEditorNamingConfig,
   foundationFeatureStatuses,
+  mapNamePrefix,
   layerNamePrefixes,
+  objectNamePrefix,
   quickMapBlueprint,
   createIndexedName,
   createIndexedSlug
@@ -16,11 +20,13 @@ export {
   type AssetRepository,
   type DocumentRepository,
   type EditorController,
+  type EditorControllerOptions,
   type EditorInfrastructure,
   type EditorRuntimeSnapshot,
   type ExportJobGateway,
   type ValidationGateway
 } from "./controller";
+export type { EditorNamingConfig } from "./config";
 export type {
   CanvasGestureModifiers,
   ObjectMoveGestureModifiers,

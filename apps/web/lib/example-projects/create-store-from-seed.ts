@@ -1,6 +1,7 @@
 import {
   createEditorStore,
-  type EditorController
+  type EditorController,
+  type EditorNamingConfig
 } from "@pixel-editor/app-services";
 import {
   createProject,
@@ -19,8 +20,13 @@ function isImageTileset(
   return tileset.kind === "image";
 }
 
+export interface ExampleStoreFromSeedOptions {
+  naming?: EditorNamingConfig;
+}
+
 export function createEditorStoreFromExampleSeed(
-  seed: ExampleProjectSeed
+  seed: ExampleProjectSeed,
+  options: ExampleStoreFromSeedOptions = {}
 ): EditorController {
   const project = createProject({
     name: seed.project.name,
@@ -30,7 +36,8 @@ export function createEditorStoreFromExampleSeed(
     createEditorWorkspaceState({
       project,
       tilesets: []
-    })
+    }),
+    options
   );
   const tilesetIdsByKey = new Map<string, TilesetDefinition["id"]>();
 

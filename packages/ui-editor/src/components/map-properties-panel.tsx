@@ -2,8 +2,10 @@
 
 import type { EditorController } from "@pixel-editor/app-services";
 import type { EditorMap } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
+import { getOrientationLabel, getRenderOrderLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
 interface MapDetailsDraft {
@@ -81,6 +83,7 @@ function MapPropertiesPanelContent({
   store,
   compact = false
 }: Omit<MapPropertiesPanelProps, "embedded">) {
+  const { t } = useI18n();
   const [draft, setDraft] = useState(() => createDraft(activeMap));
 
   useEffect(() => {
@@ -88,7 +91,7 @@ function MapPropertiesPanelContent({
   }, [activeMap]);
 
   if (!activeMap) {
-    return <p className="text-sm text-slate-400">No active map selected.</p>;
+    return <p className="text-sm text-slate-400">{t("mapProperties.noActiveMap")}</p>;
   }
 
   function applyDraft(): void {
@@ -135,7 +138,7 @@ function MapPropertiesPanelContent({
       <div className="flex h-full min-h-0 flex-col">
         <div className="min-h-0 flex-1 overflow-y-auto">
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Name</span>
+            <span className={rowLabelClass}>{t("common.name")}</span>
             <input
               className={inputClass}
               value={draft.name}
@@ -145,7 +148,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Type</span>
+            <span className={rowLabelClass}>{t("mapProperties.type")}</span>
             <select
               className={inputClass}
               value={draft.orientation}
@@ -158,13 +161,13 @@ function MapPropertiesPanelContent({
             >
               {orientationOptions.map((orientation) => (
                 <option key={orientation} value={orientation}>
-                  {orientation}
+                  {getOrientationLabel(orientation, t)}
                 </option>
               ))}
             </select>
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Order</span>
+            <span className={rowLabelClass}>{t("mapProperties.order")}</span>
             <select
               className={inputClass}
               value={draft.renderOrder}
@@ -177,13 +180,13 @@ function MapPropertiesPanelContent({
             >
               {renderOrderOptions.map((renderOrder) => (
                 <option key={renderOrder} value={renderOrder}>
-                  {renderOrder}
+                  {getRenderOrderLabel(renderOrder, t)}
                 </option>
               ))}
             </select>
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Width</span>
+            <span className={rowLabelClass}>{t("common.width")}</span>
             <input
               className={inputClass}
               disabled={draft.infinite}
@@ -196,7 +199,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Height</span>
+            <span className={rowLabelClass}>{t("common.height")}</span>
             <input
               className={inputClass}
               disabled={draft.infinite}
@@ -209,7 +212,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Tile W</span>
+            <span className={rowLabelClass}>{t("mapProperties.tileWidthShort")}</span>
             <input
               className={inputClass}
               inputMode="numeric"
@@ -221,7 +224,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Tile H</span>
+            <span className={rowLabelClass}>{t("mapProperties.tileHeightShort")}</span>
             <input
               className={inputClass}
               inputMode="numeric"
@@ -233,7 +236,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <div className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Color</span>
+            <span className={rowLabelClass}>{t("common.color")}</span>
             <input
               className={inputClass}
               placeholder="#0f172a"
@@ -244,7 +247,7 @@ function MapPropertiesPanelContent({
             />
           </div>
           <label className="grid grid-cols-[96px_1fr] border-b border-slate-800">
-            <span className={rowLabelClass}>Infinite</span>
+            <span className={rowLabelClass}>{t("common.infinite")}</span>
             <span className="flex items-center gap-2 bg-slate-950 px-2 py-1.5 text-sm text-slate-200">
               <input
                 checked={draft.infinite}
@@ -253,7 +256,7 @@ function MapPropertiesPanelContent({
                   setDraft((current) => ({ ...current, infinite: event.target.checked }));
                 }}
               />
-              Infinite map
+              {t("mapProperties.infiniteMap")}
             </span>
           </label>
         </div>
@@ -263,7 +266,7 @@ function MapPropertiesPanelContent({
             className="w-full border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 transition hover:bg-slate-800"
             onClick={applyDraft}
           >
-            Apply
+            {t("common.apply")}
           </button>
         </div>
       </div>
@@ -272,130 +275,136 @@ function MapPropertiesPanelContent({
 
   return (
     <div className="grid gap-3">
+      <label className="space-y-2">
+        <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">{t("common.name")}</span>
+        <input
+          className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
+          value={draft.name}
+          onChange={(event) => {
+            const { value } = event.target;
+            setDraft((current) => ({ ...current, name: value }));
+          }}
+        />
+      </label>
+
+      <div className="grid gap-3 sm:grid-cols-2">
         <label className="space-y-2">
-          <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">Name</span>
-          <input
+          <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">
+            {t("mapProperties.orientation")}
+          </span>
+          <select
             className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
-            value={draft.name}
+            value={draft.orientation}
             onChange={(event) => {
               const { value } = event.target;
-              setDraft((current) => ({ ...current, name: value }));
+              setDraft((current) => ({
+                ...current,
+                orientation: value as EditorMap["settings"]["orientation"]
+              }));
             }}
-          />
+          >
+            {orientationOptions.map((orientation) => (
+              <option key={orientation} value={orientation}>
+                {getOrientationLabel(orientation, t)}
+              </option>
+            ))}
+          </select>
         </label>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <label className="space-y-2">
-            <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">Orientation</span>
-            <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
-              value={draft.orientation}
-              onChange={(event) => {
-                const { value } = event.target;
-                setDraft((current) => ({
-                  ...current,
-                  orientation: value as EditorMap["settings"]["orientation"]
-                }));
-              }}
-            >
-              {orientationOptions.map((orientation) => (
-                <option key={orientation} value={orientation}>
-                  {orientation}
-                </option>
-              ))}
-            </select>
-          </label>
-
-          <label className="space-y-2">
-            <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">Render Order</span>
-            <select
-              className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
-              value={draft.renderOrder}
-              onChange={(event) => {
-                const { value } = event.target;
-                setDraft((current) => ({
-                  ...current,
-                  renderOrder: value as EditorMap["settings"]["renderOrder"]
-                }));
-              }}
-            >
-              {renderOrderOptions.map((renderOrder) => (
-                <option key={renderOrder} value={renderOrder}>
-                  {renderOrder}
-                </option>
-              ))}
-            </select>
-          </label>
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <NumberField
-            label="Width"
-            value={draft.width}
-            disabled={draft.infinite}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, width: value }));
-            }}
-          />
-          <NumberField
-            label="Height"
-            value={draft.height}
-            disabled={draft.infinite}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, height: value }));
-            }}
-          />
-        </div>
-
-        <div className="grid gap-3 sm:grid-cols-2">
-          <NumberField
-            label="Tile Width"
-            value={draft.tileWidth}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileWidth: value }));
-            }}
-          />
-          <NumberField
-            label="Tile Height"
-            value={draft.tileHeight}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileHeight: value }));
-            }}
-          />
-        </div>
 
         <label className="space-y-2">
-          <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">Background Color</span>
-          <input
+          <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">
+            {t("mapProperties.renderOrder")}
+          </span>
+          <select
             className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
-            placeholder="#0f172a"
-            value={draft.backgroundColor}
+            value={draft.renderOrder}
             onChange={(event) => {
               const { value } = event.target;
-              setDraft((current) => ({ ...current, backgroundColor: value }));
+              setDraft((current) => ({
+                ...current,
+                renderOrder: value as EditorMap["settings"]["renderOrder"]
+              }));
             }}
-          />
+          >
+            {renderOrderOptions.map((renderOrder) => (
+              <option key={renderOrder} value={renderOrder}>
+                {getRenderOrderLabel(renderOrder, t)}
+              </option>
+            ))}
+          </select>
         </label>
-
-        <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-200">
-          <input
-            checked={draft.infinite}
-            type="checkbox"
-            onChange={(event) => {
-              const { checked } = event.target;
-              setDraft((current) => ({ ...current, infinite: checked }));
-            }}
-          />
-          Infinite map
-        </label>
-
-        <button
-          className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20"
-          onClick={applyDraft}
-        >
-          Apply Map Changes
-        </button>
       </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberField
+          label={t("common.width")}
+          value={draft.width}
+          disabled={draft.infinite}
+          onChange={(value) => {
+            setDraft((current) => ({ ...current, width: value }));
+          }}
+        />
+        <NumberField
+          label={t("common.height")}
+          value={draft.height}
+          disabled={draft.infinite}
+          onChange={(value) => {
+            setDraft((current) => ({ ...current, height: value }));
+          }}
+        />
+      </div>
+
+      <div className="grid gap-3 sm:grid-cols-2">
+        <NumberField
+          label={t("common.tileWidth")}
+          value={draft.tileWidth}
+          onChange={(value) => {
+            setDraft((current) => ({ ...current, tileWidth: value }));
+          }}
+        />
+        <NumberField
+          label={t("common.tileHeight")}
+          value={draft.tileHeight}
+          onChange={(value) => {
+            setDraft((current) => ({ ...current, tileHeight: value }));
+          }}
+        />
+      </div>
+
+      <label className="space-y-2">
+        <span className="text-xs tracking-[0.16em] text-slate-500 uppercase">
+          {t("mapProperties.backgroundColor")}
+        </span>
+        <input
+          className="w-full rounded-xl border border-slate-700 bg-slate-900/70 px-3 py-2 text-sm text-slate-100 outline-none transition focus:border-emerald-500"
+          placeholder="#0f172a"
+          value={draft.backgroundColor}
+          onChange={(event) => {
+            const { value } = event.target;
+            setDraft((current) => ({ ...current, backgroundColor: value }));
+          }}
+        />
+      </label>
+
+      <label className="flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-200">
+        <input
+          checked={draft.infinite}
+          type="checkbox"
+          onChange={(event) => {
+            const { checked } = event.target;
+            setDraft((current) => ({ ...current, infinite: checked }));
+          }}
+        />
+        {t("mapProperties.infiniteMap")}
+      </label>
+
+      <button
+        className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-sm font-medium text-emerald-100 transition hover:bg-emerald-500/20"
+        onClick={applyDraft}
+      >
+        {t("mapProperties.applyChanges")}
+      </button>
+    </div>
   );
 }
 
@@ -403,11 +412,12 @@ export function MapPropertiesPanel({
   embedded = false,
   ...props
 }: MapPropertiesPanelProps) {
+  const { t } = useI18n();
   const content = <MapPropertiesPanelContent {...props} />;
 
   if (embedded) {
     return content;
   }
 
-  return <Panel title="Map Properties">{content}</Panel>;
+  return <Panel title={t("mapProperties.title")}>{content}</Panel>;
 }

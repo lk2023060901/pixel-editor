@@ -7,8 +7,10 @@ import {
   type PropertyDefinition,
   type TilesetDefinition
 } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
+import { getPropertyTypeLabel } from "./i18n-helpers";
 import { SelectField, TextField } from "./editor-fields";
 import { TilePreview } from "./tile-preview";
 
@@ -19,15 +21,6 @@ interface PropertyDraft {
   type: EditablePropertyType;
   value: string;
 }
-
-const supportedPropertyTypes: Array<{ label: string; value: EditablePropertyType }> = [
-  { label: "String", value: "string" },
-  { label: "Integer", value: "int" },
-  { label: "Float", value: "float" },
-  { label: "Boolean", value: "bool" },
-  { label: "Color", value: "color" },
-  { label: "File", value: "file" }
-];
 
 function createPropertyDraft(property?: PropertyDefinition): PropertyDraft {
   if (!property || property.type === "object" || property.type === "class" || property.type === "enum") {
@@ -91,14 +84,16 @@ function PropertyValueField(props: {
   draft: PropertyDraft;
   onChange: (draft: PropertyDraft) => void;
 }) {
+  const { t } = useI18n();
+
   if (props.draft.type === "bool") {
     return (
       <SelectField
-        label="Value"
+        label={t("common.value")}
         value={props.draft.value}
         options={[
-          { label: "True", value: "true" },
-          { label: "False", value: "false" }
+          { label: t("common.true"), value: "true" },
+          { label: t("common.false"), value: "false" }
         ]}
         onChange={(value) => {
           props.onChange({
@@ -112,7 +107,7 @@ function PropertyValueField(props: {
 
   return (
     <TextField
-      label="Value"
+      label={t("common.value")}
       value={props.draft.value}
       onChange={(value) => {
         props.onChange({
@@ -128,6 +123,15 @@ function EditablePropertyRow(props: {
   property: PropertyDefinition;
   store: EditorController;
 }) {
+  const { t } = useI18n();
+  const supportedPropertyTypes: Array<{ label: string; value: EditablePropertyType }> = [
+    { label: t("propertyType.string"), value: "string" },
+    { label: t("propertyType.int"), value: "int" },
+    { label: t("propertyType.float"), value: "float" },
+    { label: t("propertyType.bool"), value: "bool" },
+    { label: t("propertyType.color"), value: "color" },
+    { label: t("propertyType.file"), value: "file" }
+  ];
   const [draft, setDraft] = useState(() => createPropertyDraft(props.property));
 
   useEffect(() => {
@@ -145,14 +149,14 @@ function EditablePropertyRow(props: {
         <div className="grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <TextField
-              label="Name"
+              label={t("common.name")}
               value={draft.name}
               onChange={(value) => {
                 setDraft((current) => ({ ...current, name: value }));
               }}
             />
             <SelectField
-              label="Type"
+              label={t("common.type")}
               value={draft.type}
               options={supportedPropertyTypes}
               onChange={(value) => {
@@ -173,7 +177,7 @@ function EditablePropertyRow(props: {
                 });
               }}
             >
-              Remove
+              {t("common.remove")}
             </button>
             <button
               className="rounded-xl border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/20"
@@ -189,7 +193,7 @@ function EditablePropertyRow(props: {
                 });
               }}
             >
-              Save Property
+              {t("tileProperties.saveProperty")}
             </button>
           </div>
         </div>
@@ -198,7 +202,9 @@ function EditablePropertyRow(props: {
           <div>
             <p className="text-sm text-slate-100">{props.property.name}</p>
             <p className="mt-1 text-xs text-slate-400">
-              Unsupported property type `{props.property.type}` is currently read-only.
+              {t("tileProperties.unsupportedReadonly", {
+                type: getPropertyTypeLabel(props.property.type, t)
+              })}
             </p>
           </div>
           <button
@@ -209,7 +215,7 @@ function EditablePropertyRow(props: {
               });
             }}
           >
-            Remove
+            {t("common.remove")}
           </button>
         </div>
       )}
@@ -222,6 +228,15 @@ export function TilePropertiesEditor(props: {
   selectedLocalId: number | null;
   store: EditorController;
 }) {
+  const { t } = useI18n();
+  const supportedPropertyTypes: Array<{ label: string; value: EditablePropertyType }> = [
+    { label: t("propertyType.string"), value: "string" },
+    { label: t("propertyType.int"), value: "int" },
+    { label: t("propertyType.float"), value: "float" },
+    { label: t("propertyType.bool"), value: "bool" },
+    { label: t("propertyType.color"), value: "color" },
+    { label: t("propertyType.file"), value: "file" }
+  ];
   const selectedLocalId = props.selectedLocalId;
   const selectedTile =
     selectedLocalId !== null ? props.tileset.tiles.find((tile) => tile.localId === selectedLocalId) : undefined;
@@ -239,8 +254,10 @@ export function TilePropertiesEditor(props: {
   if (selectedLocalId === null || !selectedTile) {
     return (
       <div className="mt-6 space-y-3 border-t border-slate-800 pt-4">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">Tile Properties</p>
-        <p className="text-sm text-slate-400">Select a tile in the tileset grid to inspect its metadata.</p>
+        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
+          {t("tileProperties.title")}
+        </p>
+        <p className="text-sm text-slate-400">{t("tileProperties.emptyState")}</p>
       </div>
     );
   }
@@ -250,9 +267,11 @@ export function TilePropertiesEditor(props: {
       <div className="flex items-center gap-3">
         <TilePreview tileset={props.tileset} localId={selectedLocalId} />
         <div>
-          <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">Tile Properties</p>
+          <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
+            {t("tileProperties.title")}
+          </p>
           <p className="mt-1 text-sm text-slate-100">
-            Tile #{selectedLocalId}
+            {t("tileProperties.tileLabel", { localId: selectedLocalId })}
             {selectedTile.imageSource ? ` · ${selectedTile.imageSource}` : ""}
           </p>
         </div>
@@ -261,7 +280,7 @@ export function TilePropertiesEditor(props: {
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
         <div className="grid gap-3">
           <TextField
-            label="Class"
+            label={t("common.class")}
             value={className}
             onChange={setClassName}
           />
@@ -276,16 +295,18 @@ export function TilePropertiesEditor(props: {
                 });
               }}
             >
-              Apply Tile Metadata
+              {t("tileProperties.applyMetadata")}
             </button>
           </div>
         </div>
       </div>
 
       <div className="space-y-3">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">Custom Properties</p>
+        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
+          {t("tileProperties.customProperties")}
+        </p>
         {selectedTile.properties.length === 0 && (
-          <p className="text-sm text-slate-400">No custom properties defined.</p>
+          <p className="text-sm text-slate-400">{t("tileProperties.noCustomProperties")}</p>
         )}
         {selectedTile.properties.map((property) => (
           <EditablePropertyRow
@@ -297,18 +318,20 @@ export function TilePropertiesEditor(props: {
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 p-3">
-        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">Add Property</p>
+        <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
+          {t("tileProperties.addProperty")}
+        </p>
         <div className="mt-3 grid gap-3">
           <div className="grid grid-cols-2 gap-3">
             <TextField
-              label="Name"
+              label={t("common.name")}
               value={newPropertyDraft.name}
               onChange={(value) => {
                 setNewPropertyDraft((current) => ({ ...current, name: value }));
               }}
             />
             <SelectField
-              label="Type"
+              label={t("common.type")}
               value={newPropertyDraft.type}
               options={supportedPropertyTypes}
               onChange={(value) => {
@@ -340,14 +363,14 @@ export function TilePropertiesEditor(props: {
                 });
               }}
             >
-              Add Property
+              {t("tileProperties.addProperty")}
             </button>
           </div>
         </div>
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3 text-xs text-slate-400">
-        Properties editor currently supports primitive property types. Object, enum and class values will be wired in after project-level type definitions land.
+        {t("tileProperties.primitiveHint")}
       </div>
     </div>
   );

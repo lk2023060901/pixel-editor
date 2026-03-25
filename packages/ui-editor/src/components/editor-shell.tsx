@@ -1,6 +1,7 @@
 "use client";
 
 import type { EditorController } from "@pixel-editor/app-services";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { LayersPanel } from "./layers-panel";
@@ -15,10 +16,10 @@ import { EditorStatusBar } from "./editor-status-bar";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
 import {
   getTiledMainMenus,
+  getTiledMainToolbarActions,
+  getTiledNewMenuItems,
   getTiledToolOptionItems,
-  tiledMainToolbarActions,
-  tiledNewMenuItems,
-  tiledToolToolbarItems,
+  getTiledToolToolbarItems,
   toolbarIconUrls,
   type TiledMenuItemSpec2,
   type ToolbarActionSpec
@@ -31,17 +32,6 @@ export interface EditorShellProps {
 
 type UpperRightDockTabId = "layers" | "objects" | "mini-map";
 type LowerRightDockTabId = "terrain-sets" | "tilesets";
-
-const upperRightDockTabs: DockStackTab<UpperRightDockTabId>[] = [
-  { id: "layers", label: "Layers" },
-  { id: "objects", label: "Objects" },
-  { id: "mini-map", label: "Mini-map" }
-];
-
-const lowerRightDockTabs: DockStackTab<LowerRightDockTabId>[] = [
-  { id: "terrain-sets", label: "Terrain Sets" },
-  { id: "tilesets", label: "Tilesets" }
-];
 
 function MenuBarButton(props: {
   label: string;
@@ -167,6 +157,8 @@ function ToolbarIconButton(props: {
 function ToolbarSplitButton(props: {
   action: ToolbarActionSpec;
   menuItems: Array<{ id: string; label: string; implemented: boolean }>;
+  menuLabel: string;
+  soonLabel: string;
   menuOpen: boolean;
   onPrimaryClick: () => void;
   onToggleMenu: () => void;
@@ -200,7 +192,7 @@ function ToolbarSplitButton(props: {
       <button
         aria-expanded={props.menuOpen}
         aria-haspopup="menu"
-        aria-label={`${props.action.label} menu`}
+        aria-label={`${props.action.label} ${props.menuLabel}`}
         className="flex h-8 w-4 items-center justify-center rounded-r-sm border border-transparent bg-transparent text-[9px] text-slate-300 transition hover:border-slate-500 hover:bg-slate-700/70"
         onClick={props.onToggleMenu}
       >
@@ -224,7 +216,7 @@ function ToolbarSplitButton(props: {
               <span>{item.label}</span>
               {!item.implemented ? (
                 <span className="text-[10px] uppercase tracking-[0.14em] text-slate-500">
-                  Soon
+                  {props.soonLabel}
                 </span>
               ) : null}
             </button>
@@ -236,6 +228,7 @@ function ToolbarSplitButton(props: {
 }
 
 export function EditorShell({ store }: EditorShellProps) {
+  const { t } = useI18n();
   const [upperRightDockTab, setUpperRightDockTab] = useState<UpperRightDockTabId>("layers");
   const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -258,30 +251,48 @@ export function EditorShell({ store }: EditorShellProps) {
   const activeLayerIndex =
     activeMap?.layers.findIndex((layer) => layer.id === snapshot.workspace.session.activeLayerId) ?? -1;
   const activeTool = snapshot.workspace.session.activeTool;
-  const toolOptionItems = getTiledToolOptionItems({
-    activeTool,
-    shapeFillMode: snapshot.workspace.session.shapeFillMode
-  });
-  const newAction = tiledMainToolbarActions[0];
-  const remainingMainActions = tiledMainToolbarActions.slice(1);
+  const toolOptionItems = getTiledToolOptionItems(
+    {
+      activeTool,
+      shapeFillMode: snapshot.workspace.session.shapeFillMode
+    },
+    t
+  );
+  const mainToolbarActions = getTiledMainToolbarActions(t);
+  const newMenuItems = getTiledNewMenuItems(t);
+  const toolToolbarItems = getTiledToolToolbarItems(t);
+  const upperRightDockTabs: DockStackTab<UpperRightDockTabId>[] = [
+    { id: "layers", label: t("shell.dock.layers") },
+    { id: "objects", label: t("shell.dock.objects") },
+    { id: "mini-map", label: t("shell.dock.miniMap") }
+  ];
+  const lowerRightDockTabs: DockStackTab<LowerRightDockTabId>[] = [
+    { id: "tilesets", label: t("shell.dock.tilesets") },
+    { id: "terrain-sets", label: t("shell.dock.terrainSets") }
+  ];
+  const newAction = mainToolbarActions[0];
+  const remainingMainActions = mainToolbarActions.slice(1);
   const issueSummary = {
     errorCount: 0,
     warningCount: 0
   };
-  const menuSpecs = getTiledMainMenus({
-    activeDocumentKind: activeDocument?.kind,
-    canUndo: snapshot.canUndo,
-    canRedo: snapshot.canRedo,
-    showGrid: snapshot.bootstrap.viewport.showGrid,
-    hasActiveMap: Boolean(activeMap),
-    hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
-    canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
-    canMoveLayerDown: Boolean(
-      activeMap &&
-        activeLayerIndex >= 0 &&
-        activeLayerIndex < activeMap.layers.length - 1
-    )
-  });
+  const menuSpecs = getTiledMainMenus(
+    {
+      activeDocumentKind: activeDocument?.kind,
+      canUndo: snapshot.canUndo,
+      canRedo: snapshot.canRedo,
+      showGrid: snapshot.bootstrap.viewport.showGrid,
+      hasActiveMap: Boolean(activeMap),
+      hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
+      canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
+      canMoveLayerDown: Boolean(
+        activeMap &&
+          activeLayerIndex >= 0 &&
+          activeLayerIndex < activeMap.layers.length - 1
+      )
+    },
+    t
+  );
 
   useEffect(() => {
     if (!openMenuId) {
@@ -522,7 +533,7 @@ export function EditorShell({ store }: EditorShellProps) {
             {newAction ? (
               <ToolbarSplitButton
                 action={newAction}
-                menuItems={tiledNewMenuItems}
+                menuItems={newMenuItems}
                 menuOpen={newMenuOpen}
                 onBlur={() => {
                   setNewMenuOpen(false);
@@ -535,6 +546,8 @@ export function EditorShell({ store }: EditorShellProps) {
                 onToggleMenu={() => {
                   setNewMenuOpen((current) => !current);
                 }}
+                menuLabel={t("common.menu")}
+                soonLabel={t("common.soon")}
               />
             ) : null}
             {remainingMainActions.map((action) => (
@@ -552,7 +565,7 @@ export function EditorShell({ store }: EditorShellProps) {
               />
             ))}
             <ToolbarSeparator />
-            {tiledToolToolbarItems.map((item, index) =>
+            {toolToolbarItems.map((item, index) =>
               item.kind === "separator" ? (
                 <ToolbarSeparator key={`tool-separator-${index}`} />
               ) : (
@@ -608,14 +621,17 @@ export function EditorShell({ store }: EditorShellProps) {
             }}
           />
 
-          <DockPanel title="Properties" bodyClassName="min-h-0 flex-1 overflow-y-auto">
+          <DockPanel
+            title={t("shell.dock.properties")}
+            bodyClassName="min-h-0 flex-1 overflow-y-auto"
+          >
             <MapPropertiesPanel embedded compact activeMap={activeMap} store={store} />
           </DockPanel>
 
           <main className="flex min-h-0 flex-col border border-slate-700 bg-slate-950/95">
             <div className="flex items-center gap-2 border-b border-slate-700 bg-slate-800/90 px-3 py-2">
               <div className="border border-slate-600 bg-slate-900 px-3 py-1 text-sm text-slate-100">
-                {activeDocument?.name ?? "Untitled Map"}
+                {activeDocument?.name ?? t("shell.untitledMap")}
               </div>
             </div>
 
@@ -661,6 +677,7 @@ export function EditorShell({ store }: EditorShellProps) {
             <DockStack
               activeTab={lowerRightDockTab}
               bodyClassName="min-h-0 flex-1 bg-slate-900/95"
+              tabPosition="bottom"
               tabs={lowerRightDockTabs}
               onTabChange={setLowerRightDockTab}
             >

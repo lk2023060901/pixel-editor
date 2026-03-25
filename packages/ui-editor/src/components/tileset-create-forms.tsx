@@ -1,6 +1,7 @@
 "use client";
 
 import type { EditorController } from "@pixel-editor/app-services";
+import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useState } from "react";
 
 import { NumberField, TextAreaField, TextField } from "./editor-fields";
@@ -22,22 +23,26 @@ interface CollectionTilesetDraft {
   imageSources: string;
 }
 
-const defaultSpriteDraft: SpriteTilesetDraft = {
-  name: "New Sprite Tileset",
-  imagePath: "",
-  imageWidth: "256",
-  imageHeight: "256",
-  tileWidth: "32",
-  tileHeight: "32",
-  columns: "8"
-};
+function createDefaultSpriteDraft(name: string): SpriteTilesetDraft {
+  return {
+    name,
+    imagePath: "",
+    imageWidth: "256",
+    imageHeight: "256",
+    tileWidth: "32",
+    tileHeight: "32",
+    columns: "8"
+  };
+}
 
-const defaultCollectionDraft: CollectionTilesetDraft = {
-  name: "New Image Collection",
-  tileWidth: "32",
-  tileHeight: "32",
-  imageSources: ""
-};
+function createDefaultCollectionDraft(name: string): CollectionTilesetDraft {
+  return {
+    name,
+    tileWidth: "32",
+    tileHeight: "32",
+    imageSources: ""
+  };
+}
 
 function parseInteger(value: string): number | undefined {
   if (!value.trim()) {
@@ -52,25 +57,30 @@ function parseInteger(value: string): number | undefined {
 export function TilesetCreateForms(props: {
   store: EditorController;
 }) {
-  const [spriteDraft, setSpriteDraft] = useState(defaultSpriteDraft);
-  const [collectionDraft, setCollectionDraft] = useState(defaultCollectionDraft);
+  const { t } = useI18n();
+  const [spriteDraft, setSpriteDraft] = useState(() =>
+    createDefaultSpriteDraft(t("tilesetCreate.defaultSpriteName"))
+  );
+  const [collectionDraft, setCollectionDraft] = useState(() =>
+    createDefaultCollectionDraft(t("tilesetCreate.defaultCollectionName"))
+  );
 
   return (
     <div className="mt-6 space-y-4 border-t border-slate-800 pt-4">
       <div>
         <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-          Create Sprite Sheet Tileset
+          {t("tilesetCreate.spriteTitle")}
         </p>
         <div className="mt-3 grid gap-3">
           <TextField
-            label="Name"
+            label={t("common.name")}
             value={spriteDraft.name}
             onChange={(value) => {
               setSpriteDraft((current) => ({ ...current, name: value }));
             }}
           />
           <TextField
-            label="Image Path"
+            label={t("common.imagePath")}
             value={spriteDraft.imagePath}
             onChange={(value) => {
               setSpriteDraft((current) => ({ ...current, imagePath: value }));
@@ -78,35 +88,35 @@ export function TilesetCreateForms(props: {
           />
           <div className="grid grid-cols-2 gap-3">
             <NumberField
-              label="Image Width"
+              label={t("common.imageWidth")}
               value={spriteDraft.imageWidth}
               onChange={(value) => {
                 setSpriteDraft((current) => ({ ...current, imageWidth: value }));
               }}
             />
             <NumberField
-              label="Image Height"
+              label={t("common.imageHeight")}
               value={spriteDraft.imageHeight}
               onChange={(value) => {
                 setSpriteDraft((current) => ({ ...current, imageHeight: value }));
               }}
             />
             <NumberField
-              label="Tile Width"
+              label={t("common.tileWidth")}
               value={spriteDraft.tileWidth}
               onChange={(value) => {
                 setSpriteDraft((current) => ({ ...current, tileWidth: value }));
               }}
             />
             <NumberField
-              label="Tile Height"
+              label={t("common.tileHeight")}
               value={spriteDraft.tileHeight}
               onChange={(value) => {
                 setSpriteDraft((current) => ({ ...current, tileHeight: value }));
               }}
             />
             <NumberField
-              label="Columns"
+              label={t("common.columns")}
               value={spriteDraft.columns}
               onChange={(value) => {
                 setSpriteDraft((current) => ({ ...current, columns: value }));
@@ -135,7 +145,7 @@ export function TilesetCreateForms(props: {
 
               startTransition(() => {
                 props.store.createSpriteSheetTileset({
-                  name: spriteDraft.name.trim() || "Untitled Tileset",
+                  name: spriteDraft.name.trim() || t("tilesetCreate.untitledTileset"),
                   imagePath: spriteDraft.imagePath.trim(),
                   imageWidth,
                   imageHeight,
@@ -146,18 +156,18 @@ export function TilesetCreateForms(props: {
               });
             }}
           >
-            Create Sprite Sheet Tileset
+            {t("tilesetCreate.createSprite")}
           </button>
         </div>
       </div>
 
       <div>
         <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
-          Create Image Collection
+          {t("tilesetCreate.collectionTitle")}
         </p>
         <div className="mt-3 grid gap-3">
           <TextField
-            label="Name"
+            label={t("common.name")}
             value={collectionDraft.name}
             onChange={(value) => {
               setCollectionDraft((current) => ({ ...current, name: value }));
@@ -165,14 +175,14 @@ export function TilesetCreateForms(props: {
           />
           <div className="grid grid-cols-2 gap-3">
             <NumberField
-              label="Tile Width"
+              label={t("common.tileWidth")}
               value={collectionDraft.tileWidth}
               onChange={(value) => {
                 setCollectionDraft((current) => ({ ...current, tileWidth: value }));
               }}
             />
             <NumberField
-              label="Tile Height"
+              label={t("common.tileHeight")}
               value={collectionDraft.tileHeight}
               onChange={(value) => {
                 setCollectionDraft((current) => ({ ...current, tileHeight: value }));
@@ -180,7 +190,7 @@ export function TilesetCreateForms(props: {
             />
           </div>
           <TextAreaField
-            label="Image Sources"
+            label={t("tilesetCreate.imageSources")}
             value={collectionDraft.imageSources}
             onChange={(value) => {
               setCollectionDraft((current) => ({ ...current, imageSources: value }));
@@ -206,7 +216,7 @@ export function TilesetCreateForms(props: {
 
               startTransition(() => {
                 props.store.createImageCollectionTileset({
-                  name: collectionDraft.name.trim() || "Untitled Collection",
+                  name: collectionDraft.name.trim() || t("tilesetCreate.untitledCollection"),
                   tileWidth,
                   tileHeight,
                   imageSources
@@ -214,7 +224,7 @@ export function TilesetCreateForms(props: {
               });
             }}
           >
-            Create Image Collection
+            {t("tilesetCreate.createCollection")}
           </button>
         </div>
       </div>

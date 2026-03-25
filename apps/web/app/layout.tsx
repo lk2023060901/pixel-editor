@@ -1,16 +1,36 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
+
+import { getMessages, resolveLocale, createTranslator } from "@pixel-editor/i18n";
+import { I18nProvider } from "@pixel-editor/i18n/client";
+
 import "./globals.css";
 
-export const metadata: Metadata = {
-  title: "Pixel Editor",
-  description: "Web-first Tiled-compatible editor"
-};
+export async function generateMetadata(): Promise<Metadata> {
+  const requestHeaders = await headers();
+  const locale = resolveLocale(requestHeaders.get("accept-language"));
+  const t = createTranslator(locale, getMessages(locale));
 
-export default function RootLayout(props: Readonly<{ children: React.ReactNode }>) {
+  return {
+    title: t("meta.title"),
+    description: t("meta.description")
+  };
+}
+
+export default async function RootLayout(
+  props: Readonly<{ children: React.ReactNode }>
+) {
+  const requestHeaders = await headers();
+  const locale = resolveLocale(requestHeaders.get("accept-language"));
+  const messages = getMessages(locale);
+
   return (
-    <html lang="en">
-      <body>{props.children}</body>
+    <html lang={locale}>
+      <body>
+        <I18nProvider locale={locale} messages={messages}>
+          {props.children}
+        </I18nProvider>
+      </body>
     </html>
   );
 }
-

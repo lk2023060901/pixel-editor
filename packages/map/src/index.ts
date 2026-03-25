@@ -46,6 +46,16 @@ const MIN_ZOOM = 0.25;
 const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.2;
 
+export interface DefaultMapLayerNames {
+  tile: string;
+  object: string;
+}
+
+export const defaultMapLayerNames: DefaultMapLayerNames = {
+  tile: "Ground",
+  object: "Objects"
+};
+
 function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
 }
@@ -69,13 +79,16 @@ function patchSessionActiveLayer(
   return nextSession;
 }
 
-export function buildDefaultMapDocument(input: CreateMapInput): EditorMap {
+export function buildDefaultMapDocument(
+  input: CreateMapInput,
+  layerNames: DefaultMapLayerNames = defaultMapLayerNames
+): EditorMap {
   const baseMap = createMap({
     ...input,
     layers: []
   });
-  const groundLayer = addTopLevelTileLayer(baseMap, "Ground").layer;
-  const objectsLayer = addTopLevelObjectLayer(baseMap, "Objects").layer;
+  const groundLayer = addTopLevelTileLayer(baseMap, layerNames.tile).layer;
+  const objectsLayer = addTopLevelObjectLayer(baseMap, layerNames.object).layer;
 
   return createMap({
     ...input,
@@ -84,9 +97,10 @@ export function buildDefaultMapDocument(input: CreateMapInput): EditorMap {
 }
 
 export function createMapDocumentCommand(
-  input: CreateMapInput
+  input: CreateMapInput,
+  layerNames: DefaultMapLayerNames = defaultMapLayerNames
 ): HistoryCommand<EditorWorkspaceState> {
-  const map = buildDefaultMapDocument(input);
+  const map = buildDefaultMapDocument(input, layerNames);
 
   const addMapCommand = createHistoryCommand<EditorWorkspaceState>({
     id: "map.add",

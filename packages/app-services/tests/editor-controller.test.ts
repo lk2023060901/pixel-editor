@@ -1,15 +1,18 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createProject,
   createProperty,
   getMapGlobalTileGid,
   getTileLayerCell
 } from "@pixel-editor/domain";
 import {
+  createEditorWorkspaceState,
   createSingleTileStamp,
   getTileStampPrimaryGid
 } from "@pixel-editor/editor-state";
 
+import { createEditorStore } from "../src/controller";
 import { createTestEditorStore } from "./support/create-test-editor-store";
 
 describe("editor controller", () => {
@@ -46,6 +49,70 @@ describe("editor controller", () => {
       tileWidth: 32,
       tileHeight: 32
     });
+  });
+
+  it("applies localized naming config to generated maps, layers and objects", () => {
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "示例项目",
+          assetRoots: ["maps", "tilesets", "templates"]
+        })
+      }),
+      {
+        naming: {
+          mapNamePrefix: "地图",
+          defaultMapLayerNames: {
+            tile: "地面",
+            object: "对象"
+          },
+          layerNamePrefixes: {
+            tile: "图块层",
+            object: "对象层"
+          },
+          objectNamePrefix: "对象"
+        }
+      }
+    );
+
+    store.createQuickMapDocument();
+
+    expect(store.getSnapshot().activeMap?.name).toBe("地图-1");
+    expect(store.getSnapshot().activeMap?.layers.map((layer) => layer.name)).toEqual([
+      "地面",
+      "对象"
+    ]);
+
+    store.addTileLayer();
+    store.addObjectLayer();
+
+    expect(store.getSnapshot().activeMap?.layers.map((layer) => layer.name)).toEqual([
+      "地面",
+      "对象",
+      "图块层 3",
+      "对象层 4"
+    ]);
+
+    const objectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.kind === "object" && layer.name === "对象");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      throw new Error("Expected localized default object layer.");
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const nextObjectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+
+    expect(nextObjectLayer?.kind === "object" ? nextObjectLayer.objects[0]?.name : undefined).toBe(
+      "对象 1"
+    );
   });
 
   it("sets viewport zoom directly for status bar controls", () => {

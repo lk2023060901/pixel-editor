@@ -2,9 +2,11 @@
 
 import type { EditorController } from "@pixel-editor/app-services";
 import type { EditorMap, LayerDefinition, LayerId } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 import type { ReactNode } from "react";
 import { startTransition, useState } from "react";
 
+import { getLayerKindLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
 function LayerKindIcon(props: { kind: LayerDefinition["kind"] }) {
@@ -145,6 +147,11 @@ function ToolbarIconButton(props: {
 }
 
 function NewLayerButton(props: {
+  labels: {
+    newLayer: string;
+    tileLayer: string;
+    objectLayer: string;
+  };
   onAddTileLayer: () => void;
   onAddObjectLayer: () => void;
 }) {
@@ -163,7 +170,7 @@ function NewLayerButton(props: {
     >
       <ToolbarIconButton
         active={open}
-        title="New Layer"
+        title={props.labels.newLayer}
         onClick={() => {
           setOpen((current) => !current);
         }}
@@ -184,7 +191,7 @@ function NewLayerButton(props: {
             <span className="w-4">
               <LayerKindIcon kind="tile" />
             </span>
-            <span>Tile Layer</span>
+            <span>{props.labels.tileLayer}</span>
           </button>
           <button
             className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
@@ -194,16 +201,9 @@ function NewLayerButton(props: {
             }}
           >
             <span className="w-4">
-              <svg
-                aria-hidden="true"
-                className="h-4 w-4 text-blue-300"
-                fill="none"
-                viewBox="0 0 16 16"
-              >
-                <rect x="2.5" y="2.5" width="11" height="11" rx="1" stroke="currentColor" />
-              </svg>
+              <LayerKindIcon kind="object" />
             </span>
-            <span>Object Layer</span>
+            <span>{props.labels.objectLayer}</span>
           </button>
         </div>
       ) : null}
@@ -214,6 +214,10 @@ function NewLayerButton(props: {
 function LayerRow(props: {
   layer: LayerDefinition;
   selected: boolean;
+  visibleLabel: string;
+  hiddenLabel: string;
+  lockedLabel: string;
+  unlockedLabel: string;
   onSelect: () => void;
 }) {
   return (
@@ -233,13 +237,13 @@ function LayerRow(props: {
       </span>
       <span
         className="flex h-6 w-6 items-center justify-center"
-        title={props.layer.visible ? "Visible" : "Hidden"}
+        title={props.layer.visible ? props.visibleLabel : props.hiddenLabel}
       >
         <VisibilityIcon visible={props.layer.visible} />
       </span>
       <span
         className="flex h-6 w-6 items-center justify-center"
-        title={props.layer.locked ? "Locked" : "Unlocked"}
+        title={props.layer.locked ? props.lockedLabel : props.unlockedLabel}
       >
         <LockIcon locked={props.layer.locked} />
       </span>
@@ -259,6 +263,7 @@ function LayersPanelContent({
   activeLayerId,
   store
 }: Omit<LayersPanelProps, "embedded">) {
+  const { t } = useI18n();
   const activeLayerIndex =
     activeMap?.layers.findIndex((layer) => layer.id === activeLayerId) ?? -1;
   const displayedLayers = activeMap ? [...activeMap.layers].reverse() : [];
@@ -283,8 +288,12 @@ function LayersPanelContent({
         {displayedLayers.map((layer) => (
           <LayerRow
             key={layer.id}
+            hiddenLabel={t("layers.hidden")}
             layer={layer}
+            lockedLabel={t("layers.locked")}
             selected={layer.id === activeLayerId}
+            unlockedLabel={t("layers.unlocked")}
+            visibleLabel={t("layers.visible")}
             onSelect={() => {
               startTransition(() => {
                 store.setActiveLayer(layer.id);
@@ -294,15 +303,23 @@ function LayersPanelContent({
         ))}
 
         {!activeMap ? (
-          <div className="px-3 py-3 text-sm text-slate-400">No active map loaded.</div>
+          <div className="px-3 py-3 text-sm text-slate-400">{t("layers.noActiveMap")}</div>
         ) : null}
       </div>
 
       <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-1 py-1">
-        <NewLayerButton onAddObjectLayer={addObjectLayer} onAddTileLayer={addTileLayer} />
+        <NewLayerButton
+          labels={{
+            newLayer: t("layers.newLayer"),
+            objectLayer: getLayerKindLabel("object", t),
+            tileLayer: getLayerKindLabel("tile", t)
+          }}
+          onAddObjectLayer={addObjectLayer}
+          onAddTileLayer={addTileLayer}
+        />
         <ToolbarIconButton
           disabled={!activeMap || activeLayerIndex <= 0}
-          title="Raise Layers"
+          title={t("action.raiseLayers")}
           onClick={() => {
             startTransition(() => {
               store.moveActiveLayer("up");
@@ -319,7 +336,7 @@ function LayersPanelContent({
             activeLayerIndex < 0 ||
             activeLayerIndex >= activeMap.layers.length - 1
           }
-          title="Lower Layers"
+          title={t("action.lowerLayers")}
           onClick={() => {
             startTransition(() => {
               store.moveActiveLayer("down");
@@ -330,7 +347,7 @@ function LayersPanelContent({
             <path d="M8 13 4.5 9.5M8 13l3.5-3.5M8 13V3" stroke="currentColor" />
           </svg>
         </ToolbarIconButton>
-        <ToolbarIconButton disabled title="Duplicate Layers">
+        <ToolbarIconButton disabled title={t("action.duplicateLayers")}>
           <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
             <rect x="5" y="4" width="7" height="7" stroke="currentColor" />
             <rect x="3" y="6" width="7" height="7" stroke="currentColor" />
@@ -338,7 +355,7 @@ function LayersPanelContent({
         </ToolbarIconButton>
         <ToolbarIconButton
           disabled={!activeLayerId}
-          title="Remove Layers"
+          title={t("action.removeLayers")}
           onClick={() => {
             startTransition(() => {
               store.removeActiveLayer();
@@ -350,14 +367,20 @@ function LayersPanelContent({
           </svg>
         </ToolbarIconButton>
         <div className="mx-1 h-4 w-px bg-slate-600" />
-        <ToolbarIconButton disabled={!hasSiblingLayers} title="Show/Hide Other Layers">
+        <ToolbarIconButton
+          disabled={!hasSiblingLayers}
+          title={t("action.showHideOtherLayers")}
+        >
           <VisibilityIcon visible />
         </ToolbarIconButton>
-        <ToolbarIconButton disabled={!hasSiblingLayers} title="Lock/Unlock Other Layers">
+        <ToolbarIconButton
+          disabled={!hasSiblingLayers}
+          title={t("action.lockUnlockOtherLayers")}
+        >
           <LockIcon locked />
         </ToolbarIconButton>
         <div className="min-w-0 flex-1" />
-        <ToolbarIconButton disabled title="Highlight Current Layer">
+        <ToolbarIconButton disabled title={t("action.highlightCurrentLayer")}>
           <svg aria-hidden="true" className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 16 16">
             <path
               d="M8 2.5 9.7 6l3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5 6.3 6 8 2.5Z"
@@ -374,11 +397,12 @@ export function LayersPanel({
   embedded = false,
   ...props
 }: LayersPanelProps) {
+  const { t } = useI18n();
   const content = <LayersPanelContent {...props} />;
 
   if (embedded) {
     return content;
   }
 
-  return <Panel title="Layers">{content}</Panel>;
+  return <Panel title={t("layers.title")}>{content}</Panel>;
 }

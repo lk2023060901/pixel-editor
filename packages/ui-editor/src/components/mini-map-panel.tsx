@@ -1,6 +1,7 @@
 "use client";
 
 import type { EditorMap } from "@pixel-editor/domain";
+import { useI18n } from "@pixel-editor/i18n/client";
 
 import { Panel } from "./panel";
 
@@ -22,10 +23,12 @@ function MiniMapPanelContent({
   viewportOriginY,
   viewportZoom
 }: Omit<MiniMapPanelProps, "embedded">) {
+  const { t } = useI18n();
+
   if (!activeMap) {
     return (
       <div className="flex h-full min-h-[220px] items-center justify-center text-sm text-slate-400">
-        No active map loaded.
+        {t("miniMap.noActiveMap")}
       </div>
     );
   }
@@ -42,7 +45,7 @@ function MiniMapPanelContent({
   const viewportLeftPercent = clamp((viewportOriginX / mapWidthPx) * 100, 0, 100 - viewportWidthPercent);
   const viewportTopPercent = clamp((viewportOriginY / mapHeightPx) * 100, 0, 100 - viewportHeightPercent);
   const mapSizeSummary = activeMap.settings.infinite
-    ? "Infinite"
+    ? t("common.infinite")
     : `${activeMap.settings.width} × ${activeMap.settings.height}`;
 
   return (
@@ -80,11 +83,12 @@ export function MiniMapPanel({
   embedded = false,
   ...props
 }: MiniMapPanelProps) {
+  const { t } = useI18n();
   const content = <MiniMapPanelContent {...props} />;
 
   if (embedded) {
     return content;
   }
 
-  return <Panel title="Mini-map">{content}</Panel>;
+  return <Panel title={t("miniMap.title")}>{content}</Panel>;
 }

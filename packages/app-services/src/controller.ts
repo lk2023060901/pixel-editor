@@ -100,8 +100,8 @@ import {
 import {
   createIndexedName,
   createIndexedSlug,
-  layerNamePrefixes,
-  objectNamePrefix,
+  defaultEditorNamingConfig,
+  type EditorNamingConfig,
   quickMapBlueprint
 } from "./config";
 import { toEditorBootstrap } from "./bootstrap";
@@ -127,6 +127,10 @@ export interface EditorInfrastructure {
   assets: AssetRepository;
   exports: ExportJobGateway;
   validation: ValidationGateway;
+}
+
+export interface EditorControllerOptions {
+  naming?: EditorNamingConfig;
 }
 
 export interface EditorRuntimeSnapshot {
@@ -262,13 +266,18 @@ function snapDeltaToGrid(
 
 class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
+  private readonly naming: EditorNamingConfig;
   private readonly listeners = new Set<() => void>();
   private canvasStroke: CanvasStrokeState | undefined;
   private runtime = createEditorRuntimeState();
   private cachedSnapshot: EditorRuntimeSnapshot | undefined;
 
-  constructor(initialState: EditorWorkspaceState) {
+  constructor(
+    initialState: EditorWorkspaceState,
+    options: EditorControllerOptions = {}
+  ) {
     this.history = new CommandHistory(initialState);
+    this.naming = options.naming ?? defaultEditorNamingConfig;
   }
 
   getState(): EditorWorkspaceState {
@@ -673,7 +682,10 @@ class InMemoryEditorController implements EditorController {
   }
 
   createMapDocument(input: CreateMapInput): string {
-    const command = createMapDocumentCommand(input);
+    const command = createMapDocumentCommand(
+      input,
+      this.naming.defaultMapLayerNames
+    );
     const projectedMap = command.run(this.history.state).maps.at(-1);
 
     this.commit(command);
@@ -683,7 +695,11 @@ class InMemoryEditorController implements EditorController {
 
   createQuickMapDocument(name?: string): string {
     const nextName =
-      name?.trim() || createIndexedSlug("map", this.history.state.maps.length + 1);
+      name?.trim() ||
+      createIndexedSlug(
+        this.naming.mapNamePrefix,
+        this.history.state.maps.length + 1
+      );
 
     return this.createMapDocument({
       name: nextName,
@@ -848,7 +864,10 @@ class InMemoryEditorController implements EditorController {
     this.clearTransientInteractions();
     this.commit(
       createRectangleObjectCommand(resolved.activeMap.id, resolved.activeLayer.id, {
-        name: createIndexedName(objectNamePrefix, resolved.activeLayer.objects.length + 1),
+        name: createIndexedName(
+          this.naming.objectNamePrefix,
+          resolved.activeLayer.objects.length + 1
+        ),
         x: resolved.activeMap.settings.tileWidth,
         y: resolved.activeMap.settings.tileHeight,
         width: resolved.activeMap.settings.tileWidth,
@@ -1145,7 +1164,11 @@ class InMemoryEditorController implements EditorController {
       addLayerCommand(
         activeMap.id,
         "tile",
-        name ?? createIndexedName(layerNamePrefixes.tile, activeMap.layers.length + 1)
+        name ??
+          createIndexedName(
+            this.naming.layerNamePrefixes.tile,
+            activeMap.layers.length + 1
+          )
       )
     );
   }
@@ -1161,7 +1184,11 @@ class InMemoryEditorController implements EditorController {
       addLayerCommand(
         activeMap.id,
         "object",
-        name ?? createIndexedName(layerNamePrefixes.object, activeMap.layers.length + 1)
+        name ??
+          createIndexedName(
+            this.naming.layerNamePrefixes.object,
+            activeMap.layers.length + 1
+          )
       )
     );
   }
@@ -1411,13 +1438,15 @@ class InMemoryEditorController implements EditorController {
 }
 
 export function createEditorController(
-  initialState: EditorWorkspaceState
+  initialState: EditorWorkspaceState,
+  options: EditorControllerOptions = {}
 ): EditorController {
-  return new InMemoryEditorController(initialState);
+  return new InMemoryEditorController(initialState, options);
 }
 
 export function createEditorStore(
-  initialState: EditorWorkspaceState
+  initialState: EditorWorkspaceState,
+  options: EditorControllerOptions = {}
 ): EditorController {
-  return createEditorController(initialState);
+  return createEditorController(initialState, options);
 }
