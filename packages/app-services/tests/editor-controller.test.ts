@@ -115,6 +115,163 @@ describe("editor controller", () => {
     );
   });
 
+  it("updates active layer details through the controller", () => {
+    const store = createTestEditorStore("demo");
+
+    store.updateActiveLayerDetails({
+      name: "Foreground",
+      className: "collision",
+      visible: false,
+      locked: true,
+      opacity: 0.5,
+      offsetX: 12,
+      offsetY: -8
+    });
+
+    const activeLayer = store.getSnapshot().activeLayer;
+
+    expect(activeLayer).toMatchObject({
+      name: "Foreground",
+      className: "collision",
+      visible: false,
+      locked: true,
+      opacity: 0.5,
+      offsetX: 12,
+      offsetY: -8
+    });
+  });
+
+  it("updates the selected object details through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      throw new Error("Expected object layer.");
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+    store.updateSelectedObjectDetails({
+      name: "Spawn Point",
+      className: "spawn",
+      x: 48,
+      y: 64,
+      width: 40,
+      height: 24,
+      rotation: 15,
+      visible: false
+    });
+
+    const updatedObjectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const updatedObject =
+      updatedObjectLayer?.kind === "object" ? updatedObjectLayer.objects[0] : undefined;
+
+    expect(updatedObject).toMatchObject({
+      name: "Spawn Point",
+      className: "spawn",
+      x: 48,
+      y: 64,
+      width: 40,
+      height: 24,
+      rotation: 15,
+      visible: false
+    });
+  });
+
+  it("upserts and removes map, layer, and object custom properties through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const initialActiveLayerId = store.getSnapshot().activeLayer?.id;
+    const objectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      throw new Error("Expected object layer.");
+    }
+
+    store.upsertActiveMapProperty(createProperty("music", "string", "forest"));
+    store.upsertActiveLayerProperty(createProperty("collision", "bool", true));
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+    store.upsertSelectedObjectProperty(createProperty("spawnWeight", "int", 2));
+
+    let snapshot = store.getSnapshot();
+    let updatedActiveLayer = snapshot.activeMap?.layers.find((layer) => layer.id === initialActiveLayerId);
+    let updatedObjectLayer = snapshot.activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    let updatedObject =
+      updatedObjectLayer?.kind === "object" ? updatedObjectLayer.objects[0] : undefined;
+
+    expect(snapshot.activeMap?.properties).toEqual([
+      createProperty("music", "string", "forest")
+    ]);
+    expect(updatedActiveLayer).toMatchObject({
+      properties: [createProperty("collision", "bool", true)]
+    });
+    expect(updatedObject?.properties).toEqual([createProperty("spawnWeight", "int", 2)]);
+
+    store.removeActiveMapProperty("music");
+    store.removeSelectedObjectProperty("spawnWeight");
+    if (initialActiveLayerId) {
+      store.setActiveLayer(initialActiveLayerId);
+    }
+    store.removeActiveLayerProperty("collision");
+
+    snapshot = store.getSnapshot();
+    updatedActiveLayer = snapshot.activeMap?.layers.find((layer) => layer.id === initialActiveLayerId);
+    updatedObjectLayer = snapshot.activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    updatedObject = updatedObjectLayer?.kind === "object" ? updatedObjectLayer.objects[0] : undefined;
+
+    expect(snapshot.activeMap?.properties).toEqual([]);
+    expect(updatedActiveLayer).toMatchObject({
+      properties: []
+    });
+    expect(updatedObject?.properties).toEqual([]);
+  });
+
+  it("supports object reference properties through the shared property command chain", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      throw new Error("Expected object layer.");
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const selectedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const targetObject =
+      selectedObject?.kind === "object" ? selectedObject.objects[0] : undefined;
+
+    expect(targetObject).toBeDefined();
+
+    if (!targetObject) {
+      throw new Error("Expected created object.");
+    }
+
+    store.upsertActiveMapProperty(
+      createProperty("focusObject", "object", { objectId: targetObject.id })
+    );
+
+    expect(store.getSnapshot().activeMap?.properties).toEqual([
+      createProperty("focusObject", "object", { objectId: targetObject.id })
+    ]);
+  });
+
   it("sets viewport zoom directly for status bar controls", () => {
     const store = createTestEditorStore("demo");
 

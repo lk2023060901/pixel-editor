@@ -6,14 +6,19 @@ import {
   appendObjectsToLayer,
   cloneMapObject,
   createMapObject,
+  removePropertyDefinition,
   removeObjectsFromLayer,
   translateObjectsInLayer,
+  upsertPropertyDefinition,
+  updateMapObject,
   updateLayerInMap,
   type LayerId,
   type MapId,
   type MapObject,
   type ObjectBoundsRect,
-  type ObjectId
+  type ObjectId,
+  type PropertyDefinition,
+  type UpdateMapObjectDetailsInput
 } from "@pixel-editor/domain";
 import type {
   EditorWorkspaceState,
@@ -231,6 +236,149 @@ export function moveObjectsCommand(
         selection: {
           kind: "object",
           objectIds: selection
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function updateObjectDetailsCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  objectId: ObjectId,
+  patch: UpdateMapObjectDetailsInput
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "object.updateDetails",
+    description: `Update object ${objectId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => {
+              if (layer.kind !== "object") {
+                return layer;
+              }
+
+              let changed = false;
+              const objects = layer.objects.map((object) => {
+                if (object.id !== objectId) {
+                  return object;
+                }
+
+                changed = true;
+                return updateMapObject(object, patch);
+              });
+
+              return changed
+                ? {
+                    ...layer,
+                    objects
+                  }
+                : layer;
+            })
+          : map
+      ),
+      session: {
+        ...state.session,
+        activeLayerId: layerId,
+        selection: {
+          kind: "object",
+          objectIds: [objectId]
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function upsertObjectPropertyCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  objectId: ObjectId,
+  property: PropertyDefinition,
+  previousName?: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `object.property.upsert:${objectId}`,
+    description: `Upsert property ${property.name} on object ${objectId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => {
+              if (layer.kind !== "object") {
+                return layer;
+              }
+
+              return {
+                ...layer,
+                objects: layer.objects.map((object) =>
+                  object.id === objectId
+                    ? updateMapObject(object, {
+                        properties: upsertPropertyDefinition(
+                          object.properties,
+                          property,
+                          previousName
+                        )
+                      })
+                    : object
+                )
+              };
+            })
+          : map
+      ),
+      session: {
+        ...state.session,
+        activeLayerId: layerId,
+        selection: {
+          kind: "object",
+          objectIds: [objectId]
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function removeObjectPropertyCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  objectId: ObjectId,
+  propertyName: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `object.property.remove:${objectId}:${propertyName}`,
+    description: `Remove property ${propertyName} from object ${objectId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => {
+              if (layer.kind !== "object") {
+                return layer;
+              }
+
+              return {
+                ...layer,
+                objects: layer.objects.map((object) =>
+                  object.id === objectId
+                    ? updateMapObject(object, {
+                        properties: removePropertyDefinition(object.properties, propertyName)
+                      })
+                    : object
+                )
+              };
+            })
+          : map
+      ),
+      session: {
+        ...state.session,
+        activeLayerId: layerId,
+        selection: {
+          kind: "object",
+          objectIds: [objectId]
         },
         hasUnsavedChanges: true
       }

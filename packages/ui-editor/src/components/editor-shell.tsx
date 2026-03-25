@@ -1,15 +1,16 @@
 "use client";
 
 import type { EditorController } from "@pixel-editor/app-services";
+import { getObjectById } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { LayersPanel } from "./layers-panel";
 import { DockPanel } from "./dock-panel";
-import { MapPropertiesPanel } from "./map-properties-panel";
 import { MiniMapPanel } from "./mini-map-panel";
 import { DockStack, type DockStackTab } from "./dock-stack";
 import { ObjectsPanel } from "./objects-panel";
+import { PropertiesInspector } from "./properties-inspector";
 import { ProjectDock } from "./project-dock";
 import { RendererCanvas } from "./renderer-canvas";
 import { EditorStatusBar } from "./editor-status-bar";
@@ -243,6 +244,14 @@ export function EditorShell({ store }: EditorShellProps) {
   const activeMap = snapshot.activeMap;
   const activeLayer = snapshot.activeLayer;
   const activeObjectLayer = activeLayer?.kind === "object" ? activeLayer : undefined;
+  const selectedObjectId =
+    snapshot.workspace.session.selection.kind === "object"
+      ? snapshot.workspace.session.selection.objectIds[0]
+      : undefined;
+  const activeObject =
+    activeObjectLayer && selectedObjectId
+      ? getObjectById(activeObjectLayer, selectedObjectId)
+      : undefined;
   const activeStamp = snapshot.workspace.session.activeStamp;
   const activeDocument =
     snapshot.bootstrap.documents.find(
@@ -481,6 +490,7 @@ export function EditorShell({ store }: EditorShellProps) {
         activeTilesetId={snapshot.workspace.session.activeTilesetId}
         activeTileLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
         activeStamp={activeStamp}
+        propertyTypes={snapshot.workspace.project.propertyTypes}
         store={store}
       />
     );
@@ -625,7 +635,14 @@ export function EditorShell({ store }: EditorShellProps) {
             title={t("shell.dock.properties")}
             bodyClassName="min-h-0 flex-1 overflow-y-auto"
           >
-            <MapPropertiesPanel embedded compact activeMap={activeMap} store={store} />
+            <PropertiesInspector
+              embedded
+              activeLayer={activeLayer}
+              activeMap={activeMap}
+              activeObject={activeObject}
+              propertyTypes={snapshot.workspace.project.propertyTypes}
+              store={store}
+            />
           </DockPanel>
 
           <main className="flex min-h-0 flex-col border border-slate-700 bg-slate-950/95">

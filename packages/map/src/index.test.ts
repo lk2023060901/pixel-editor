@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { CommandHistory } from "@pixel-editor/command-engine";
-import { createProject, getTileLayerCell } from "@pixel-editor/domain";
+import { createProject, createProperty, getTileLayerCell } from "@pixel-editor/domain";
 import {
   createSingleTileStamp,
   createEditorWorkspaceState,
@@ -20,10 +20,15 @@ import {
   paintTileStampCommand,
   paintTileStrokeCommand,
   removeLayerCommand,
+  removeLayerPropertyCommand,
+  removeMapPropertyCommand,
   selectTileRegionCommand,
   setActiveStampCommand,
   setViewportZoomCommand,
   toggleGridCommand,
+  upsertLayerPropertyCommand,
+  upsertMapPropertyCommand,
+  updateLayerDetailsCommand,
   updateMapDetailsCommand,
   zoomViewportCommand
 } from "./index";
@@ -116,6 +121,102 @@ describe("map commands", () => {
       "Objects",
       "Ground"
     ]);
+  });
+
+  it("updates active layer details", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+    const layerId = history.state.maps[0]!.layers[0]!.id;
+
+    history.execute(
+      updateLayerDetailsCommand(mapId, layerId, {
+        name: "Foreground",
+        className: "collision",
+        visible: false,
+        locked: true,
+        opacity: 0.4,
+        offsetX: 10,
+        offsetY: -6
+      })
+    );
+
+    expect(history.state.maps[0]?.layers[0]).toMatchObject({
+      name: "Foreground",
+      className: "collision",
+      visible: false,
+      locked: true,
+      opacity: 0.4,
+      offsetX: 10,
+      offsetY: -6
+    });
+  });
+
+  it("upserts and removes map and layer custom properties", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+    const layerId = history.state.maps[0]!.layers[0]!.id;
+
+    history.execute(upsertMapPropertyCommand(mapId, createProperty("music", "string", "forest")));
+    history.execute(
+      upsertLayerPropertyCommand(mapId, layerId, createProperty("collision", "bool", true))
+    );
+    history.execute(
+      upsertLayerPropertyCommand(
+        mapId,
+        layerId,
+        createProperty("solid", "bool", false),
+        "collision"
+      )
+    );
+
+    expect(history.state.maps[0]?.properties).toEqual([
+      createProperty("music", "string", "forest")
+    ]);
+    expect(history.state.maps[0]?.layers[0]?.properties).toEqual([
+      createProperty("solid", "bool", false)
+    ]);
+
+    history.execute(removeMapPropertyCommand(mapId, "music"));
+    history.execute(removeLayerPropertyCommand(mapId, layerId, "solid"));
+
+    expect(history.state.maps[0]?.properties).toEqual([]);
+    expect(history.state.maps[0]?.layers[0]?.properties).toEqual([]);
   });
 
   it("sets the active stamp and paints tile selections", () => {

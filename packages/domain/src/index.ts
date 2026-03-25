@@ -12,8 +12,16 @@ export {
   type WorldId
 } from "./id";
 export {
+  clonePropertyDefinition,
+  clonePropertyValue,
+  createDefaultPropertyValue,
   createProperty,
+  getClassPropertyTypeDefinitionByName,
+  getEnumPropertyTypeDefinitionByName,
+  getPropertyTypeDefinitionByName,
+  removePropertyDefinition,
   type ClassPropertyFieldDefinition,
+  type ClassPropertyValue,
   type ClassPropertyTypeDefinition,
   type EnumPropertyTypeDefinition,
   type ObjectReferenceValue,
@@ -21,18 +29,20 @@ export {
   type PropertyTypeDefinition,
   type PropertyTypeName,
   type PropertyValue,
-  type PrimitivePropertyType
+  type PrimitivePropertyType,
+  upsertPropertyDefinition
 } from "./property";
 export { createMapObject, type CreateObjectInput, type MapObject, type ObjectShape, type Point } from "./object";
 export {
   appendObjectsToLayer,
   cloneMapObject,
-  clonePropertyDefinition,
   getMapObjectBounds,
   getObjectById,
   removeObjectsFromLayer,
   translateMapObject,
   translateObjectsInLayer,
+  updateMapObject,
+  type UpdateMapObjectDetailsInput,
   type ObjectBoundsRect
 } from "./object-operations";
 export {

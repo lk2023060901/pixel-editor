@@ -1,6 +1,10 @@
 import type { TilesetId } from "./id";
 import type { EditorMap } from "./map";
-import type { PropertyDefinition } from "./property";
+import {
+  removePropertyDefinition,
+  upsertPropertyDefinition,
+  type PropertyDefinition
+} from "./property";
 import {
   createTileDefinition,
   createTileset,
@@ -163,16 +167,6 @@ function updateTileDefinition(
   };
 }
 
-function sanitizePropertyName(name: string): string {
-  const nextName = name.trim();
-
-  if (!nextName) {
-    throw new Error("Property name must not be empty");
-  }
-
-  return nextName;
-}
-
 export function createImageTileset(
   input: CreateImageTilesetInput
 ): TilesetDefinition {
@@ -307,21 +301,9 @@ export function upsertTilesetTileProperty(
   property: PropertyDefinition,
   previousName = property.name
 ): TilesetDefinition {
-  const nextProperty: PropertyDefinition = {
-    ...property,
-    name: sanitizePropertyName(property.name)
-  };
-  const previousPropertyName = sanitizePropertyName(previousName);
-
   return updateTileDefinition(tileset, localId, (tile) => ({
     ...tile,
-    properties: [
-      ...tile.properties.filter(
-        (entry) =>
-          entry.name !== previousPropertyName && entry.name !== nextProperty.name
-      ),
-      nextProperty
-    ]
+    properties: upsertPropertyDefinition(tile.properties, property, previousName)
   }));
 }
 
@@ -330,11 +312,9 @@ export function removeTilesetTileProperty(
   localId: number,
   propertyName: string
 ): TilesetDefinition {
-  const nextPropertyName = sanitizePropertyName(propertyName);
-
   return updateTileDefinition(tileset, localId, (tile) => ({
     ...tile,
-    properties: tile.properties.filter((property) => property.name !== nextPropertyName)
+    properties: removePropertyDefinition(tile.properties, propertyName)
   }));
 }
 

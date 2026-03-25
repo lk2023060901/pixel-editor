@@ -1,13 +1,46 @@
-import type { CreateMapInput } from "@pixel-editor/domain";
+import type {
+  CreateMapInput,
+  ClassPropertyFieldDefinition,
+  PropertyValue
+} from "@pixel-editor/domain";
 
 export interface ExampleProjectDescriptor {
   project: {
     name: string;
     assetRoots: string[];
+    propertyTypes?: ExamplePropertyTypeDescriptor[];
   };
   tilesets: ExampleTilesetDescriptor[];
   maps: ExampleMapDescriptor[];
 }
+
+export type ExamplePropertyTypeDescriptor =
+  | {
+      kind: "enum";
+      name: string;
+      storageType: "string" | "int";
+      values: string[];
+      valuesAsFlags: boolean;
+    }
+  | {
+      kind: "class";
+      name: string;
+      useAs: Array<
+        | "map"
+        | "layer"
+        | "object"
+        | "tile"
+        | "tileset"
+        | "project"
+        | "world"
+        | "template"
+      >;
+      fields: Array<
+        Omit<ClassPropertyFieldDefinition, "defaultValue"> & {
+          defaultValue?: PropertyValue;
+        }
+      >;
+    };
 
 export type ExampleTilesetDescriptor =
   | {

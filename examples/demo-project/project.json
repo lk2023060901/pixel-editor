@@ -1,7 +1,39 @@
 {
   "project": {
     "name": "Example Terrain Project",
-    "assetRoots": ["maps", "tilesets", "templates"]
+    "assetRoots": ["maps", "tilesets", "templates"],
+    "propertyTypes": [
+      {
+        "kind": "enum",
+        "name": "Biome",
+        "storageType": "string",
+        "values": ["forest", "ruins", "cave"],
+        "valuesAsFlags": false
+      },
+      {
+        "kind": "class",
+        "name": "EncounterConfig",
+        "useAs": ["map", "object"],
+        "fields": [
+          {
+            "name": "enabled",
+            "valueType": "bool",
+            "defaultValue": true
+          },
+          {
+            "name": "biome",
+            "valueType": "enum",
+            "propertyTypeName": "Biome",
+            "defaultValue": "forest"
+          },
+          {
+            "name": "difficulty",
+            "valueType": "int",
+            "defaultValue": 2
+          }
+        ]
+      }
+    ]
   },
   "tilesets": [
     {
@@ -39,6 +71,26 @@
       "height": 64,
       "tileWidth": 32,
       "tileHeight": 32,
+      "properties": [
+        {
+          "name": "biome",
+          "type": "enum",
+          "propertyTypeName": "Biome",
+          "value": "forest"
+        },
+        {
+          "name": "encounter",
+          "type": "class",
+          "propertyTypeName": "EncounterConfig",
+          "value": {
+            "members": {
+              "enabled": true,
+              "biome": "ruins",
+              "difficulty": 4
+            }
+          }
+        }
+      ],
       "tilesetKeys": ["terrain-core", "props-collection"]
     }
   ]

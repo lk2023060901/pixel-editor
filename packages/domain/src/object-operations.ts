@@ -8,7 +8,10 @@ import {
   type TileObjectData
 } from "./object";
 import type { ObjectId } from "./id";
-import type { PropertyDefinition, PropertyValue } from "./property";
+import {
+  clonePropertyDefinition,
+  type PropertyDefinition
+} from "./property";
 
 export interface ObjectBoundsRect {
   x: number;
@@ -42,48 +45,6 @@ function cloneTileObjectData(tile: TileObjectData): TileObjectData {
   };
 }
 
-function clonePropertyValue(value: PropertyValue): PropertyValue {
-  if (Array.isArray(value)) {
-    return value.map((entry) => clonePropertyValue(entry));
-  }
-
-  if (value === null || typeof value !== "object") {
-    return value;
-  }
-
-  if ("members" in value) {
-    return {
-      members: Object.fromEntries(
-        Object.entries(value.members).map(([key, memberValue]) => [
-          key,
-          clonePropertyValue(memberValue)
-        ])
-      )
-    };
-  }
-
-  if ("objectId" in value) {
-    return {
-      objectId: value.objectId
-    };
-  }
-
-  return value;
-}
-
-export function clonePropertyDefinition(
-  property: PropertyDefinition
-): PropertyDefinition {
-  return {
-    name: property.name,
-    type: property.type,
-    value: clonePropertyValue(property.value),
-    ...(property.propertyTypeName !== undefined
-      ? { propertyTypeName: property.propertyTypeName }
-      : {})
-  };
-}
-
 export function cloneMapObject(
   object: MapObject,
   patch: Partial<CreateObjectInput> = {}
@@ -110,6 +71,49 @@ export function cloneMapObject(
     ...(className !== undefined ? { className } : {}),
     ...(templateId !== undefined ? { templateId } : {})
   });
+}
+
+export interface UpdateMapObjectDetailsInput {
+  name?: string;
+  className?: string;
+  x?: number;
+  y?: number;
+  width?: number;
+  height?: number;
+  rotation?: number;
+  visible?: boolean;
+  properties?: PropertyDefinition[];
+}
+
+export function updateMapObject(
+  object: MapObject,
+  patch: UpdateMapObjectDetailsInput
+): MapObject {
+  const nextObject: MapObject = {
+    ...object,
+    ...(patch.name !== undefined ? { name: patch.name } : {}),
+    ...(patch.x !== undefined ? { x: patch.x } : {}),
+    ...(patch.y !== undefined ? { y: patch.y } : {}),
+    ...(patch.width !== undefined ? { width: patch.width } : {}),
+    ...(patch.height !== undefined ? { height: patch.height } : {}),
+    ...(patch.rotation !== undefined ? { rotation: patch.rotation } : {}),
+    ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
+    ...(patch.properties !== undefined
+      ? { properties: patch.properties.map(clonePropertyDefinition) }
+      : {})
+  };
+
+  if (patch.className !== undefined) {
+    const className = patch.className.trim();
+
+    if (className.length > 0) {
+      nextObject.className = className;
+    } else {
+      delete nextObject.className;
+    }
+  }
+
+  return nextObject;
 }
 
 export function translateMapObject(

@@ -4,13 +4,16 @@ import {
   type EditorNamingConfig
 } from "@pixel-editor/app-services";
 import {
+  createEntityId,
   createProject,
+  type PropertyTypeDefinition,
   type TilesetDefinition
 } from "@pixel-editor/domain";
 import { createEditorWorkspaceState } from "@pixel-editor/editor-state";
 
 import type {
   ExampleProjectSeed,
+  ExamplePropertyTypeDescriptor,
   ExampleTilesetDescriptor
 } from "./schema";
 
@@ -24,13 +27,25 @@ export interface ExampleStoreFromSeedOptions {
   naming?: EditorNamingConfig;
 }
 
+function materializePropertyTypes(
+  propertyTypes: readonly ExamplePropertyTypeDescriptor[] | undefined
+): PropertyTypeDefinition[] {
+  return (propertyTypes ?? []).map((propertyType) => ({
+    ...propertyType,
+    id: createEntityId("propertyType")
+  }));
+}
+
 export function createEditorStoreFromExampleSeed(
   seed: ExampleProjectSeed,
   options: ExampleStoreFromSeedOptions = {}
 ): EditorController {
   const project = createProject({
     name: seed.project.name,
-    assetRoots: seed.project.assetRoots
+    assetRoots: seed.project.assetRoots,
+    ...(seed.project.propertyTypes !== undefined
+      ? { propertyTypes: materializePropertyTypes(seed.project.propertyTypes) }
+      : {})
   });
   const store = createEditorStore(
     createEditorWorkspaceState({

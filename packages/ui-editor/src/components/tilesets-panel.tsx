@@ -7,6 +7,7 @@ import {
   listTilesetLocalIds,
   resolveMapTileGid,
   type EditorMap,
+  type PropertyTypeDefinition,
   type TilesetDefinition,
   type TilesetId
 } from "@pixel-editor/domain";
@@ -32,6 +33,7 @@ export interface TilesetsPanelProps {
   activeTilesetId: TilesetId | undefined;
   activeTileLocalId: number | null;
   activeStamp: TileStamp;
+  propertyTypes: readonly PropertyTypeDefinition[] | undefined;
   store: EditorController;
   embedded?: boolean;
 }
@@ -159,6 +161,7 @@ function TilesetsPanelContent({
   activeTilesetId,
   activeTileLocalId,
   activeStamp,
+  propertyTypes,
   store
 }: Omit<TilesetsPanelProps, "embedded">) {
   const { t } = useI18n();
@@ -305,6 +308,8 @@ function TilesetsPanelContent({
 
               <TilesetDetailsForm tileset={activeTileset} store={store} />
               <TilePropertiesEditor
+                activeMap={activeMap}
+                propertyTypes={propertyTypes}
                 tileset={activeTileset}
                 selectedLocalId={selectedLocalId}
                 store={store}

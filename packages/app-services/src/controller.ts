@@ -11,10 +11,12 @@ import {
   type LayerDefinition,
   type LayerId,
   type MapId,
+  type MapObject,
   type ObjectId,
   type ObjectLayer,
   type PropertyDefinition,
   type TilesetDefinition,
+  type UpdateMapObjectDetailsInput,
   type UpdateTileMetadataInput,
   type UpdateTilesetDetailsInput,
   type UpdateMapDetailsInput
@@ -66,6 +68,8 @@ import {
   paintTileStrokeCommand,
   pasteTileClipboardCommand,
   panViewportCommand,
+  removeLayerPropertyCommand,
+  removeMapPropertyCommand,
   removeLayerCommand,
   selectTileCommand,
   selectTileRegionCommand,
@@ -76,15 +80,22 @@ import {
   setShapeFillModeCommand,
   setViewportZoomCommand,
   toggleGridCommand,
+  upsertLayerPropertyCommand,
+  upsertMapPropertyCommand,
+  updateLayerDetailsCommand,
   updateMapDetailsCommand,
+  type UpdateLayerDetailsInput,
   zoomViewportCommand
 } from "@pixel-editor/map";
 import {
   createRectangleObjectCommand,
   moveObjectsCommand,
   pasteObjectClipboardCommand,
+  removeObjectPropertyCommand,
   removeSelectedObjectsCommand,
-  selectObjectCommand
+  selectObjectCommand,
+  upsertObjectPropertyCommand,
+  updateObjectDetailsCommand
 } from "@pixel-editor/objects";
 import {
   createImageCollectionTilesetCommand,
@@ -181,6 +192,14 @@ export interface EditorController {
   upsertSelectedTileProperty(property: PropertyDefinition, previousName?: string): void;
   removeSelectedTileProperty(propertyName: string): void;
   updateActiveMapDetails(patch: UpdateMapDetailsInput): void;
+  upsertActiveMapProperty(property: PropertyDefinition, previousName?: string): void;
+  removeActiveMapProperty(propertyName: string): void;
+  updateActiveLayerDetails(patch: UpdateLayerDetailsInput): void;
+  upsertActiveLayerProperty(property: PropertyDefinition, previousName?: string): void;
+  removeActiveLayerProperty(propertyName: string): void;
+  updateSelectedObjectDetails(patch: UpdateMapObjectDetailsInput): void;
+  upsertSelectedObjectProperty(property: PropertyDefinition, previousName?: string): void;
+  removeSelectedObjectProperty(propertyName: string): void;
   addTileLayer(name?: string): void;
   addObjectLayer(name?: string): void;
   removeActiveLayer(): void;
@@ -471,6 +490,33 @@ class InMemoryEditorController implements EditorController {
     return {
       deltaX: snapDeltaToGrid(preview.referenceX, rawDeltaX, map.settings.tileWidth),
       deltaY: snapDeltaToGrid(preview.referenceY, rawDeltaY, map.settings.tileHeight)
+    };
+  }
+
+  private resolveSelectedObject():
+    | { activeMap: EditorMap; activeLayer: ObjectLayer; object: MapObject }
+    | undefined {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved) {
+      return undefined;
+    }
+
+    const selection = this.history.state.session.selection;
+
+    if (!isObjectSelectionState(selection) || selection.objectIds.length === 0) {
+      return undefined;
+    }
+
+    const object = getObjectById(resolved.activeLayer, selection.objectIds[0]!);
+
+    if (!object) {
+      return undefined;
+    }
+
+    return {
+      ...resolved,
+      object
     };
   }
 
@@ -1151,6 +1197,114 @@ class InMemoryEditorController implements EditorController {
     }
 
     this.commit(updateMapDetailsCommand(activeMap.id, patch));
+  }
+
+  upsertActiveMapProperty(property: PropertyDefinition, previousName?: string): void {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return;
+    }
+
+    this.commit(upsertMapPropertyCommand(activeMap.id, property, previousName));
+  }
+
+  removeActiveMapProperty(propertyName: string): void {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return;
+    }
+
+    this.commit(removeMapPropertyCommand(activeMap.id, propertyName));
+  }
+
+  updateActiveLayerDetails(patch: UpdateLayerDetailsInput): void {
+    const activeMap = getActiveMap(this.history.state);
+    const activeLayer = getActiveLayer(this.history.state);
+
+    if (!activeMap || !activeLayer) {
+      return;
+    }
+
+    this.commit(updateLayerDetailsCommand(activeMap.id, activeLayer.id, patch));
+  }
+
+  upsertActiveLayerProperty(property: PropertyDefinition, previousName?: string): void {
+    const activeMap = getActiveMap(this.history.state);
+    const activeLayer = getActiveLayer(this.history.state);
+
+    if (!activeMap || !activeLayer) {
+      return;
+    }
+
+    this.commit(upsertLayerPropertyCommand(activeMap.id, activeLayer.id, property, previousName));
+  }
+
+  removeActiveLayerProperty(propertyName: string): void {
+    const activeMap = getActiveMap(this.history.state);
+    const activeLayer = getActiveLayer(this.history.state);
+
+    if (!activeMap || !activeLayer) {
+      return;
+    }
+
+    this.commit(removeLayerPropertyCommand(activeMap.id, activeLayer.id, propertyName));
+  }
+
+  updateSelectedObjectDetails(patch: UpdateMapObjectDetailsInput): void {
+    const resolved = this.resolveSelectedObject();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      updateObjectDetailsCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        resolved.object.id,
+        patch
+      )
+    );
+  }
+
+  upsertSelectedObjectProperty(
+    property: PropertyDefinition,
+    previousName?: string
+  ): void {
+    const resolved = this.resolveSelectedObject();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      upsertObjectPropertyCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        resolved.object.id,
+        property,
+        previousName
+      )
+    );
+  }
+
+  removeSelectedObjectProperty(propertyName: string): void {
+    const resolved = this.resolveSelectedObject();
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      removeObjectPropertyCommand(
+        resolved.activeMap.id,
+        resolved.activeLayer.id,
+        resolved.object.id,
+        propertyName
+      )
+    );
   }
 
   addTileLayer(name?: string): void {

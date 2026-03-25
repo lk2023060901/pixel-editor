@@ -16,7 +16,11 @@ import {
   getTileLayerCell,
   moveLayerInMap,
   paintTileInMap,
+  removePropertyDefinition,
   removeLayerFromMap,
+  type PropertyDefinition,
+  upsertPropertyDefinition,
+  updateLayerInMap,
   updateMapDetails,
   type UpdateMapDetailsInput,
   type CreateMapInput,
@@ -55,6 +59,68 @@ export const defaultMapLayerNames: DefaultMapLayerNames = {
   tile: "Ground",
   object: "Objects"
 };
+
+export interface UpdateLayerDetailsInput {
+  name?: string;
+  className?: string;
+  visible?: boolean;
+  locked?: boolean;
+  opacity?: number;
+  offsetX?: number;
+  offsetY?: number;
+  drawOrder?: "topdown" | "index";
+}
+
+export function upsertMapPropertyCommand(
+  mapId: MapId,
+  property: PropertyDefinition,
+  previousName?: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `map.property.upsert:${mapId}`,
+    description: `Upsert property ${property.name} on map ${mapId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? {
+              ...map,
+              properties: upsertPropertyDefinition(map.properties, property, previousName)
+            }
+          : map
+      ),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function removeMapPropertyCommand(
+  mapId: MapId,
+  propertyName: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `map.property.remove:${mapId}:${propertyName}`,
+    description: `Remove property ${propertyName} from map ${mapId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? {
+              ...map,
+              properties: removePropertyDefinition(map.properties, propertyName)
+            }
+          : map
+      ),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
 
 function clampZoom(value: number): number {
   return Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, value));
@@ -410,6 +476,111 @@ export function moveLayerCommand(
       ...state,
       maps: state.maps.map((map) =>
         map.id === mapId ? moveLayerInMap(map, layerId, direction) : map
+      ),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function updateLayerDetailsCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  patch: UpdateLayerDetailsInput
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "layer.updateDetails",
+    description: `Update layer ${layerId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => {
+              const nextLayer: LayerDefinition = {
+                ...layer,
+                ...(patch.name !== undefined ? { name: patch.name } : {}),
+                ...(patch.visible !== undefined ? { visible: patch.visible } : {}),
+                ...(patch.locked !== undefined ? { locked: patch.locked } : {}),
+                ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
+                ...(patch.offsetX !== undefined ? { offsetX: patch.offsetX } : {}),
+                ...(patch.offsetY !== undefined ? { offsetY: patch.offsetY } : {})
+              };
+
+              if (patch.className !== undefined) {
+                const className = patch.className.trim();
+
+                if (className.length > 0) {
+                  nextLayer.className = className;
+                } else {
+                  delete nextLayer.className;
+                }
+              }
+
+              if (layer.kind === "object" && patch.drawOrder !== undefined) {
+                return {
+                  ...nextLayer,
+                  drawOrder: patch.drawOrder
+                };
+              }
+
+              return nextLayer;
+            })
+          : map
+      ),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function upsertLayerPropertyCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  property: PropertyDefinition,
+  previousName?: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `layer.property.upsert:${layerId}`,
+    description: `Upsert property ${property.name} on layer ${layerId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => ({
+              ...layer,
+              properties: upsertPropertyDefinition(layer.properties, property, previousName)
+            }))
+          : map
+      ),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function removeLayerPropertyCommand(
+  mapId: MapId,
+  layerId: LayerId,
+  propertyName: string
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: `layer.property.remove:${layerId}:${propertyName}`,
+    description: `Remove property ${propertyName} from layer ${layerId}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === mapId
+          ? updateLayerInMap(map, layerId, (layer) => ({
+              ...layer,
+              properties: removePropertyDefinition(layer.properties, propertyName)
+            }))
+          : map
       ),
       session: {
         ...state.session,

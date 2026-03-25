@@ -61,6 +61,13 @@ export function getRenderOrderLabel(
   return t(`mapRenderOrder.${renderOrder}` as I18nMessageKey);
 }
 
+export function getObjectDrawOrderLabel(
+  drawOrder: "topdown" | "index",
+  t: TranslationFn
+): string {
+  return t(`objectDrawOrder.${drawOrder}` as I18nMessageKey);
+}
+
 export function getTilesetObjectAlignmentLabel(
   value: TilesetObjectAlignment,
   t: TranslationFn
@@ -86,18 +93,6 @@ export function getPropertyTypeLabel(
   value: PropertyDefinition["type"],
   t: TranslationFn
 ): string {
-  if (value === "object") {
-    return "object";
-  }
-
-  if (value === "class") {
-    return "class";
-  }
-
-  if (value === "enum") {
-    return "enum";
-  }
-
   return t(`propertyType.${value}` as I18nMessageKey);
 }
 
