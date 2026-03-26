@@ -2970,6 +2970,143 @@ describe("editor controller", () => {
     });
   });
 
+  it("previews and commits object resize gestures as a single undoable command", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store.getSnapshot().activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      return;
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const createdObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const targetObject =
+      createdObject?.kind === "object" ? createdObject.objects[0] : undefined;
+
+    expect(targetObject).toBeDefined();
+
+    if (!targetObject) {
+      return;
+    }
+
+    store.beginObjectResize(targetObject.id, "nw", 32, 32);
+    store.updateObjectResize(20, 16);
+
+    const preview = store.getSnapshot().runtime.interactions.objectTransformPreview;
+
+    expect(preview.kind).toBe("object-resize");
+    expect(
+      preview.kind === "object-resize"
+        ? {
+            objectId: preview.objectId,
+            handle: preview.handle,
+            x: preview.x,
+            y: preview.y,
+            width: preview.width,
+            height: preview.height
+          }
+        : null
+    ).toEqual({
+      objectId: targetObject.id,
+      handle: "nw",
+      x: 20,
+      y: 16,
+      width: 44,
+      height: 48
+    });
+
+    store.endObjectResize();
+
+    const resizedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const committedObject =
+      resizedObject?.kind === "object" ? resizedObject.objects[0] : undefined;
+
+    expect(store.getSnapshot().runtime.interactions.objectTransformPreview.kind).toBe("none");
+    expect(committedObject).toMatchObject({
+      id: targetObject.id,
+      x: 20,
+      y: 16,
+      width: 44,
+      height: 48
+    });
+
+    store.undo();
+
+    const revertedObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+
+    expect(revertedObject?.kind === "object" ? revertedObject.objects[0] : undefined).toMatchObject({
+      id: targetObject.id,
+      x: 32,
+      y: 32,
+      width: 32,
+      height: 32
+    });
+  });
+
+  it("snaps object resize gestures to the tile grid when requested", () => {
+    const store = createTestEditorStore("demo");
+    const objectLayer = store.getSnapshot().activeMap?.layers.find((layer) => layer.kind === "object");
+
+    expect(objectLayer?.kind).toBe("object");
+
+    if (!objectLayer || objectLayer.kind !== "object") {
+      return;
+    }
+
+    store.setActiveLayer(objectLayer.id);
+    store.createRectangleObject();
+
+    const createdObject = store
+      .getSnapshot()
+      .activeMap?.layers.find((layer) => layer.id === objectLayer.id);
+    const targetObject =
+      createdObject?.kind === "object" ? createdObject.objects[0] : undefined;
+
+    expect(targetObject).toBeDefined();
+
+    if (!targetObject) {
+      return;
+    }
+
+    store.beginObjectResize(targetObject.id, "se", 64, 64);
+    store.updateObjectResize(82, 81, {
+      snapToGrid: true
+    });
+
+    const preview = store.getSnapshot().runtime.interactions.objectTransformPreview;
+
+    expect(preview.kind).toBe("object-resize");
+    expect(
+      preview.kind === "object-resize"
+        ? {
+            x: preview.x,
+            y: preview.y,
+            width: preview.width,
+            height: preview.height,
+            modifiers: preview.modifiers
+          }
+        : null
+    ).toEqual({
+      x: 32,
+      y: 32,
+      width: 64,
+      height: 64,
+      modifiers: {
+        snapToGrid: true
+      }
+    });
+  });
+
   it("selects stamps from the active tileset set", () => {
     const store = createTestEditorStore("demo");
     const snapshot = store.getSnapshot();

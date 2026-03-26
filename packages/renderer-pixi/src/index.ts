@@ -32,11 +32,24 @@ import {
   type ProjectedMapObject,
   pickProjectedObject
 } from "./object-layer";
-import { drawProjectedObjects } from "./object-layer-render";
+import {
+  createProjectedObjectSceneNodes,
+  destroyProjectedObjectSceneNodes,
+  drawProjectedObjects,
+  type ProjectedObjectSceneNodes,
+  updateProjectedObjectScene
+} from "./object-layer-render";
+import {
+  getProjectedObjectSelectionControls,
+  pickProjectedObjectSelectionHandle,
+  type ProjectedObjectTransformHandle
+} from "./object-selection";
 import { getRendererMode, type RendererMode } from "./renderer-mode";
 import {
   createBoundsRenderSignature,
   createGridRenderSignature,
+  createProjectedObjectRenderSignature,
+  createProjectedObjectSelectionSignature,
   createProjectedObjectsRenderSignature,
   createTileLayerSegmentRenderSignature,
   createTileLayersRenderSignature,
@@ -88,6 +101,7 @@ export type RendererPickResult =
   | { kind: "none" }
   | { kind: "layer"; layerId: LayerId }
   | { kind: "object"; objectId: ObjectId }
+  | { kind: "object-handle"; handle: ProjectedObjectTransformHandle }
   | { kind: "tile"; x: number; y: number };
 
 export interface RendererPickOptions {
@@ -198,6 +212,7 @@ interface RendererSceneNodes {
   bounds: Graphics;
   tileLayers: Container;
   objectLayers: Container;
+  objectSelectionOverlay: Graphics;
   previewOverlay: Graphics;
   selectionOverlay: Graphics;
 }
@@ -206,6 +221,7 @@ interface RendererSectionCache {
   mode: RendererMode | undefined;
   tileLayersSignature: string | undefined;
   objectLayersSignature: string | undefined;
+  objectSelectionSignature: string | undefined;
   previewSignature: string | undefined;
   selectionSignature: string | undefined;
   gridSignature: string | undefined;
@@ -222,6 +238,10 @@ interface TileSegmentSceneNodes {
 interface TileLayerSceneNodes {
   root: Container;
   segments: Map<string, TileSegmentSceneNodes>;
+}
+
+interface ObjectLayerSceneNodes {
+  objects: Map<ObjectId, ProjectedObjectSceneNodes>;
 }
 
 function positiveModulo(value: number, divisor: number): number {
@@ -627,6 +647,7 @@ function createRendererSceneNodes(labels?: {
   const bounds = new Graphics();
   const tileLayers = new Container();
   const objectLayers = new Container();
+  const objectSelectionOverlay = new Graphics();
   const previewOverlay = new Graphics();
   const selectionOverlay = new Graphics();
 
@@ -639,6 +660,7 @@ function createRendererSceneNodes(labels?: {
   root.addChild(bounds);
   root.addChild(tileLayers);
   root.addChild(objectLayers);
+  root.addChild(objectSelectionOverlay);
   root.addChild(previewOverlay);
   root.addChild(selectionOverlay);
 
@@ -653,6 +675,7 @@ function createRendererSceneNodes(labels?: {
     bounds,
     tileLayers,
     objectLayers,
+    objectSelectionOverlay,
     previewOverlay,
     selectionOverlay
   };
@@ -694,6 +717,7 @@ function setRendererModeVisibility(
   scene.bounds.visible = mode === "ready";
   scene.tileLayers.visible = mode === "ready";
   scene.objectLayers.visible = mode === "ready";
+  scene.objectSelectionOverlay.visible = mode === "ready";
   scene.previewOverlay.visible = mode === "ready";
   scene.selectionOverlay.visible = mode === "ready";
 }
@@ -735,6 +759,14 @@ function clearTileLayerSceneCache(
 ): void {
   clearContainerChildren(scene);
   cache.clear();
+}
+
+function clearObjectSceneCache(
+  scene: Container,
+  cache: ObjectLayerSceneNodes
+): void {
+  clearContainerChildren(scene);
+  cache.objects.clear();
 }
 
 function drawHighlightedTileStroke(
@@ -954,6 +986,137 @@ function drawObjectLayers(
   drawProjectedObjects(scene, objects, geometry);
 }
 
+function drawObjectSelectionOverlay(
+  scene: Graphics,
+  objects: readonly ProjectedMapObject[],
+  geometry: ViewportGeometry
+): void {
+  scene.clear();
+
+  const controls = getProjectedObjectSelectionControls(objects, geometry);
+
+  if (!controls) {
+    return;
+  }
+
+  const { bounds } = controls;
+  const radius = Math.min(10, Math.max(4, Math.min(bounds.width, bounds.height) * 0.14));
+
+  scene.roundRect(bounds.left, bounds.top, bounds.width, bounds.height, radius);
+  scene.stroke({
+    color: 0x38bdf8,
+    width: 1.5,
+    alpha: 0.95
+  });
+
+  scene.moveTo(bounds.centerX, bounds.top);
+  scene.lineTo(
+    bounds.centerX,
+    controls.rotationHandle.y + controls.rotationHandle.radius
+  );
+  scene.stroke({
+    color: 0x7dd3fc,
+    width: 1.25,
+    alpha: 0.9
+  });
+
+  scene.circle(
+    controls.rotationHandle.x,
+    controls.rotationHandle.y,
+    controls.rotationHandle.radius
+  );
+  scene.fill({
+    color: 0x020617,
+    alpha: 0.96
+  });
+  scene.stroke({
+    color: 0x7dd3fc,
+    width: 1.25,
+    alpha: 0.95
+  });
+
+  for (const handle of controls.resizeHandles) {
+    scene.roundRect(
+      handle.x - controls.handleHalf,
+      handle.y - controls.handleHalf,
+      controls.handleSize,
+      controls.handleSize,
+      2
+    );
+    scene.fill({
+      color: 0xf8fafc,
+      alpha: 0.96
+    });
+    scene.stroke({
+      color: 0x0f172a,
+      width: 1.25,
+      alpha: 0.92
+    });
+  }
+}
+
+function updateObjectScenes(
+  scene: Container,
+  cache: ObjectLayerSceneNodes,
+  objects: readonly ProjectedMapObject[],
+  geometry: ViewportGeometry,
+  tileTextures: ReadonlyMap<ObjectId, ResolvedTileTexture | undefined>,
+  options: {
+    getSourceTexture: (imagePath: string) => Texture | undefined;
+    getFrameTexture: (
+      imagePath: string,
+      frame: { x: number; y: number; width: number; height: number }
+    ) => Texture | undefined;
+    assetVersion: number;
+  }
+): void {
+  const nextObjectIds = new Set(objects.map((object) => object.objectId));
+
+  for (const [objectId, objectScene] of cache.objects) {
+    if (nextObjectIds.has(objectId)) {
+      continue;
+    }
+
+    scene.removeChild(objectScene.root);
+    destroyProjectedObjectSceneNodes(objectScene);
+    cache.objects.delete(objectId);
+  }
+
+  const orderedObjectRoots: Container[] = [];
+
+  for (const object of objects) {
+    let objectScene = cache.objects.get(object.objectId);
+
+    if (!objectScene) {
+      objectScene = createProjectedObjectSceneNodes();
+      cache.objects.set(object.objectId, objectScene);
+    }
+
+    objectScene.root.position.set(object.screenX, object.screenY);
+    orderedObjectRoots.push(objectScene.root);
+
+    const tileTexture = tileTextures.get(object.objectId);
+    const signature = createProjectedObjectRenderSignature({
+      object,
+      tileTexture,
+      assetVersion: options.assetVersion
+    });
+
+    if (objectScene.signature !== signature) {
+      objectScene.signature = signature;
+      updateProjectedObjectScene(objectScene, object, geometry, {
+        tileTexture,
+        textureResolver: {
+          getSourceTexture: options.getSourceTexture,
+          getFrameTexture: options.getFrameTexture
+        }
+      });
+    }
+  }
+
+  syncContainerChildren(scene, orderedObjectRoots);
+}
+
 function drawPreviewOverlay(
   scene: Graphics,
   snapshot: RendererSnapshot,
@@ -1066,26 +1229,26 @@ function buildScene(
 
   drawTileLayers(scene, snapshot, geometry);
   drawGridOverlay(scene, snapshot, geometry);
+  const projectedObjects = collectProjectedMapObjects({
+    map: snapshot.map,
+    geometry,
+    viewport: snapshot.viewport,
+    ...(snapshot.highlightedLayerId !== undefined
+      ? { highlightedLayerId: snapshot.highlightedLayerId }
+      : {}),
+    ...(snapshot.selectedObjectIds !== undefined
+      ? { selectedObjectIds: snapshot.selectedObjectIds }
+      : {}),
+    ...(snapshot.objectTransformPreview !== undefined
+      ? { objectTransformPreview: snapshot.objectTransformPreview }
+      : {})
+  });
   const objectLayerScene = new Container();
   scene.addChild(objectLayerScene);
-  drawObjectLayers(
-    objectLayerScene,
-    collectProjectedMapObjects({
-      map: snapshot.map,
-      geometry,
-      viewport: snapshot.viewport,
-      ...(snapshot.highlightedLayerId !== undefined
-        ? { highlightedLayerId: snapshot.highlightedLayerId }
-        : {}),
-      ...(snapshot.selectedObjectIds !== undefined
-        ? { selectedObjectIds: snapshot.selectedObjectIds }
-        : {}),
-      ...(snapshot.objectTransformPreview !== undefined
-        ? { objectTransformPreview: snapshot.objectTransformPreview }
-        : {})
-    }),
-    geometry
-  );
+  const objectSelectionOverlay = new Graphics();
+  scene.addChild(objectSelectionOverlay);
+  drawObjectLayers(objectLayerScene, projectedObjects, geometry);
+  drawObjectSelectionOverlay(objectSelectionOverlay, projectedObjects, geometry);
   const previewOverlay = new Graphics();
   scene.addChild(previewOverlay);
   drawPreviewOverlay(previewOverlay, snapshot, geometry);
@@ -1167,6 +1330,7 @@ export function createPixiEditorRenderer(options: {
     mode: undefined,
     tileLayersSignature: undefined,
     objectLayersSignature: undefined,
+    objectSelectionSignature: undefined,
     previewSignature: undefined,
     selectionSignature: undefined,
     gridSignature: undefined,
@@ -1177,6 +1341,9 @@ export function createPixiEditorRenderer(options: {
   const pendingTextureLoads = new Map<string, Promise<Texture>>();
   const failedTextureLoads = new Set<string>();
   const tileLayerSceneCache = new Map<LayerId, TileLayerSceneNodes>();
+  const objectSceneCache: ObjectLayerSceneNodes = {
+    objects: new Map()
+  };
   let assetVersion = 0;
 
   function requestRender(): void {
@@ -1281,13 +1448,15 @@ export function createPixiEditorRenderer(options: {
 
     if (mode === "empty") {
       clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
-      clearContainerChildren(sceneNodes.objectLayers);
+      clearObjectSceneCache(sceneNodes.objectLayers, objectSceneCache);
       sceneNodes.grid.clear();
       sceneNodes.bounds.clear();
       sceneNodes.previewOverlay.clear();
       sceneNodes.selectionOverlay.clear();
+      sceneNodes.objectSelectionOverlay.clear();
       sectionCache.tileLayersSignature = undefined;
       sectionCache.objectLayersSignature = undefined;
+      sectionCache.objectSelectionSignature = undefined;
       sectionCache.previewSignature = undefined;
       sectionCache.selectionSignature = undefined;
       sectionCache.gridSignature = undefined;
@@ -1333,13 +1502,15 @@ export function createPixiEditorRenderer(options: {
 
     if (mode === "unsupported") {
       clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
-      clearContainerChildren(sceneNodes.objectLayers);
+      clearObjectSceneCache(sceneNodes.objectLayers, objectSceneCache);
       sceneNodes.grid.clear();
       sceneNodes.bounds.clear();
       sceneNodes.previewOverlay.clear();
       sceneNodes.selectionOverlay.clear();
+      sceneNodes.objectSelectionOverlay.clear();
       sectionCache.tileLayersSignature = undefined;
       sectionCache.objectLayersSignature = undefined;
+      sectionCache.objectSelectionSignature = undefined;
       sectionCache.previewSignature = undefined;
       sectionCache.selectionSignature = undefined;
       sectionCache.gridSignature = undefined;
@@ -1483,11 +1654,53 @@ export function createPixiEditorRenderer(options: {
         ? { objectTransformPreview: snapshot.objectTransformPreview }
         : {})
     });
-    const objectLayersSignature = createProjectedObjectsRenderSignature(projectedObjects);
+    const objectTileTextures = new Map<ObjectId, ResolvedTileTexture | undefined>();
+
+    for (const object of projectedObjects) {
+      if (object.tileGid === undefined) {
+        continue;
+      }
+
+      objectTileTextures.set(
+        object.objectId,
+        resolveTileTexture(map, snapshot.tilesets, object.tileGid)
+      );
+    }
+
+    const objectLayersSignature = [
+      objectTileTextures.size > 0 ? assetVersion : 0,
+      createProjectedObjectsRenderSignature(projectedObjects)
+    ].join("::");
 
     if (sectionCache.objectLayersSignature !== objectLayersSignature) {
       sectionCache.objectLayersSignature = objectLayersSignature;
-      drawObjectLayers(sceneNodes.objectLayers, projectedObjects, geometry);
+      updateObjectScenes(
+        sceneNodes.objectLayers,
+        objectSceneCache,
+        projectedObjects,
+        geometry,
+        objectTileTextures,
+        {
+          getSourceTexture: ensureSourceTexture,
+          getFrameTexture,
+          assetVersion
+        }
+      );
+    }
+
+    const objectSelectionSignature = createProjectedObjectSelectionSignature({
+      objects: projectedObjects,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight
+    });
+
+    if (sectionCache.objectSelectionSignature !== objectSelectionSignature) {
+      sectionCache.objectSelectionSignature = objectSelectionSignature;
+      drawObjectSelectionOverlay(
+        sceneNodes.objectSelectionOverlay,
+        projectedObjects,
+        geometry
+      );
     }
 
     const previewSignature = createTileOverlayRenderSignature({
@@ -1589,8 +1802,18 @@ export function createPixiEditorRenderer(options: {
         locatedPoint.localX,
         locatedPoint.localY
       );
+      const pickedHandle = pickProjectedObjectSelectionHandle(
+        projectedObjects,
+        locatedPoint.geometry,
+        locatedPoint.localX,
+        locatedPoint.localY
+      );
 
       if (options.mode === "object") {
+        if (pickedHandle) {
+          return { kind: "object-handle", handle: pickedHandle };
+        }
+
         return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : { kind: "none" };
       }
 
@@ -1603,6 +1826,10 @@ export function createPixiEditorRenderer(options: {
         (locatedPoint.tileX >= lastSnapshot.map.settings.width ||
           locatedPoint.tileY >= lastSnapshot.map.settings.height)
       ) {
+        if (options.mode === "topmost" && pickedHandle) {
+          return { kind: "object-handle", handle: pickedHandle };
+        }
+
         return options.mode === "topmost" && pickedObjectId
           ? { kind: "object", objectId: pickedObjectId }
           : { kind: "none" };
@@ -1616,6 +1843,10 @@ export function createPixiEditorRenderer(options: {
 
       if (options.mode === "tile") {
         return tilePick;
+      }
+
+      if (pickedHandle) {
+        return { kind: "object-handle", handle: pickedHandle };
       }
 
       return pickedObjectId ? { kind: "object", objectId: pickedObjectId } : tilePick;
@@ -1646,7 +1877,7 @@ export function createPixiEditorRenderer(options: {
 
       if (sceneNodes) {
         clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
-        clearContainerChildren(sceneNodes.objectLayers);
+        clearObjectSceneCache(sceneNodes.objectLayers, objectSceneCache);
       }
 
       if (app) {
@@ -1678,6 +1909,7 @@ export function createPixiEditorRenderer(options: {
       pendingTextureLoads.clear();
       failedTextureLoads.clear();
       tileLayerSceneCache.clear();
+      objectSceneCache.objects.clear();
     }
   };
 }

@@ -14,6 +14,20 @@ export interface ObjectMoveGestureModifiers {
   snapToGrid?: boolean;
 }
 
+export type ObjectResizeHandle =
+  | "nw"
+  | "n"
+  | "ne"
+  | "e"
+  | "se"
+  | "s"
+  | "sw"
+  | "w";
+
+export interface ObjectResizeGestureModifiers {
+  snapToGrid?: boolean;
+}
+
 export interface ShapeFillCanvasPreview {
   kind: "shape-fill";
   mapId: MapId;
@@ -60,7 +74,29 @@ export interface ObjectMovePreview {
   modifiers: Required<ObjectMoveGestureModifiers>;
 }
 
-export type ObjectTransformPreviewState = { kind: "none" } | ObjectMovePreview;
+export interface ObjectResizePreview {
+  kind: "object-resize";
+  mapId: MapId;
+  layerId: LayerId;
+  objectId: ObjectId;
+  handle: ObjectResizeHandle;
+  initialX: number;
+  initialY: number;
+  initialWidth: number;
+  initialHeight: number;
+  currentX: number;
+  currentY: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  modifiers: Required<ObjectResizeGestureModifiers>;
+}
+
+export type ObjectTransformPreviewState =
+  | { kind: "none" }
+  | ObjectMovePreview
+  | ObjectResizePreview;
 
 export interface EditorInteractionState {
   canvasPreview: CanvasPreviewState;
@@ -79,6 +115,14 @@ function normalizeCanvasGestureModifiers(
 function normalizeObjectMoveGestureModifiers(
   modifiers: ObjectMoveGestureModifiers = {}
 ): Required<ObjectMoveGestureModifiers> {
+  return {
+    snapToGrid: modifiers.snapToGrid ?? false
+  };
+}
+
+function normalizeObjectResizeGestureModifiers(
+  modifiers: ObjectResizeGestureModifiers = {}
+): Required<ObjectResizeGestureModifiers> {
   return {
     snapToGrid: modifiers.snapToGrid ?? false
   };
@@ -223,6 +267,63 @@ export function updateObjectMovePreview(
     deltaX: nextState.deltaX,
     deltaY: nextState.deltaY,
     modifiers: normalizeObjectMoveGestureModifiers(nextState.modifiers)
+  };
+}
+
+export function createObjectResizePreview(input: {
+  mapId: MapId;
+  layerId: LayerId;
+  objectId: ObjectId;
+  handle: ObjectResizeHandle;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  currentX: number;
+  currentY: number;
+  modifiers?: ObjectResizeGestureModifiers;
+}): ObjectResizePreview {
+  return {
+    kind: "object-resize",
+    mapId: input.mapId,
+    layerId: input.layerId,
+    objectId: input.objectId,
+    handle: input.handle,
+    initialX: input.x,
+    initialY: input.y,
+    initialWidth: input.width,
+    initialHeight: input.height,
+    currentX: input.currentX,
+    currentY: input.currentY,
+    x: input.x,
+    y: input.y,
+    width: input.width,
+    height: input.height,
+    modifiers: normalizeObjectResizeGestureModifiers(input.modifiers)
+  };
+}
+
+export function updateObjectResizePreview(
+  preview: ObjectResizePreview,
+  nextState: {
+    currentX: number;
+    currentY: number;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    modifiers?: ObjectResizeGestureModifiers;
+  }
+): ObjectResizePreview {
+  return {
+    ...preview,
+    currentX: nextState.currentX,
+    currentY: nextState.currentY,
+    x: nextState.x,
+    y: nextState.y,
+    width: nextState.width,
+    height: nextState.height,
+    modifiers: normalizeObjectResizeGestureModifiers(nextState.modifiers)
   };
 }
 

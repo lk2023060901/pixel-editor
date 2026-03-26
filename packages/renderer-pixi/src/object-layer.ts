@@ -7,7 +7,7 @@ import type {
   ObjectShape,
   ObjectLayer
 } from "@pixel-editor/domain";
-import { translateMapObject } from "@pixel-editor/domain";
+import { translateMapObject, updateMapObject } from "@pixel-editor/domain";
 
 export interface ObjectProjectionGeometry {
   tileWidth: number;
@@ -38,8 +38,13 @@ export interface ProjectedMapObject {
   screenY: number;
   screenWidth: number;
   screenHeight: number;
+  tileGid?: number;
   screenPoints?: ProjectedPoint[];
   textContent?: string;
+  textColor?: string;
+  textFontFamily?: string;
+  textPixelSize?: number;
+  textWrap?: boolean;
 }
 
 export type ObjectTransformPreview =
@@ -49,6 +54,14 @@ export type ObjectTransformPreview =
       objectIds: ObjectId[];
       deltaX: number;
       deltaY: number;
+    }
+  | {
+      kind: "resize";
+      objectId: ObjectId;
+      x: number;
+      y: number;
+      width: number;
+      height: number;
     };
 
 interface RenderableObjectLayer {
@@ -97,6 +110,16 @@ function worldLengthToScreenHeight(
   geometry: ObjectProjectionGeometry
 ): number {
   return (worldHeight / map.settings.tileHeight) * geometry.tileHeight;
+}
+
+function computeWorldToScreenScale(
+  map: EditorMap,
+  geometry: ObjectProjectionGeometry
+): number {
+  return Math.min(
+    geometry.tileWidth / map.settings.tileWidth,
+    geometry.tileHeight / map.settings.tileHeight
+  );
 }
 
 function pointInPolygon(point: ProjectedPoint, polygon: ProjectedPoint[]): boolean {
@@ -247,6 +270,14 @@ export function collectProjectedMapObjects(input: {
               input.objectTransformPreview.deltaX,
               input.objectTransformPreview.deltaY
             )
+          : input.objectTransformPreview?.kind === "resize" &&
+              input.objectTransformPreview.objectId === object.id
+            ? updateMapObject(object, {
+                x: input.objectTransformPreview.x,
+                y: input.objectTransformPreview.y,
+                width: input.objectTransformPreview.width,
+                height: input.objectTransformPreview.height
+              })
           : object;
 
       const screenPoints = projectObjectPoints(
@@ -286,7 +317,20 @@ export function collectProjectedMapObjects(input: {
           input.map,
           input.geometry
         ),
-        ...(projectedSource.text ? { textContent: projectedSource.text.content } : {}),
+        ...(projectedSource.tile?.gid !== undefined
+          ? { tileGid: projectedSource.tile.gid }
+          : {}),
+        ...(projectedSource.text
+          ? {
+              textContent: projectedSource.text.content,
+              textColor: projectedSource.text.color,
+              textFontFamily: projectedSource.text.fontFamily,
+              textPixelSize:
+                projectedSource.text.pixelSize *
+                computeWorldToScreenScale(input.map, input.geometry),
+              textWrap: projectedSource.text.wrap
+            }
+          : {}),
         ...(screenPoints ? { screenPoints } : {})
       });
     }

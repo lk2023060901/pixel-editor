@@ -44,6 +44,8 @@ export type {
 export type {
   CanvasGestureModifiers,
   ObjectMoveGestureModifiers,
+  ObjectResizeGestureModifiers,
+  ObjectResizeHandle,
   TileStamp
 } from "@pixel-editor/editor-state";
 export type {

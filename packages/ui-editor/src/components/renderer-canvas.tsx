@@ -3,7 +3,9 @@
 import type {
   CanvasGestureModifiers,
   EditorRuntimeSnapshot,
-  ObjectMoveGestureModifiers
+  ObjectMoveGestureModifiers,
+  ObjectResizeGestureModifiers,
+  ObjectResizeHandle
 } from "@pixel-editor/app-services";
 import type { ObjectId } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -27,6 +29,15 @@ export interface RendererCanvasProps {
   ) => void;
   onObjectMove?: (x: number, y: number, modifiers: ObjectMoveGestureModifiers) => void;
   onObjectMoveEnd?: () => void;
+  onObjectResizeStart?: (
+    objectId: ObjectId,
+    handle: ObjectResizeHandle,
+    x: number,
+    y: number,
+    modifiers: ObjectResizeGestureModifiers
+  ) => void;
+  onObjectResize?: (x: number, y: number, modifiers: ObjectResizeGestureModifiers) => void;
+  onObjectResizeEnd?: () => void;
   onWorldMapActivate?: (mapId: string) => void;
   onWorldMapMove?: (worldId: string, fileName: string, x: number, y: number) => void;
 }
@@ -34,6 +45,7 @@ export interface RendererCanvasProps {
 const OBJECT_DRAG_START_DISTANCE = 4;
 
 interface PendingObjectDragState {
+  kind: "move";
   pointerId: number;
   objectId: ObjectId;
   startClientX: number;
@@ -45,6 +57,19 @@ interface PendingObjectDragState {
   dragging: boolean;
 }
 
+interface PendingObjectResizeState {
+  kind: "resize";
+  pointerId: number;
+  objectId: ObjectId;
+  handle: ObjectResizeHandle;
+  lastWorldX: number;
+  lastWorldY: number;
+}
+
+type PendingObjectGestureState =
+  | PendingObjectDragState
+  | PendingObjectResizeState;
+
 export function RendererCanvas({
   snapshot,
   onStrokeStart,
@@ -55,6 +80,9 @@ export function RendererCanvas({
   onObjectMoveStart,
   onObjectMove,
   onObjectMoveEnd,
+  onObjectResizeStart,
+  onObjectResize,
+  onObjectResizeEnd,
   onWorldMapActivate,
   onWorldMapMove
 }: RendererCanvasProps) {
@@ -71,7 +99,7 @@ export function RendererCanvas({
   const deferredSnapshot = useDeferredValue(snapshot);
   const isStrokeActiveRef = useRef(false);
   const lastPickedTileRef = useRef<{ x: number; y: number } | undefined>(undefined);
-  const pendingObjectDragRef = useRef<PendingObjectDragState | undefined>(undefined);
+  const pendingObjectGestureRef = useRef<PendingObjectGestureState | undefined>(undefined);
   const lastStatusInfoRef = useRef("");
   const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
 
@@ -88,6 +116,14 @@ export function RendererCanvas({
   function readObjectMoveModifiers(event: {
     ctrlKey: boolean;
   }): ObjectMoveGestureModifiers {
+    return {
+      snapToGrid: event.ctrlKey
+    };
+  }
+
+  function readObjectResizeModifiers(event: {
+    ctrlKey: boolean;
+  }): ObjectResizeGestureModifiers {
     return {
       snapToGrid: event.ctrlKey
     };
@@ -162,7 +198,19 @@ export function RendererCanvas({
               deltaY: deferredSnapshot.runtime.interactions.objectTransformPreview.deltaY
             }
           }
-        : {}),
+        : deferredSnapshot.runtime.interactions.objectTransformPreview.kind === "object-resize"
+          ? {
+              objectTransformPreview: {
+                kind: "resize" as const,
+                objectId:
+                  deferredSnapshot.runtime.interactions.objectTransformPreview.objectId,
+                x: deferredSnapshot.runtime.interactions.objectTransformPreview.x,
+                y: deferredSnapshot.runtime.interactions.objectTransformPreview.y,
+                width: deferredSnapshot.runtime.interactions.objectTransformPreview.width,
+                height: deferredSnapshot.runtime.interactions.objectTransformPreview.height
+              }
+            }
+          : {}),
       ...(deferredSnapshot.runtime.interactions.canvasPreview.kind !== "none"
         ? { previewTiles: deferredSnapshot.runtime.interactions.canvasPreview.coordinates }
         : {})
@@ -253,13 +301,43 @@ export function RendererCanvas({
     clientY?: number;
     ctrlKey?: boolean;
   } = {}): void {
-    const pending = pendingObjectDragRef.current;
+    const pending = pendingObjectGestureRef.current;
 
     if (!pending) {
       return;
     }
 
-    pendingObjectDragRef.current = undefined;
+    pendingObjectGestureRef.current = undefined;
+
+    if (pending.kind === "resize") {
+      if (
+        input.clientX !== undefined &&
+        input.clientY !== undefined
+      ) {
+        const location = locateMapPoint(input.clientX, input.clientY);
+
+        if (location) {
+          onObjectResize?.(
+            location.worldX,
+            location.worldY,
+            readObjectResizeModifiers({
+              ctrlKey: input.ctrlKey ?? false
+            })
+          );
+        }
+      }
+
+      onObjectResizeEnd?.();
+
+      if (
+        input.pointerId !== undefined &&
+        hostRef.current?.hasPointerCapture(input.pointerId)
+      ) {
+        hostRef.current.releasePointerCapture(input.pointerId);
+      }
+
+      return;
+    }
 
     if (
       pending.dragging &&
@@ -318,6 +396,48 @@ export function RendererCanvas({
             mode: "object"
           });
 
+          if (result.kind === "object-handle") {
+            if (result.handle === "rotate") {
+              hostRef.current?.focus();
+              return;
+            }
+
+            const selection = snapshot.workspace.session.selection;
+
+            if (
+              selection.kind !== "object" ||
+              selection.objectIds.length !== 1 ||
+              !onObjectResizeStart
+            ) {
+              return;
+            }
+
+            const location = locateMapPoint(event.clientX, event.clientY);
+
+            if (!location) {
+              return;
+            }
+
+            pendingObjectGestureRef.current = {
+              kind: "resize",
+              pointerId: event.pointerId,
+              objectId: selection.objectIds[0]!,
+              handle: result.handle,
+              lastWorldX: location.worldX,
+              lastWorldY: location.worldY
+            };
+            hostRef.current?.focus();
+            hostRef.current?.setPointerCapture(event.pointerId);
+            onObjectResizeStart(
+              selection.objectIds[0]!,
+              result.handle,
+              location.worldX,
+              location.worldY,
+              readObjectResizeModifiers(event)
+            );
+            return;
+          }
+
           if (result.kind !== "object") {
             return;
           }
@@ -328,7 +448,8 @@ export function RendererCanvas({
             return;
           }
 
-          pendingObjectDragRef.current = {
+          pendingObjectGestureRef.current = {
+            kind: "move",
             pointerId: event.pointerId,
             objectId: result.objectId,
             startClientX: event.clientX,
@@ -364,7 +485,7 @@ export function RendererCanvas({
         publishStatusInfo(readStatusInfo(event.clientX, event.clientY));
 
         if (snapshot.workspace.session.activeTool === "object-select") {
-          const pending = pendingObjectDragRef.current;
+          const pending = pendingObjectGestureRef.current;
 
           if (!pending) {
             return;
@@ -373,6 +494,17 @@ export function RendererCanvas({
           const location = locateMapPoint(event.clientX, event.clientY);
 
           if (!location) {
+            return;
+          }
+
+          if (pending.kind === "resize") {
+            pending.lastWorldX = location.worldX;
+            pending.lastWorldY = location.worldY;
+            onObjectResize?.(
+              location.worldX,
+              location.worldY,
+              readObjectResizeModifiers(event)
+            );
             return;
           }
 
@@ -438,16 +570,29 @@ export function RendererCanvas({
         finishStroke();
       }}
       onKeyDown={(event) => {
-        const pending = pendingObjectDragRef.current;
+        const pending = pendingObjectGestureRef.current;
 
         if (
           snapshot.workspace.session.activeTool === "object-select" &&
-          pending?.dragging
+          pending?.kind === "move" &&
+          pending.dragging
         ) {
           onObjectMove?.(
             pending.lastWorldX,
             pending.lastWorldY,
             readObjectMoveModifiers(event)
+          );
+          return;
+        }
+
+        if (
+          snapshot.workspace.session.activeTool === "object-select" &&
+          pending?.kind === "resize"
+        ) {
+          onObjectResize?.(
+            pending.lastWorldX,
+            pending.lastWorldY,
+            readObjectResizeModifiers(event)
           );
           return;
         }
@@ -463,16 +608,29 @@ export function RendererCanvas({
         );
       }}
       onKeyUp={(event) => {
-        const pending = pendingObjectDragRef.current;
+        const pending = pendingObjectGestureRef.current;
 
         if (
           snapshot.workspace.session.activeTool === "object-select" &&
-          pending?.dragging
+          pending?.kind === "move" &&
+          pending.dragging
         ) {
           onObjectMove?.(
             pending.lastWorldX,
             pending.lastWorldY,
             readObjectMoveModifiers(event)
+          );
+          return;
+        }
+
+        if (
+          snapshot.workspace.session.activeTool === "object-select" &&
+          pending?.kind === "resize"
+        ) {
+          onObjectResize?.(
+            pending.lastWorldX,
+            pending.lastWorldY,
+            readObjectResizeModifiers(event)
           );
           return;
         }

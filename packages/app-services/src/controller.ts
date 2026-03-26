@@ -93,6 +93,7 @@ import {
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
   createObjectMovePreview,
+  createObjectResizePreview,
   createShapeFillCanvasPreview,
   createSingleTileStamp,
   createObjectClipboardState,
@@ -114,6 +115,7 @@ import {
   type EditorIssueEntry,
   type EditorIssueSourceKind,
   updateObjectMovePreview,
+  updateObjectResizePreview,
   updateShapeFillCanvasPreview,
   updateTileSelectionCanvasPreview,
   type CanvasGestureModifiers,
@@ -121,6 +123,8 @@ import {
   type EditorRuntimeState,
   type EditorToolId,
   type ObjectMoveGestureModifiers,
+  type ObjectResizeGestureModifiers,
+  type ObjectResizeHandle,
   type EditorWorkspaceState,
   type TileStamp,
   type ShapeFillMode
@@ -388,8 +392,17 @@ export interface EditorController {
     y: number,
     modifiers?: ObjectMoveGestureModifiers
   ): void;
+  beginObjectResize(
+    objectId: ObjectId,
+    handle: ObjectResizeHandle,
+    x: number,
+    y: number,
+    modifiers?: ObjectResizeGestureModifiers
+  ): void;
   updateObjectMove(x: number, y: number, modifiers?: ObjectMoveGestureModifiers): void;
+  updateObjectResize(x: number, y: number, modifiers?: ObjectResizeGestureModifiers): void;
   endObjectMove(): void;
+  endObjectResize(): void;
   createSpriteSheetTileset(input: CreateImageTilesetInput): void;
   createImageCollectionTileset(input: CreateImageCollectionTilesetInput): void;
   updateActiveTilesetDetails(patch: UpdateTilesetDetailsInput): void;
@@ -729,6 +742,32 @@ function snapDeltaToGrid(
   const snappedPosition = Math.round(targetPosition / gridSize) * gridSize;
 
   return snappedPosition - referencePosition;
+}
+
+function canResizeMapObject(object: MapObject): boolean {
+  return (
+    object.shape === "rectangle" ||
+    object.shape === "ellipse" ||
+    object.shape === "capsule" ||
+    object.shape === "text" ||
+    object.shape === "tile"
+  );
+}
+
+function isWestResizeHandle(handle: ObjectResizeHandle): boolean {
+  return handle === "nw" || handle === "w" || handle === "sw";
+}
+
+function isEastResizeHandle(handle: ObjectResizeHandle): boolean {
+  return handle === "ne" || handle === "e" || handle === "se";
+}
+
+function isNorthResizeHandle(handle: ObjectResizeHandle): boolean {
+  return handle === "nw" || handle === "n" || handle === "ne";
+}
+
+function isSouthResizeHandle(handle: ObjectResizeHandle): boolean {
+  return handle === "sw" || handle === "s" || handle === "se";
 }
 
 function deriveIssueSourceKind(code: string): EditorIssueSourceKind {
@@ -1994,6 +2033,56 @@ class InMemoryEditorController implements EditorController {
     return {
       deltaX: snapDeltaToGrid(preview.referenceX, rawDeltaX, map.settings.tileWidth),
       deltaY: snapDeltaToGrid(preview.referenceY, rawDeltaY, map.settings.tileHeight)
+    };
+  }
+
+  private resolveObjectResizeFrame(
+    preview: Extract<
+      EditorRuntimeState["interactions"]["objectTransformPreview"],
+      { kind: "object-resize" }
+    >,
+    modifiers: ObjectResizeGestureModifiers = {}
+  ): { x: number; y: number; width: number; height: number } {
+    let pointerX = preview.currentX;
+    let pointerY = preview.currentY;
+    const map = this.history.state.maps.find((entry) => entry.id === preview.mapId);
+
+    if (modifiers.snapToGrid && map) {
+      if (isWestResizeHandle(preview.handle) || isEastResizeHandle(preview.handle)) {
+        pointerX =
+          Math.round(pointerX / map.settings.tileWidth) * map.settings.tileWidth;
+      }
+
+      if (isNorthResizeHandle(preview.handle) || isSouthResizeHandle(preview.handle)) {
+        pointerY =
+          Math.round(pointerY / map.settings.tileHeight) * map.settings.tileHeight;
+      }
+    }
+
+    const minWidth = 1;
+    const minHeight = 1;
+    let left = preview.initialX;
+    let top = preview.initialY;
+    let right = preview.initialX + Math.max(preview.initialWidth, minWidth);
+    let bottom = preview.initialY + Math.max(preview.initialHeight, minHeight);
+
+    if (isWestResizeHandle(preview.handle)) {
+      left = Math.min(pointerX, right - minWidth);
+    } else if (isEastResizeHandle(preview.handle)) {
+      right = Math.max(pointerX, left + minWidth);
+    }
+
+    if (isNorthResizeHandle(preview.handle)) {
+      top = Math.min(pointerY, bottom - minHeight);
+    } else if (isSouthResizeHandle(preview.handle)) {
+      bottom = Math.max(pointerY, top + minHeight);
+    }
+
+    return {
+      x: left,
+      y: top,
+      width: right - left,
+      height: bottom - top
     };
   }
 
@@ -3382,6 +3471,55 @@ class InMemoryEditorController implements EditorController {
     this.emit();
   }
 
+  beginObjectResize(
+    objectId: ObjectId,
+    handle: ObjectResizeHandle,
+    x: number,
+    y: number,
+    modifiers: ObjectResizeGestureModifiers = {}
+  ): void {
+    const resolved = this.resolveActiveObjectLayer();
+    const object =
+      resolved !== undefined ? getObjectById(resolved.activeLayer, objectId) : undefined;
+
+    if (!resolved || !object || !canResizeMapObject(object)) {
+      return;
+    }
+
+    const selection = this.history.state.session.selection;
+    const isSameSingleSelection =
+      isObjectSelectionState(selection) &&
+      selection.objectIds.length === 1 &&
+      selection.objectIds[0] === objectId;
+
+    this.clearTransientInteractions();
+
+    if (!isSameSingleSelection) {
+      this.commit(selectObjectCommand(objectId));
+    }
+
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        ...this.runtime.interactions,
+        objectTransformPreview: createObjectResizePreview({
+          mapId: resolved.activeMap.id,
+          layerId: resolved.activeLayer.id,
+          objectId,
+          handle,
+          x: object.x,
+          y: object.y,
+          width: object.width,
+          height: object.height,
+          currentX: x,
+          currentY: y,
+          modifiers
+        })
+      }
+    };
+    this.emit();
+  }
+
   updateObjectMove(
     x: number,
     y: number,
@@ -3418,6 +3556,44 @@ class InMemoryEditorController implements EditorController {
     this.emit();
   }
 
+  updateObjectResize(
+    x: number,
+    y: number,
+    modifiers: ObjectResizeGestureModifiers = {}
+  ): void {
+    const preview = this.runtime.interactions.objectTransformPreview;
+
+    if (preview.kind !== "object-resize") {
+      return;
+    }
+
+    const nextFrame = this.resolveObjectResizeFrame(
+      {
+        ...preview,
+        currentX: x,
+        currentY: y
+      },
+      modifiers
+    );
+
+    this.runtime = {
+      ...this.runtime,
+      interactions: {
+        ...this.runtime.interactions,
+        objectTransformPreview: updateObjectResizePreview(preview, {
+          currentX: x,
+          currentY: y,
+          x: nextFrame.x,
+          y: nextFrame.y,
+          width: nextFrame.width,
+          height: nextFrame.height,
+          modifiers
+        })
+      }
+    };
+    this.emit();
+  }
+
   endObjectMove(): void {
     const preview = this.runtime.interactions.objectTransformPreview;
 
@@ -3440,6 +3616,35 @@ class InMemoryEditorController implements EditorController {
         preview.deltaX,
         preview.deltaY
       )
+    );
+  }
+
+  endObjectResize(): void {
+    const preview = this.runtime.interactions.objectTransformPreview;
+
+    if (preview.kind !== "object-resize") {
+      return;
+    }
+
+    this.runtime = clearEditorRuntimeInteractions(this.runtime);
+
+    if (
+      preview.x === preview.initialX &&
+      preview.y === preview.initialY &&
+      preview.width === preview.initialWidth &&
+      preview.height === preview.initialHeight
+    ) {
+      this.emit();
+      return;
+    }
+
+    this.commit(
+      updateObjectDetailsCommand(preview.mapId, preview.layerId, preview.objectId, {
+        x: preview.x,
+        y: preview.y,
+        width: preview.width,
+        height: preview.height
+      })
     );
   }
 

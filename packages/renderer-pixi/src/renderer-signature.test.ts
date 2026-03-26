@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createProjectedObjectRenderSignature,
+  createProjectedObjectSelectionSignature,
   createBoundsRenderSignature,
   createGridRenderSignature,
   createProjectedObjectsRenderSignature,
@@ -159,6 +161,51 @@ describe("renderer signatures", () => {
     expect(baseSignature).not.toBe(selectedSignature);
   });
 
+  it("keeps per-object draw signatures stable across pure translation", () => {
+    const baseSignature = createProjectedObjectRenderSignature({
+      object: {
+        objectId: "object-1" as never,
+        layerId: "layer-1" as never,
+        name: "Object 1",
+        shape: "polygon",
+        opacity: 1,
+        highlighted: false,
+        selected: false,
+        screenX: 10,
+        screenY: 12,
+        screenWidth: 32,
+        screenHeight: 24,
+        screenPoints: [
+          { x: 10, y: 12 },
+          { x: 42, y: 12 },
+          { x: 42, y: 36 }
+        ]
+      }
+    });
+    const translatedSignature = createProjectedObjectRenderSignature({
+      object: {
+        objectId: "object-1" as never,
+        layerId: "layer-1" as never,
+        name: "Object 1",
+        shape: "polygon",
+        opacity: 1,
+        highlighted: false,
+        selected: false,
+        screenX: 30,
+        screenY: 22,
+        screenWidth: 32,
+        screenHeight: 24,
+        screenPoints: [
+          { x: 30, y: 22 },
+          { x: 62, y: 22 },
+          { x: 62, y: 46 }
+        ]
+      }
+    });
+
+    expect(baseSignature).toBe(translatedSignature);
+  });
+
   it("captures overlay, grid, and bounds changes", () => {
     expect(
       createTileOverlayRenderSignature({
@@ -231,5 +278,68 @@ describe("renderer signatures", () => {
         tileHeight: 32
       })
     );
+  });
+
+  it("tracks selected-object overlay changes independently", () => {
+    const baseSignature = createProjectedObjectSelectionSignature({
+      tileWidth: 32,
+      tileHeight: 32,
+      objects: [
+        {
+          objectId: "object-1" as never,
+          layerId: "layer-1" as never,
+          name: "A",
+          shape: "rectangle",
+          opacity: 1,
+          highlighted: false,
+          selected: true,
+          screenX: 10,
+          screenY: 20,
+          screenWidth: 30,
+          screenHeight: 40
+        }
+      ]
+    });
+    const movedSignature = createProjectedObjectSelectionSignature({
+      tileWidth: 32,
+      tileHeight: 32,
+      objects: [
+        {
+          objectId: "object-1" as never,
+          layerId: "layer-1" as never,
+          name: "A",
+          shape: "rectangle",
+          opacity: 1,
+          highlighted: false,
+          selected: true,
+          screenX: 12,
+          screenY: 24,
+          screenWidth: 30,
+          screenHeight: 40
+        }
+      ]
+    });
+    const unselectedSignature = createProjectedObjectSelectionSignature({
+      tileWidth: 32,
+      tileHeight: 32,
+      objects: [
+        {
+          objectId: "object-1" as never,
+          layerId: "layer-1" as never,
+          name: "A",
+          shape: "rectangle",
+          opacity: 1,
+          highlighted: false,
+          selected: false,
+          screenX: 10,
+          screenY: 20,
+          screenWidth: 30,
+          screenHeight: 40
+        }
+      ]
+    });
+
+    expect(baseSignature).not.toBe(movedSignature);
+    expect(baseSignature).not.toBe(unselectedSignature);
   });
 });

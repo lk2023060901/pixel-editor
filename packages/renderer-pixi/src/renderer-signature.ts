@@ -165,11 +165,61 @@ export function createProjectedObjectsRenderSignature(
         object.screenY,
         object.screenWidth,
         object.screenHeight,
+        object.tileGid ?? "",
         object.textContent ?? "",
+        object.textColor ?? "",
+        object.textFontFamily ?? "",
+        object.textPixelSize ?? "",
+        object.textWrap ? 1 : 0,
         object.screenPoints?.map((point) => `${point.x},${point.y}`).join(";") ?? ""
       ].join(":")
     )
     .join("|");
+}
+
+export function createProjectedObjectRenderSignature(
+  input: {
+    object: ProjectedMapObject;
+    tileTexture?: ResolvedTileTexture | undefined;
+    assetVersion?: number | undefined;
+  }
+): string {
+  const { object } = input;
+
+  return [
+    object.layerId,
+    object.shape,
+    object.opacity,
+    object.highlighted ? 1 : 0,
+    object.selected ? 1 : 0,
+    object.screenWidth,
+    object.screenHeight,
+    object.tileGid ?? "",
+    object.tileGid !== undefined ? input.assetVersion ?? 0 : "",
+    object.tileGid !== undefined ? createTextureToken(input.tileTexture) : "",
+    object.textContent ?? "",
+    object.textColor ?? "",
+    object.textFontFamily ?? "",
+    object.textPixelSize ?? "",
+    object.textWrap ? 1 : 0,
+    object.screenPoints
+      ?.map((point) => `${point.x - object.screenX},${point.y - object.screenY}`)
+      .join(";") ?? ""
+  ].join(":");
+}
+
+export function createProjectedObjectSelectionSignature(input: {
+  objects: readonly ProjectedMapObject[];
+  tileWidth: number;
+  tileHeight: number;
+}): string {
+  return [
+    input.tileWidth,
+    input.tileHeight,
+    createProjectedObjectsRenderSignature(
+      input.objects.filter((object) => object.selected)
+    )
+  ].join("::");
 }
 
 export function createTileOverlayRenderSignature(

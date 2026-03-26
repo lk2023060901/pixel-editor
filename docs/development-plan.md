@@ -66,7 +66,7 @@ Last updated: 2026-03-27
 | REN-008 | 渲染 | Staggered 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 stagger axis/index |
 | REN-009 | 渲染 | Hexagonal 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 hex side length |
 | REN-010 | 渲染 | Oblique 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 skewx/skewy |
-| REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state 与 shape-aware canvas picking；tile/text 视觉保真与 transform handles 待补 |
+| REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state、shape-aware canvas picking、keyed object scene cache / redraw 基础、runtime tile object 贴图解析、text style fidelity 基础、selection bounds / transform handles 可视反馈，以及单对象 resize handles 的 preview/commit；rotate 与多选缩放待补 |
 | REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 未开始 | 覆盖层级组合 |
 | REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 未开始 | 必须对齐 Tiled 图层视觉语义 |
 | REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |

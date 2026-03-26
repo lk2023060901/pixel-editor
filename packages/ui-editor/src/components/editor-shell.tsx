@@ -880,6 +880,15 @@ export function EditorShell({ store }: EditorShellProps) {
                 onObjectMoveEnd={() => {
                   store.endObjectMove();
                 }}
+                onObjectResizeStart={(objectId, handle, x, y, modifiers) => {
+                  store.beginObjectResize(objectId, handle, x, y, modifiers);
+                }}
+                onObjectResize={(x, y, modifiers) => {
+                  store.updateObjectResize(x, y, modifiers);
+                }}
+                onObjectResizeEnd={() => {
+                  store.endObjectResize();
+                }}
               />
             </div>
           </main>

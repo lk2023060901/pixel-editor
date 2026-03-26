@@ -201,6 +201,9 @@ export type {
   EditorInteractionState,
   ObjectMoveGestureModifiers,
   ObjectMovePreview,
+  ObjectResizeGestureModifiers,
+  ObjectResizeHandle,
+  ObjectResizePreview,
   ObjectTransformPreviewState,
   ShapeFillCanvasPreview,
   TileSelectionCanvasPreview
@@ -210,10 +213,12 @@ export {
   clearObjectTransformPreview,
   createEditorInteractionState,
   createObjectMovePreview,
+  createObjectResizePreview,
   createShapeFillCanvasPreview,
   createTileSelectionCanvasPreview,
   getCanvasPreviewTiles,
   updateObjectMovePreview,
+  updateObjectResizePreview,
   updateShapeFillCanvasPreview,
   updateTileSelectionCanvasPreview
 } from "./interactions";

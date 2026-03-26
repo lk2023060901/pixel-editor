@@ -7,9 +7,11 @@ import {
   clearObjectTransformPreview,
   createEditorInteractionState,
   createObjectMovePreview,
+  createObjectResizePreview,
   createShapeFillCanvasPreview,
   createTileSelectionCanvasPreview,
   updateObjectMovePreview,
+  updateObjectResizePreview,
   updateShapeFillCanvasPreview
 } from "../src/index";
 
@@ -112,6 +114,63 @@ describe("editor interaction state", () => {
     });
     expect(clearObjectTransformPreview(next).objectTransformPreview).toEqual({
       kind: "none"
+    });
+  });
+
+  it("creates and updates object resize previews through explicit helpers", () => {
+    const initial = createEditorInteractionState();
+    const preview = createObjectResizePreview({
+      mapId: createEntityId("map"),
+      layerId: createEntityId("layer"),
+      objectId: createEntityId("object"),
+      handle: "se",
+      x: 32,
+      y: 48,
+      width: 16,
+      height: 24,
+      currentX: 48,
+      currentY: 72
+    });
+
+    const updated = updateObjectResizePreview(preview, {
+      currentX: 64,
+      currentY: 88,
+      x: 32,
+      y: 48,
+      width: 32,
+      height: 40,
+      modifiers: {
+        snapToGrid: true
+      }
+    });
+    const next = {
+      ...initial,
+      objectTransformPreview: updated
+    };
+
+    expect(next.objectTransformPreview.kind).toBe("object-resize");
+    expect(
+      next.objectTransformPreview.kind === "object-resize"
+        ? {
+            objectId: next.objectTransformPreview.objectId,
+            handle: next.objectTransformPreview.handle,
+            x: next.objectTransformPreview.x,
+            y: next.objectTransformPreview.y,
+            width: next.objectTransformPreview.width,
+            height: next.objectTransformPreview.height,
+            modifiers: next.objectTransformPreview.modifiers
+          }
+        : null
+    ).toEqual({
+      objectId: preview.objectId,
+      handle: "se",
+      x: 32,
+      y: 48,
+      width: 32,
+      height: 40,
+      modifiers: {
+        snapToGrid: true
+      }
     });
   });
 });
