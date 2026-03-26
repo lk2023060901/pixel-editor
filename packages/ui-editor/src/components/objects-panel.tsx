@@ -47,17 +47,29 @@ function DockActionButton(props: {
 
 export interface ObjectsPanelProps {
   activeLayer: ObjectLayer | undefined;
+  activeTemplateName?: string;
+  hasTemplateInstanceSelection?: boolean;
   clipboard: ClipboardState;
   selection: SelectionState;
   store: EditorController;
+  onDetachTemplateInstances?: () => void;
+  onReplaceWithTemplate?: () => void;
+  onResetTemplateInstances?: () => void;
+  onSaveAsTemplate?: () => void;
   embedded?: boolean;
 }
 
 function ObjectsPanelContent({
   activeLayer,
+  activeTemplateName,
+  hasTemplateInstanceSelection,
   clipboard,
   selection,
-  store
+  store,
+  onDetachTemplateInstances,
+  onReplaceWithTemplate,
+  onResetTemplateInstances,
+  onSaveAsTemplate
 }: Omit<ObjectsPanelProps, "embedded">) {
   const { t } = useI18n();
   const selectedIds = isObjectSelectionState(selection)
@@ -120,6 +132,34 @@ function ObjectsPanelContent({
             });
           }}
         />
+        <ActionButton
+          label={t("objects.saveAsTemplate")}
+          disabled={!activeLayer || !hasObjectSelection || !onSaveAsTemplate}
+          onClick={() => {
+            onSaveAsTemplate?.();
+          }}
+        />
+        <ActionButton
+          label={t("objects.replaceWithTemplate")}
+          disabled={!activeLayer || !hasObjectSelection || !activeTemplateName || !onReplaceWithTemplate}
+          onClick={() => {
+            onReplaceWithTemplate?.();
+          }}
+        />
+        <ActionButton
+          label={t("objects.resetTemplateInstances")}
+          disabled={!activeLayer || !hasTemplateInstanceSelection || !onResetTemplateInstances}
+          onClick={() => {
+            onResetTemplateInstances?.();
+          }}
+        />
+        <ActionButton
+          label={t("objects.detachTemplateInstances")}
+          disabled={!activeLayer || !hasTemplateInstanceSelection || !onDetachTemplateInstances}
+          onClick={() => {
+            onDetachTemplateInstances?.();
+          }}
+        />
       </div>
 
       <div className="rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-300">
@@ -176,9 +216,15 @@ function ObjectsPanelContent({
 
 function ObjectsDockContent({
   activeLayer,
+  activeTemplateName,
+  hasTemplateInstanceSelection,
   clipboard,
   selection,
-  store
+  store,
+  onDetachTemplateInstances,
+  onReplaceWithTemplate,
+  onResetTemplateInstances,
+  onSaveAsTemplate
 }: Omit<ObjectsPanelProps, "embedded">) {
   const { t } = useI18n();
   const [filterText, setFilterText] = useState("");
@@ -295,6 +341,34 @@ function ObjectsDockContent({
             startTransition(() => {
               store.pasteClipboardToActiveObjectLayer();
             });
+          }}
+        />
+        <DockActionButton
+          label={t("objects.saveAsTemplate")}
+          disabled={!activeLayer || !hasObjectSelection || !onSaveAsTemplate}
+          onClick={() => {
+            onSaveAsTemplate?.();
+          }}
+        />
+        <DockActionButton
+          label={t("objects.replaceWithTemplate")}
+          disabled={!activeLayer || !hasObjectSelection || !activeTemplateName || !onReplaceWithTemplate}
+          onClick={() => {
+            onReplaceWithTemplate?.();
+          }}
+        />
+        <DockActionButton
+          label={t("objects.resetTemplateInstances")}
+          disabled={!activeLayer || !hasTemplateInstanceSelection || !onResetTemplateInstances}
+          onClick={() => {
+            onResetTemplateInstances?.();
+          }}
+        />
+        <DockActionButton
+          label={t("objects.detachTemplateInstances")}
+          disabled={!activeLayer || !hasTemplateInstanceSelection || !onDetachTemplateInstances}
+          onClick={() => {
+            onDetachTemplateInstances?.();
           }}
         />
       </div>

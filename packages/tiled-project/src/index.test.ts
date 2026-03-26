@@ -16,6 +16,12 @@ describe("@pixel-editor/tiled-project", () => {
         extensionsPath: "extensions",
         automappingRulesFile: "rules.txt",
         compatibilityVersion: 1120,
+        pixelEditor: {
+          exportOptions: {
+            embedTilesets: true,
+            resolveObjectTypesAndProperties: true
+          }
+        },
         propertyTypes: [
           {
             id: 1,
@@ -61,7 +67,13 @@ describe("@pixel-editor/tiled-project", () => {
       assetRoots: ["maps", "tilesets"],
       compatibilityVersion: "1.12",
       extensionsDirectory: "extensions",
-      automappingRulesFile: "rules.txt"
+      automappingRulesFile: "rules.txt",
+      exportOptions: {
+        embedTilesets: true,
+        detachTemplateInstances: false,
+        resolveObjectTypesAndProperties: true,
+        exportMinimized: false
+      }
     });
     expect(imported.project.propertyTypes).toMatchObject([
       {
@@ -141,6 +153,10 @@ describe("@pixel-editor/tiled-project", () => {
       compatibilityVersion: "1.12",
       extensionsDirectory: "extensions",
       automappingRulesFile: "rules.txt",
+      exportOptions: {
+        embedTilesets: true,
+        exportMinimized: true
+      },
       propertyTypes: [
         {
           id: createEntityId("propertyType"),
@@ -184,6 +200,14 @@ describe("@pixel-editor/tiled-project", () => {
       compatibilityVersion: 1120,
       extensionsPath: "extensions",
       folders: [".", "maps", "../tests"],
+      pixelEditor: {
+        exportOptions: {
+          embedTilesets: true,
+          detachTemplateInstances: false,
+          resolveObjectTypesAndProperties: false,
+          exportMinimized: true
+        }
+      },
       properties: [],
       propertyTypes: [
         {
@@ -218,5 +242,39 @@ describe("@pixel-editor/tiled-project", () => {
       ]
     });
     expect(JSON.parse(stringifyTiledProjectDocument({ project }))).toEqual(exported);
+  });
+
+  it("reports invalid and unknown namespaced project export options", () => {
+    const imported = importTiledProjectDocument({
+      pixelEditor: {
+        exportOptions: {
+          embedTilesets: "yes",
+          exportMinimized: true,
+          mystery: true
+        },
+        unsupportedField: true
+      }
+    });
+
+    expect(imported.project.exportOptions).toEqual({
+      embedTilesets: false,
+      detachTemplateInstances: false,
+      resolveObjectTypesAndProperties: false,
+      exportMinimized: true
+    });
+    expect(imported.issues).toEqual([
+      expect.objectContaining({
+        code: "project.pixelEditor.field.unknown",
+        path: "project.pixelEditor.unsupportedField"
+      }),
+      expect.objectContaining({
+        code: "project.exportOptions.field.unknown",
+        path: "project.pixelEditor.exportOptions.mystery"
+      }),
+      expect.objectContaining({
+        code: "project.exportOptions.invalid",
+        path: "project.pixelEditor.exportOptions.embedTilesets"
+      })
+    ]);
   });
 });

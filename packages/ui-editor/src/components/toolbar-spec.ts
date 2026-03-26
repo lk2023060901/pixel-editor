@@ -542,7 +542,9 @@ export function getTiledMainMenus(
       }),
       menuAction("refresh-project-folders", t("action.refreshFolders"), { implemented: false }),
       menuSeparator,
-      menuAction("project-properties", t("action.projectProperties"), { implemented: false })
+      menuAction("project-properties", t("action.projectProperties"), {
+        implemented: context.hasProject
+      })
     ]
   };
 

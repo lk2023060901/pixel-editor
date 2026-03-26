@@ -133,7 +133,14 @@ export {
   updateMapDetails,
   type UpdateMapDetailsInput
 } from "./map-operations";
-export { createProject, type CreateProjectInput, type EditorProject } from "./project";
+export {
+  createProject,
+  createProjectExportOptions,
+  type CreateProjectInput,
+  type EditorProject,
+  type EditorProjectExportOptions,
+  type UpdateProjectDetailsInput
+} from "./project";
 export { createObjectTemplate, type ObjectTemplate } from "./template";
 export {
   areTileCellsEqual,
@@ -156,4 +163,9 @@ export {
   type TileShapeBounds,
   type TileShapeGestureOptions
 } from "./tile-shape-operations";
-export { createWorld, type EditorWorld, type WorldMapReference } from "./world";
+export {
+  createWorld,
+  type EditorWorld,
+  type WorldMapReference,
+  type WorldPatternReference
+} from "./world";

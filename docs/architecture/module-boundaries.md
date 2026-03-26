@@ -10,6 +10,8 @@ Allowed dependency direction:
 
 `ui-editor -> app-services -> project -> editor-state -> domain`
 
+`ui-editor -> app-services -> template -> editor-state -> domain`
+
 `app-services -> command-engine`
 
 `app-services -> contracts`
@@ -229,6 +231,49 @@ Public API rules:
 - expose project-specific commands and helpers only
 - depend on shared domain and command primitives instead of duplicating them
 - keep project behavior reusable by both UI and future automation flows
+
+## `packages/template`
+
+Owns:
+
+- template-focused command composition
+- active template selection commands
+- reusable object template document creation helpers
+
+Must not own:
+
+- transport DTOs
+- React components
+- renderer internals
+- generic persistence adapters
+- template instance mutation workflows that belong to object editing
+
+Public API rules:
+
+- expose template-specific commands and helpers only
+- depend on shared domain and command primitives instead of duplicating them
+- keep template document behavior reusable by both UI and future import/export flows
+
+## `packages/world`
+
+Owns:
+
+- world-focused command composition
+- imported world document insertion workflows
+- reusable world mutation helpers shared by import/export and future world view flows
+
+Must not own:
+
+- transport DTOs
+- React components
+- renderer internals
+- generic persistence adapters
+
+Public API rules:
+
+- expose world-specific commands and helpers only
+- depend on shared domain and command primitives instead of duplicating them
+- keep world behavior reusable by both UI and future import/export flows
 
 ## `packages/renderer-pixi`
 

@@ -9,6 +9,7 @@ import {
   type ClassPropertyFieldDefinition,
   type EditorMap,
   type EditorProject,
+  type EditorProjectExportOptions,
   type EditorWorld,
   type GroupLayer,
   type LayerDefinition,
@@ -17,6 +18,7 @@ import {
   type ObjectTemplate,
   type PropertyDefinition,
   type PropertyTypeDefinition,
+  type UpdateProjectDetailsInput,
   type TilesetDefinition
 } from "@pixel-editor/domain";
 import type { EditorWorkspaceState } from "@pixel-editor/editor-state";
@@ -252,6 +254,59 @@ export function replaceProjectCommand(
         hasUnsavedChanges: true
       }
     })
+  });
+}
+
+function mergeProjectExportOptions(
+  currentExportOptions: EditorProjectExportOptions,
+  nextExportOptions: Partial<EditorProjectExportOptions> | undefined
+): EditorProjectExportOptions {
+  if (!nextExportOptions) {
+    return { ...currentExportOptions };
+  }
+
+  return {
+    ...currentExportOptions,
+    ...nextExportOptions
+  };
+}
+
+export function updateProjectDetailsCommand(
+  input: UpdateProjectDetailsInput
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "project.details.update",
+    description: "Update project details",
+    run: (state) => {
+      const nextProject: EditorProject = {
+        ...state.project,
+        compatibilityVersion: input.compatibilityVersion ?? state.project.compatibilityVersion,
+        extensionsDirectory: input.extensionsDirectory ?? state.project.extensionsDirectory,
+        exportOptions: mergeProjectExportOptions(
+          state.project.exportOptions,
+          input.exportOptions
+        )
+      };
+
+      if (input.automappingRulesFile !== undefined) {
+        const nextAutomappingRulesFile = input.automappingRulesFile?.trim();
+
+        if (nextAutomappingRulesFile) {
+          nextProject.automappingRulesFile = nextAutomappingRulesFile;
+        } else {
+          delete nextProject.automappingRulesFile;
+        }
+      }
+
+      return {
+        ...state,
+        project: nextProject,
+        session: {
+          ...state.session,
+          hasUnsavedChanges: true
+        }
+      };
+    }
   });
 }
 

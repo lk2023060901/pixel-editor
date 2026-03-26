@@ -7,11 +7,11 @@ import {
   createDefaultPropertyValue,
   createEntityId,
   createProject,
+  type EditorProjectExportOptions,
   getClassPropertyTypeDefinitionByName,
   getEnumPropertyTypeDefinitionByName,
   type ClassPropertyFieldDefinition,
   type ClassPropertyTypeDefinition,
-  type EditorProject,
   type EnumPropertyTypeDefinition,
   type PropertyTypeDefinition,
   type PropertyTypeName,
@@ -40,6 +40,7 @@ const KNOWN_PROJECT_FIELDS = new Set([
   "extensionsPath",
   "folders",
   "objectTypesFile",
+  "pixelEditor",
   "properties",
   "propertyTypes"
 ]);
@@ -103,6 +104,18 @@ function appendIssue(
   });
 }
 
+function appendInvalidProjectExportOptionIssue(
+  issues: TiledProjectImportIssue[],
+  path: string
+): void {
+  appendIssue(
+    issues,
+    path,
+    "project.exportOptions.invalid",
+    "Invalid project export option was ignored."
+  );
+}
+
 function normalizeProjectPath(path: string): string {
   const normalized = path.replaceAll("\\", "/").trim();
 
@@ -163,6 +176,95 @@ function compatibilityVersionToNumber(value: string): number | undefined {
   }
 
   return Number(match[1]) * 1000 + Number(match[2]) * 10;
+}
+
+function parseProjectExportOptions(
+  value: unknown,
+  issues: TiledProjectImportIssue[],
+  path: string
+): Partial<EditorProjectExportOptions> | undefined {
+  if (value === undefined) {
+    return undefined;
+  }
+
+  if (!isRecord(value)) {
+    appendIssue(
+      issues,
+      path,
+      "project.exportOptions.unsupported",
+      "Invalid project export options were ignored."
+    );
+    return undefined;
+  }
+
+  const nextOptions: Partial<EditorProjectExportOptions> = {};
+
+  for (const key of Object.keys(value)) {
+    if (
+      key !== "embedTilesets" &&
+      key !== "detachTemplateInstances" &&
+      key !== "resolveObjectTypesAndProperties" &&
+      key !== "exportMinimized"
+    ) {
+      appendIssue(
+        issues,
+        `${path}.${key}`,
+        "project.exportOptions.field.unknown",
+        `Unknown project export option \`${key}\` was ignored.`
+      );
+    }
+  }
+
+  const embedTilesets = optionalBoolean(value, "embedTilesets");
+
+  if (embedTilesets !== undefined) {
+    nextOptions.embedTilesets = embedTilesets;
+  } else if ("embedTilesets" in value) {
+    appendInvalidProjectExportOptionIssue(issues, `${path}.embedTilesets`);
+  }
+
+  const detachTemplateInstances = optionalBoolean(value, "detachTemplateInstances");
+
+  if (detachTemplateInstances !== undefined) {
+    nextOptions.detachTemplateInstances = detachTemplateInstances;
+  } else if ("detachTemplateInstances" in value) {
+    appendInvalidProjectExportOptionIssue(issues, `${path}.detachTemplateInstances`);
+  }
+
+  const resolveObjectTypesAndProperties = optionalBoolean(
+    value,
+    "resolveObjectTypesAndProperties"
+  );
+
+  if (resolveObjectTypesAndProperties !== undefined) {
+    nextOptions.resolveObjectTypesAndProperties = resolveObjectTypesAndProperties;
+  } else if ("resolveObjectTypesAndProperties" in value) {
+    appendInvalidProjectExportOptionIssue(
+      issues,
+      `${path}.resolveObjectTypesAndProperties`
+    );
+  }
+
+  const exportMinimized = optionalBoolean(value, "exportMinimized");
+
+  if (exportMinimized !== undefined) {
+    nextOptions.exportMinimized = exportMinimized;
+  } else if ("exportMinimized" in value) {
+    appendInvalidProjectExportOptionIssue(issues, `${path}.exportMinimized`);
+  }
+
+  return Object.keys(nextOptions).length > 0 ? nextOptions : undefined;
+}
+
+function serializeProjectExportOptions(
+  exportOptions: EditorProjectExportOptions
+): TiledProjectJsonObject {
+  return {
+    embedTilesets: exportOptions.embedTilesets,
+    detachTemplateInstances: exportOptions.detachTemplateInstances,
+    resolveObjectTypesAndProperties: exportOptions.resolveObjectTypesAndProperties,
+    exportMinimized: exportOptions.exportMinimized
+  };
 }
 
 function collectUnknownFieldIssues(
@@ -711,6 +813,23 @@ export function importTiledProjectDocument(
     optionalString(record, "extensionsPath") ?? "extensions"
   );
   const automappingRulesFileRaw = optionalString(record, "automappingRulesFile");
+  const pixelEditorRecord = (() => {
+    if (record.pixelEditor === undefined) {
+      return undefined;
+    }
+
+    if (!isRecord(record.pixelEditor)) {
+      appendIssue(
+        issues,
+        "project.pixelEditor",
+        "project.pixelEditor.unsupported",
+        "Invalid pixelEditor metadata was ignored."
+      );
+      return undefined;
+    }
+
+    return record.pixelEditor;
+  })();
   const compatibilityVersion = (() => {
     const value = record.compatibilityVersion;
 
@@ -784,6 +903,31 @@ export function importTiledProjectDocument(
     );
   }
 
+  const exportOptions = (() => {
+    if (!pixelEditorRecord) {
+      return undefined;
+    }
+
+    for (const key of Object.keys(pixelEditorRecord)) {
+      if (key === "exportOptions") {
+        continue;
+      }
+
+      appendIssue(
+        issues,
+        `project.pixelEditor.${key}`,
+        "project.pixelEditor.field.unknown",
+        `Unknown pixelEditor field \`${key}\` was ignored.`
+      );
+    }
+
+    return parseProjectExportOptions(
+      pixelEditorRecord.exportOptions,
+      issues,
+      "project.pixelEditor.exportOptions"
+    );
+  })();
+
   const project = createProject({
     name: deriveProjectName(options.documentPath),
     assetRoots,
@@ -792,6 +936,7 @@ export function importTiledProjectDocument(
     ...(automappingRulesFileRaw !== undefined && automappingRulesFileRaw.trim().length > 0
       ? { automappingRulesFile: normalizeProjectPath(automappingRulesFileRaw) }
       : {}),
+    ...(exportOptions !== undefined ? { exportOptions } : {}),
     propertyTypes
   });
   const assetReferences: AssetReferenceDescriptor[] = assetRoots.map((folder, index) =>
@@ -837,6 +982,9 @@ export function exportTiledProjectDocument(
     commands: [],
     extensionsPath: normalizeProjectPath(input.project.extensionsDirectory),
     folders: input.project.assetRoots.map((assetRoot) => normalizeProjectPath(assetRoot)),
+    pixelEditor: {
+      exportOptions: serializeProjectExportOptions(input.project.exportOptions)
+    },
     properties: [],
     propertyTypes: input.project.propertyTypes.map((propertyType, index) =>
       serializePropertyTypeDefinition(propertyType, index, input.project.propertyTypes)

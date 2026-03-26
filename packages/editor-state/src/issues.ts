@@ -2,10 +2,12 @@ export type EditorIssueSeverity = "warning" | "error";
 
 export type EditorIssueSourceKind =
   | "project"
+  | "world"
   | "tmj"
   | "tsj"
   | "tmx"
   | "tsx"
+  | "tx"
   | "validation";
 
 export interface EditorIssueEntry {

@@ -14,9 +14,11 @@ import { ObjectsPanel } from "./objects-panel";
 import { PropertiesInspector } from "./properties-inspector";
 import { ProjectPropertyTypesEditorDialog } from "./project-property-types-editor-dialog";
 import { ProjectDock } from "./project-dock";
+import { SaveTemplateDialog } from "./save-template-dialog";
 import { RendererCanvas } from "./renderer-canvas";
 import { EditorStatusBar } from "./editor-status-bar";
 import { IssuesPanel } from "./issues-panel";
+import { ProjectPropertiesDialog } from "./project-properties-dialog";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
 import {
   getTiledMainMenus,
@@ -240,8 +242,10 @@ export function EditorShell({ store }: EditorShellProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
   const [customTypesEditorOpen, setCustomTypesEditorOpen] = useState(false);
+  const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
   const [tileAnimationEditorOpen, setTileAnimationEditorOpen] = useState(false);
   const [tileCollisionEditorOpen, setTileCollisionEditorOpen] = useState(false);
+  const [saveTemplateDialogOpen, setSaveTemplateDialogOpen] = useState(false);
   const [statusInfo, setStatusInfo] = useState("");
   const menuBarRef = useRef<HTMLDivElement | null>(null);
   const snapshot = useSyncExternalStore(
@@ -260,6 +264,12 @@ export function EditorShell({ store }: EditorShellProps) {
     activeObjectLayer && selectedObjectId
       ? getObjectById(activeObjectLayer, selectedObjectId)
       : undefined;
+  const hasTemplateInstanceSelection =
+    activeObjectLayer !== undefined &&
+    snapshot.workspace.session.selection.kind === "object" &&
+    snapshot.workspace.session.selection.objectIds.some((objectId) =>
+      getObjectById(activeObjectLayer, objectId)?.templateId !== undefined
+    );
   const activeStamp = snapshot.workspace.session.activeStamp;
   const activeDocument =
     snapshot.bootstrap.documents.find(
@@ -269,6 +279,9 @@ export function EditorShell({ store }: EditorShellProps) {
     ...(activeMap ? [activeMap.id] : []),
     ...(snapshot.workspace.session.activeTilesetId !== undefined
       ? [snapshot.workspace.session.activeTilesetId]
+      : []),
+    ...(snapshot.workspace.session.activeTemplateId !== undefined
+      ? [snapshot.workspace.session.activeTemplateId]
       : [])
   ];
   const activeLayerIndex =
@@ -334,6 +347,14 @@ export function EditorShell({ store }: EditorShellProps) {
       document.removeEventListener("pointerdown", handlePointerDown);
     };
   }, [openMenuId]);
+
+  useEffect(() => {
+    if (!saveTemplateDialogOpen || activeObject) {
+      return;
+    }
+
+    setSaveTemplateDialogOpen(false);
+  }, [activeObject, saveTemplateDialogOpen]);
 
   function handleToolbarAction(action: ToolbarActionSpec): void {
     if (!action.implemented) {
@@ -415,6 +436,9 @@ export function EditorShell({ store }: EditorShellProps) {
       case "custom-types-editor":
         setCustomTypesEditorOpen((current) => !current);
         return;
+      case "project-properties":
+        setProjectPropertiesOpen((current) => !current);
+        return;
       case "zoom-in":
         startTransition(() => {
           store.zoomIn();
@@ -484,8 +508,30 @@ export function EditorShell({ store }: EditorShellProps) {
         embedded
         activeLayer={activeObjectLayer}
         clipboard={snapshot.runtime.clipboard}
+        hasTemplateInstanceSelection={hasTemplateInstanceSelection}
+        onDetachTemplateInstances={() => {
+          startTransition(() => {
+            store.detachSelectedTemplateInstances();
+          });
+        }}
+        onReplaceWithTemplate={() => {
+          startTransition(() => {
+            store.replaceSelectedObjectsWithActiveTemplate();
+          });
+        }}
+        onResetTemplateInstances={() => {
+          startTransition(() => {
+            store.resetSelectedTemplateInstances();
+          });
+        }}
+        onSaveAsTemplate={() => {
+          setSaveTemplateDialogOpen(true);
+        }}
         selection={snapshot.workspace.session.selection}
         store={store}
+        {...(snapshot.activeTemplate?.name !== undefined
+          ? { activeTemplateName: snapshot.activeTemplate.name }
+          : {})}
       />
     );
   } else if (upperRightDockTab === "mini-map") {
@@ -662,6 +708,11 @@ export function EditorShell({ store }: EditorShellProps) {
               if (asset.kind === "tileset" && asset.documentId !== undefined) {
                 setLowerRightDockTab("tilesets");
                 store.setActiveTileset(asset.documentId);
+                return;
+              }
+
+              if (asset.kind === "template" && asset.documentId !== undefined) {
+                store.setActiveTemplate(asset.documentId);
               }
             }}
           />
@@ -797,6 +848,15 @@ export function EditorShell({ store }: EditorShellProps) {
             }}
           />
         ) : null}
+        {projectPropertiesOpen ? (
+          <ProjectPropertiesDialog
+            project={snapshot.workspace.project}
+            store={store}
+            onClose={() => {
+              setProjectPropertiesOpen(false);
+            }}
+          />
+        ) : null}
         {tileCollisionEditorOpen && snapshot.activeTileset ? (
           <TileCollisionEditorDialog
             propertyTypes={snapshot.workspace.project.propertyTypes}
@@ -805,6 +865,15 @@ export function EditorShell({ store }: EditorShellProps) {
             tileset={snapshot.activeTileset}
             onClose={() => {
               setTileCollisionEditorOpen(false);
+            }}
+          />
+        ) : null}
+        {saveTemplateDialogOpen && activeObject ? (
+          <SaveTemplateDialog
+            objectName={activeObject.name}
+            store={store}
+            onClose={() => {
+              setSaveTemplateDialogOpen(false);
             }}
           />
         ) : null}

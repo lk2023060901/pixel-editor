@@ -23,6 +23,11 @@ export {
   importTsxTilesetDocument,
   stringifyTsxTilesetDocument
 } from "./tileset";
+export {
+  exportTxTemplateDocument,
+  importTxTemplateDocument,
+  stringifyTxTemplateDocument
+} from "./template";
 
 type XmlRecord = Record<string, unknown>;
 

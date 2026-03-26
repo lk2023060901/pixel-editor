@@ -8,9 +8,17 @@ import {
   type ImportedTiledProjectDocument
 } from "@pixel-editor/tiled-project";
 import {
+  stringifyTiledWorldDocument as exportTiledWorldDocumentAdapter,
+  importTiledWorldDocument as importTiledWorldDocumentAdapter,
+  type ImportedTiledWorldDocument
+} from "@pixel-editor/tiled-world";
+import {
+  exportTxTemplateDocument as exportTxTemplateDocumentAdapter,
   importTmxMapDocument as importTmxMapDocumentAdapter,
+  importTxTemplateDocument as importTxTemplateDocumentAdapter,
   importTsxTilesetDocument as importTsxTilesetDocumentAdapter,
   type ImportedTmxMapDocument,
+  type ImportedTxTemplateDocument,
   type ImportedTsxTilesetDocument
 } from "@pixel-editor/tiled-xml";
 import {
@@ -21,10 +29,14 @@ import {
 } from "@pixel-editor/tiled-json";
 import {
   createWangSetDefinition,
+  cloneMapObject,
   createMapObject,
+  attachTilesetToMap,
   getLayerById,
   getMapObjectBounds,
+  getMapGlobalTileGid,
   getObjectById,
+  resolveMapTileGid,
   getTilesetTileByLocalId,
   getTilesetWangSet,
   type Point,
@@ -39,14 +51,18 @@ import {
   type ObjectId,
   type ObjectLayer,
   type ObjectShape,
+  type ObjectTemplate,
   type PropertyDefinition,
   type PropertyTypeDefinition,
+  type TemplateId,
   type TileAnimationFrame,
+  type TilesetId,
   type TilesetDefinition,
   type UpdateMapObjectDetailsInput,
   type UpdateTileMetadataInput,
   type UpdateTilesetDetailsInput,
   type UpdateMapDetailsInput,
+  type UpdateProjectDetailsInput,
   type UpdateWangSetInput,
   type WangSetId,
   type WangSetType
@@ -64,6 +80,7 @@ import {
   getActiveLayer,
   getActiveMap,
   getActiveStampPrimaryGid,
+  getActiveTemplate,
   getActiveTileset,
   getCanvasPreviewTiles,
   getTileSelectionBounds,
@@ -125,8 +142,11 @@ import {
 } from "@pixel-editor/map";
 import {
   createRectangleObjectCommand,
+  detachTemplateInstancesCommand,
   moveObjectsCommand,
   pasteObjectClipboardCommand,
+  replaceObjectsWithTemplateCommand,
+  resetTemplateInstancesCommand,
   removeObjectPropertyCommand,
   removeSelectedObjectsCommand,
   selectObjectCommand,
@@ -135,8 +155,15 @@ import {
 } from "@pixel-editor/objects";
 import {
   replaceProjectCommand,
-  replaceProjectPropertyTypesCommand
+  replaceProjectPropertyTypesCommand,
+  updateProjectDetailsCommand
 } from "@pixel-editor/project";
+import {
+  addImportedTemplateCommand,
+  buildObjectTemplateDocument,
+  setActiveTemplateCommand
+} from "@pixel-editor/template";
+import { addImportedWorldCommand } from "@pixel-editor/world";
 import {
   addImportedTilesetCommand,
   createTilesetWangSetCommand,
@@ -208,6 +235,7 @@ export interface EditorRuntimeSnapshot {
   runtime: EditorRuntimeState;
   activeMap?: EditorMap;
   activeLayer?: LayerDefinition;
+  activeTemplate?: ObjectTemplate;
   activeTileset?: TilesetDefinition;
   canUndo: boolean;
   canRedo: boolean;
@@ -217,13 +245,22 @@ export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
   replaceProjectAssets(projectAssets: ProjectAssetSummary[]): void;
+  updateProjectDetails(input: UpdateProjectDetailsInput): void;
   replaceProjectPropertyTypes(propertyTypes: PropertyTypeDefinition[]): void;
   createMapDocument(input: CreateMapInput): string;
   importTiledProjectDocument(
     input: string | unknown,
     options?: ExternalDocumentImportOptions
   ): ImportedTiledProjectDocument;
+  importTiledWorldDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTiledWorldDocument;
   importTmxMapDocument(input: string, options?: ExternalDocumentImportOptions): ImportedTmxMapDocument;
+  importTxTemplateDocument(
+    input: string,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTxTemplateDocument;
   importTsxTilesetDocument(
     input: string,
     options?: ExternalDocumentImportOptions
@@ -240,6 +277,7 @@ export interface EditorController {
   setActiveMap(mapId: string): void;
   setActiveLayer(layerId: string): void;
   setActiveTileset(tilesetId: string): void;
+  setActiveTemplate(templateId: string): void;
   setActiveTool(tool: EditorToolId): void;
   setShapeFillMode(mode: ShapeFillMode): void;
   setActiveStamp(stamp: TileStamp): void;
@@ -250,10 +288,19 @@ export interface EditorController {
   cutSelectedTilesToClipboard(): void;
   pasteClipboardToSelection(): void;
   createRectangleObject(): void;
+  createTemplateFromSelectedObject(input?: {
+    name?: string;
+    path?: string;
+  }): string | undefined;
+  replaceSelectedObjectsWithActiveTemplate(): void;
+  resetSelectedTemplateInstances(): void;
+  detachSelectedTemplateInstances(): void;
   copySelectedObjectsToClipboard(): void;
   cutSelectedObjectsToClipboard(): void;
   pasteClipboardToActiveObjectLayer(): void;
   removeSelectedObjects(): void;
+  exportTiledWorldDocument(worldId: string): string | undefined;
+  exportTxTemplateDocument(templateId: string): string | undefined;
   beginObjectMove(
     objectId: ObjectId,
     x: number,
@@ -339,6 +386,54 @@ function createTileKey(x: number, y: number): string {
   return `${x}:${y}`;
 }
 
+function normalizeProjectAssetPath(path: string): string {
+  return path.replaceAll("\\", "/").trim().replace(/^\.\/+/, "");
+}
+
+function basename(path: string): string {
+  const normalizedPath = normalizeProjectAssetPath(path);
+  return normalizedPath.split("/").at(-1) ?? normalizedPath;
+}
+
+function ensureTemplateExtension(path: string): string {
+  return path.toLowerCase().endsWith(".tx") ? path : `${path}.tx`;
+}
+
+function slugifyPathSegment(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || "template";
+}
+
+function relativeProjectPath(fromPath: string, toPath: string): string {
+  const fromSegments = normalizeProjectAssetPath(fromPath)
+    .split("/")
+    .filter((segment) => segment.length > 0)
+    .slice(0, -1);
+  const toSegments = normalizeProjectAssetPath(toPath)
+    .split("/")
+    .filter((segment) => segment.length > 0);
+  let sharedLength = 0;
+
+  while (
+    sharedLength < fromSegments.length &&
+    sharedLength < toSegments.length &&
+    fromSegments[sharedLength] === toSegments[sharedLength]
+  ) {
+    sharedLength += 1;
+  }
+
+  const upwardSegments = fromSegments.slice(sharedLength).map(() => "..");
+  const downwardSegments = toSegments.slice(sharedLength);
+  const relativeSegments = [...upwardSegments, ...downwardSegments];
+
+  return relativeSegments.length > 0 ? relativeSegments.join("/") : ".";
+}
+
 function rasterizeLine(
   fromX: number,
   fromY: number,
@@ -395,10 +490,12 @@ function deriveIssueSourceKind(code: string): EditorIssueSourceKind {
 
   if (
     prefix === "project" ||
+    prefix === "world" ||
     prefix === "tmj" ||
     prefix === "tsj" ||
     prefix === "tmx" ||
-    prefix === "tsx"
+    prefix === "tsx" ||
+    prefix === "tx"
   ) {
     return prefix;
   }
@@ -436,6 +533,7 @@ class InMemoryEditorController implements EditorController {
     const workspace = this.history.state;
     const activeMap = getActiveMap(workspace);
     const activeLayer = getActiveLayer(workspace);
+    const activeTemplate = getActiveTemplate(workspace);
     const activeTileset = getActiveTileset(workspace);
 
     this.cachedSnapshot = {
@@ -446,6 +544,7 @@ class InMemoryEditorController implements EditorController {
       canRedo: this.history.canRedo,
       ...(activeMap ? { activeMap } : {}),
       ...(activeLayer ? { activeLayer } : {}),
+      ...(activeTemplate ? { activeTemplate } : {}),
       ...(activeTileset ? { activeTileset } : {})
     };
 
@@ -457,8 +556,101 @@ class InMemoryEditorController implements EditorController {
     this.emit();
   }
 
+  updateProjectDetails(input: UpdateProjectDetailsInput): void {
+    this.commit(updateProjectDetailsCommand(input));
+  }
+
   replaceProjectPropertyTypes(propertyTypes: PropertyTypeDefinition[]): void {
     this.commit(replaceProjectPropertyTypesCommand(propertyTypes));
+  }
+
+  private createProjectAssetSummary(input: {
+    kind: ProjectAssetSummary["kind"];
+    path: string;
+    documentId?: string;
+  }): ProjectAssetSummary {
+    const normalizedPath = normalizeProjectAssetPath(input.path);
+
+    return {
+      id: `${input.kind}:${normalizedPath}`,
+      kind: input.kind,
+      name: basename(normalizedPath),
+      path: normalizedPath,
+      ...(input.documentId !== undefined ? { documentId: input.documentId } : {})
+    };
+  }
+
+  private upsertProjectAsset(asset: ProjectAssetSummary): void {
+    const normalizedPath = normalizeProjectAssetPath(asset.path);
+    const existingIndex = this.projectAssets.findIndex(
+      (entry) =>
+        entry.kind === asset.kind &&
+        normalizeProjectAssetPath(entry.path) === normalizedPath
+    );
+
+    if (existingIndex >= 0) {
+      this.projectAssets = this.projectAssets.map((entry, index) =>
+        index === existingIndex ? asset : entry
+      );
+      return;
+    }
+
+    this.projectAssets = [...this.projectAssets, asset];
+  }
+
+  private getProjectAssetByDocumentId(
+    kind: ProjectAssetSummary["kind"],
+    documentId: string
+  ): ProjectAssetSummary | undefined {
+    return this.projectAssets.find(
+      (asset) => asset.kind === kind && asset.documentId === documentId
+    );
+  }
+
+  private getProjectAssetByPath(
+    kind: ProjectAssetSummary["kind"],
+    path: string
+  ): ProjectAssetSummary | undefined {
+    const normalizedPath = normalizeProjectAssetPath(path);
+
+    return this.projectAssets.find(
+      (asset) =>
+        asset.kind === kind &&
+        normalizeProjectAssetPath(asset.path) === normalizedPath
+    );
+  }
+
+  private createUniqueTemplatePath(name: string, explicitPath?: string): string {
+    const templateRoot =
+      this.history.state.project.assetRoots.find((assetRoot) =>
+        normalizeProjectAssetPath(assetRoot) === "templates"
+      ) ?? "templates";
+    const normalizedTemplateRoot = normalizeProjectAssetPath(templateRoot);
+    const explicitTemplatePath = explicitPath?.trim()
+      ? ensureTemplateExtension(normalizeProjectAssetPath(explicitPath))
+      : undefined;
+    const preferredPath = explicitTemplatePath
+      ? explicitTemplatePath.includes("/")
+        ? explicitTemplatePath
+        : `${normalizedTemplateRoot}/${explicitTemplatePath}`
+      : `${normalizedTemplateRoot}/${slugifyPathSegment(name)}.tx`;
+    let candidatePath = preferredPath;
+    let suffix = 2;
+    const existingPaths = new Set(
+      this.projectAssets
+        .filter((asset) => asset.kind === "template")
+        .map((asset) => normalizeProjectAssetPath(asset.path))
+    );
+
+    while (existingPaths.has(candidatePath)) {
+      const extensionIndex = preferredPath.toLowerCase().lastIndexOf(".tx");
+      const stem =
+        extensionIndex >= 0 ? preferredPath.slice(0, extensionIndex) : preferredPath;
+      candidatePath = `${stem}-${suffix}.tx`;
+      suffix += 1;
+    }
+
+    return candidatePath;
   }
 
   private resolveImportOptions(
@@ -736,6 +928,205 @@ class InMemoryEditorController implements EditorController {
     };
   }
 
+  private normalizeTemplateObjectForStorage(
+    object: MapObject,
+    options: {
+      activeMap?: EditorMap;
+      tilesetId?: TilesetId;
+      tileId?: number;
+    } = {}
+  ): { object: MapObject; tilesetIds: TilesetId[] } {
+    if (object.shape !== "tile" || !object.tile) {
+      return {
+        object: cloneMapObject(object),
+        tilesetIds: []
+      };
+    }
+
+    let tilesetId = options.tilesetId ?? object.tile.tilesetId;
+    let tileId = options.tileId ?? object.tile.tileId;
+
+    if ((tilesetId === undefined || tileId === undefined) && options.activeMap && object.tile.gid) {
+      const resolved = resolveMapTileGid(
+        options.activeMap,
+        this.history.state.tilesets,
+        object.tile.gid
+      );
+
+      if (resolved) {
+        tilesetId = resolved.tileset.id;
+        tileId = resolved.localId;
+      }
+    }
+
+    const gid =
+      tileId !== undefined
+        ? tileId + 1
+        : object.tile.gid;
+
+    return {
+      object: cloneMapObject(object, {
+        tile: {
+          ...(tilesetId !== undefined ? { tilesetId } : {}),
+          ...(tileId !== undefined ? { tileId } : {}),
+          ...(gid !== undefined ? { gid } : {})
+        }
+      }),
+      tilesetIds: tilesetId !== undefined ? [tilesetId] : []
+    };
+  }
+
+  private resolveImportedTemplateTileReference(
+    imported: ImportedTxTemplateDocument
+  ): { tilesetId: TilesetId; tileId: number } | undefined {
+    if (imported.template.object.shape !== "tile" || !imported.template.object.tile?.gid) {
+      return undefined;
+    }
+
+    const rawGid = imported.template.object.tile.gid;
+    const indexedReferences = imported.tilesetReferences
+      .map((reference, index) => ({
+        index,
+        reference
+      }))
+      .sort((left, right) => left.reference.firstGid - right.reference.firstGid);
+
+    for (let index = 0; index < indexedReferences.length; index += 1) {
+      const entry = indexedReferences[index]!;
+      const nextEntry = indexedReferences[index + 1];
+      const lastExclusiveGid = nextEntry?.reference.firstGid ?? Number.POSITIVE_INFINITY;
+
+      if (rawGid < entry.reference.firstGid || rawGid >= lastExclusiveGid) {
+        continue;
+      }
+
+      const assetReference = imported.assetReferences.find(
+        (reference) =>
+          reference.kind === "tileset" &&
+          reference.ownerPath === `tx.tilesets[${entry.index}].source`
+      );
+      const tilesetId =
+        assetReference !== undefined
+          ? this.getProjectAssetByPath("tileset", assetReference.resolvedPath)?.documentId
+          : undefined;
+
+      if (!tilesetId) {
+        continue;
+      }
+
+      return {
+        tilesetId: tilesetId as TilesetId,
+        tileId: rawGid - entry.reference.firstGid
+      };
+    }
+
+    const firstAssetReference = imported.assetReferences.find(
+      (reference) => reference.kind === "tileset"
+    );
+    const fallbackTilesetId =
+      firstAssetReference !== undefined
+        ? this.getProjectAssetByPath("tileset", firstAssetReference.resolvedPath)?.documentId
+        : undefined;
+
+    if (!fallbackTilesetId) {
+      return undefined;
+    }
+
+    return {
+      tilesetId: fallbackTilesetId as TilesetId,
+      tileId: rawGid - 1
+    };
+  }
+
+  private materializeTemplateObjectForMap(
+    template: ObjectTemplate,
+    map: EditorMap
+  ): { templateObject: MapObject; attachTilesetId?: TilesetId } | undefined {
+    if (template.object.shape !== "tile" || !template.object.tile) {
+      return {
+        templateObject: cloneMapObject(template.object)
+      };
+    }
+
+    const tilesetId = template.object.tile.tilesetId ?? template.tilesetIds[0];
+    const tileId =
+      template.object.tile.tileId ??
+      (template.object.tile.gid !== undefined ? template.object.tile.gid - 1 : undefined);
+
+    if (tilesetId === undefined || tileId === undefined || tileId < 0) {
+      return undefined;
+    }
+
+    const projectedMap = map.tilesetIds.includes(tilesetId)
+      ? map
+      : attachTilesetToMap(map, tilesetId);
+    const gid = getMapGlobalTileGid(
+      projectedMap,
+      this.history.state.tilesets,
+      tilesetId,
+      tileId
+    );
+
+    if (gid === undefined) {
+      return undefined;
+    }
+
+    return {
+      templateObject: cloneMapObject(template.object, {
+        tile: {
+          ...template.object.tile,
+          tilesetId,
+          tileId,
+          gid
+        }
+      }),
+      ...(projectedMap === map ? {} : { attachTilesetId: tilesetId })
+    };
+  }
+
+  private resolveSelectedTemplateInstances():
+    | {
+        activeMap: EditorMap;
+        activeLayer: ObjectLayer;
+        instances: Array<{ object: MapObject; template: ObjectTemplate }>;
+      }
+    | undefined {
+    const resolved = this.resolveActiveObjectLayer();
+
+    if (!resolved) {
+      return undefined;
+    }
+
+    const selection = this.history.state.session.selection;
+
+    if (!isObjectSelectionState(selection) || selection.objectIds.length === 0) {
+      return undefined;
+    }
+
+    const instances = selection.objectIds.flatMap((objectId) => {
+      const object = getObjectById(resolved.activeLayer, objectId);
+
+      if (!object?.templateId) {
+        return [];
+      }
+
+      const template = this.history.state.templates.find(
+        (entry) => entry.id === object.templateId
+      );
+
+      return template ? [{ object, template }] : [];
+    });
+
+    if (instances.length === 0) {
+      return undefined;
+    }
+
+    return {
+      ...resolved,
+      instances
+    };
+  }
+
   private commit(command: Parameters<CommandHistory<EditorWorkspaceState>["execute"]>[0]): void {
     this.history.execute(command);
     this.emit();
@@ -973,6 +1364,35 @@ class InMemoryEditorController implements EditorController {
     return imported;
   }
 
+  importTiledWorldDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTiledWorldDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
+    const imported = importTiledWorldDocumentAdapter(input, resolvedOptions);
+
+    this.recordImportIssues(
+      imported.world.id,
+      imported.world.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "world",
+          path: resolvedOptions.documentPath,
+          documentId: imported.world.id
+        })
+      );
+    }
+
+    this.commit(addImportedWorldCommand(imported.world));
+
+    return imported;
+  }
+
   importTmxMapDocument(
     input: string,
     options?: ExternalDocumentImportOptions
@@ -992,6 +1412,65 @@ class InMemoryEditorController implements EditorController {
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
+  }
+
+  importTxTemplateDocument(
+    input: string,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTxTemplateDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
+    const imported = importTxTemplateDocumentAdapter(input, resolvedOptions);
+    const tilesetIds = imported.assetReferences
+      .filter((reference) => reference.kind === "tileset")
+      .map((reference) =>
+        this.getProjectAssetByPath("tileset", reference.resolvedPath)?.documentId
+      )
+      .filter((tilesetId): tilesetId is string => tilesetId !== undefined);
+    const importedTileReference = this.resolveImportedTemplateTileReference(imported);
+    const normalizedTemplateObject = this.normalizeTemplateObjectForStorage(
+      imported.template.object,
+      {
+        ...(importedTileReference !== undefined
+          ? {
+              tilesetId: importedTileReference.tilesetId,
+              tileId: importedTileReference.tileId
+            }
+          : {})
+      }
+    );
+    const normalizedTilesetIds = [...new Set([...tilesetIds, ...normalizedTemplateObject.tilesetIds])];
+    const template: ObjectTemplate =
+      normalizedTilesetIds.length > 0 || normalizedTemplateObject.object !== imported.template.object
+        ? {
+            ...imported.template,
+            object: normalizedTemplateObject.object,
+            tilesetIds: normalizedTilesetIds as ObjectTemplate["tilesetIds"]
+          }
+        : imported.template;
+
+    this.recordImportIssues(
+      template.id,
+      template.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "template",
+          path: resolvedOptions.documentPath,
+          documentId: template.id
+        })
+      );
+    }
+
+    this.commit(addImportedTemplateCommand(template));
+
+    return {
+      ...imported,
+      template
+    };
   }
 
   importTsxTilesetDocument(
@@ -1123,6 +1602,17 @@ class InMemoryEditorController implements EditorController {
     this.commit(setActiveTilesetCommand(tileset.id));
   }
 
+  setActiveTemplate(templateId: string): void {
+    const template = this.history.state.templates.find((entry) => entry.id === templateId);
+
+    if (!template) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(setActiveTemplateCommand(template.id as TemplateId));
+  }
+
   setActiveTool(tool: EditorToolId): void {
     this.clearTransientInteractions();
     this.commit(setActiveToolCommand(tool));
@@ -1252,6 +1742,167 @@ class InMemoryEditorController implements EditorController {
     );
   }
 
+  createTemplateFromSelectedObject(input?: {
+    name?: string;
+    path?: string;
+  }): string | undefined {
+    const resolved = this.resolveSelectedObject();
+
+    if (!resolved) {
+      return undefined;
+    }
+
+    const nextName =
+      input?.name?.trim() ||
+      resolved.object.name.trim() ||
+      createIndexedName(
+        this.naming.objectNamePrefix,
+        this.history.state.templates.length + 1
+      );
+    const normalizedTemplateObject = this.normalizeTemplateObjectForStorage(
+      resolved.object,
+      {
+        activeMap: resolved.activeMap
+      }
+    );
+    const template = buildObjectTemplateDocument({
+      name: nextName,
+      object: normalizedTemplateObject.object,
+      tilesetIds: normalizedTemplateObject.tilesetIds
+    });
+    const path = this.createUniqueTemplatePath(nextName, input?.path);
+
+    this.upsertProjectAsset(
+      this.createProjectAssetSummary({
+        kind: "template",
+        path,
+        documentId: template.id
+      })
+    );
+    this.clearTransientInteractions();
+    this.commit(addImportedTemplateCommand(template));
+
+    return template.id;
+  }
+
+  replaceSelectedObjectsWithActiveTemplate(): void {
+    const resolved = this.resolveActiveObjectLayer();
+    const template = getActiveTemplate(this.history.state);
+    const selection = this.history.state.session.selection;
+
+    if (!resolved || !template || !isObjectSelectionState(selection) || selection.objectIds.length === 0) {
+      return;
+    }
+
+    const objectIds = selection.objectIds.filter((objectId) =>
+      Boolean(getObjectById(resolved.activeLayer, objectId))
+    );
+
+    if (objectIds.length === 0) {
+      return;
+    }
+
+    const materialized = this.materializeTemplateObjectForMap(
+      template,
+      resolved.activeMap
+    );
+
+    if (!materialized) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      replaceObjectsWithTemplateCommand({
+        mapId: resolved.activeMap.id,
+        layerId: resolved.activeLayer.id,
+        objectIds,
+        template,
+        templateObject: materialized.templateObject,
+        ...(materialized.attachTilesetId !== undefined
+          ? { attachTilesetId: materialized.attachTilesetId }
+          : {})
+      })
+    );
+  }
+
+  resetSelectedTemplateInstances(): void {
+    const resolved = this.resolveSelectedTemplateInstances();
+
+    if (!resolved) {
+      return;
+    }
+
+    const replacements = resolved.instances.flatMap((instance) => {
+      const materialized = this.materializeTemplateObjectForMap(
+        instance.template,
+        resolved.activeMap
+      );
+
+      if (!materialized) {
+        return [];
+      }
+
+      return [
+        {
+          objectId: instance.object.id,
+          templateId: instance.template.id,
+          templateObject: materialized.templateObject,
+          ...(materialized.attachTilesetId !== undefined
+            ? { attachTilesetId: materialized.attachTilesetId }
+            : {})
+        }
+      ];
+    });
+
+    if (replacements.length === 0) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      resetTemplateInstancesCommand({
+        mapId: resolved.activeMap.id,
+        layerId: resolved.activeLayer.id,
+        replacements: replacements.map(({ attachTilesetId: _ignored, ...entry }) => entry),
+        attachTilesetIds: [
+          ...new Set(
+            replacements
+              .map((entry) => entry.attachTilesetId)
+              .filter((tilesetId): tilesetId is TilesetId => tilesetId !== undefined)
+          )
+        ]
+      })
+    );
+  }
+
+  detachSelectedTemplateInstances(): void {
+    const resolved = this.resolveActiveObjectLayer();
+    const selection = this.history.state.session.selection;
+
+    if (!resolved || !isObjectSelectionState(selection) || selection.objectIds.length === 0) {
+      return;
+    }
+
+    const objectIds = selection.objectIds.filter((objectId) => {
+      const object = getObjectById(resolved.activeLayer, objectId);
+      return object?.templateId !== undefined;
+    });
+
+    if (objectIds.length === 0) {
+      return;
+    }
+
+    this.clearTransientInteractions();
+    this.commit(
+      detachTemplateInstancesCommand({
+        mapId: resolved.activeMap.id,
+        layerId: resolved.activeLayer.id,
+        objectIds
+      })
+    );
+  }
+
   copySelectedObjectsToClipboard(): void {
     const clipboard = this.buildObjectClipboardFromSelection();
 
@@ -1324,6 +1975,55 @@ class InMemoryEditorController implements EditorController {
         selection
       )
     );
+  }
+
+  exportTiledWorldDocument(worldId: string): string | undefined {
+    const world = this.history.state.worlds.find((entry) => entry.id === worldId);
+
+    if (!world) {
+      return undefined;
+    }
+
+    const worldAsset = this.getProjectAssetByDocumentId("world", world.id);
+
+    return exportTiledWorldDocumentAdapter({
+      world,
+      ...(worldAsset !== undefined ? { documentPath: worldAsset.path } : {})
+    });
+  }
+
+  exportTxTemplateDocument(templateId: string): string | undefined {
+    const template = this.history.state.templates.find((entry) => entry.id === templateId);
+
+    if (!template) {
+      return undefined;
+    }
+
+    let tilesetSource: string | undefined;
+
+    if (template.object.shape === "tile" && template.object.tile) {
+      const tilesetId =
+        template.object.tile.tilesetId ?? template.tilesetIds[0];
+      const tilesetAsset =
+        tilesetId !== undefined
+          ? this.getProjectAssetByDocumentId("tileset", tilesetId)
+          : undefined;
+
+      if (!tilesetAsset) {
+        return undefined;
+      }
+
+      const templateAsset = this.getProjectAssetByDocumentId("template", template.id);
+      tilesetSource =
+        templateAsset !== undefined
+          ? relativeProjectPath(templateAsset.path, tilesetAsset.path)
+          : normalizeProjectAssetPath(tilesetAsset.path);
+    }
+
+    return exportTxTemplateDocumentAdapter({
+      template,
+      ...(tilesetSource !== undefined ? { tilesetSource } : {})
+    });
   }
 
   beginObjectMove(

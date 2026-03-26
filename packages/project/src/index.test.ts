@@ -17,7 +17,8 @@ import { createEditorWorkspaceState } from "@pixel-editor/editor-state";
 
 import {
   replaceProjectCommand,
-  replaceProjectPropertyTypesCommand
+  replaceProjectPropertyTypesCommand,
+  updateProjectDetailsCommand
 } from "./index";
 
 describe("replaceProjectCommand", () => {
@@ -264,6 +265,43 @@ describe("replaceProjectPropertyTypesCommand", () => {
     expect(after.worlds[0]?.properties).toContainEqual(
       expect.objectContaining({ propertyTypeName: "BiomeType" })
     );
+    expect(after.session.hasUnsavedChanges).toBe(true);
+  });
+});
+
+describe("updateProjectDetailsCommand", () => {
+  it("updates compatibility, paths and export preferences without replacing the project identity", () => {
+    const before = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"],
+        automappingRulesFile: "rules.txt"
+      })
+    });
+
+    const after = updateProjectDetailsCommand({
+      compatibilityVersion: "latest",
+      extensionsDirectory: "scripts/extensions",
+      automappingRulesFile: null,
+      exportOptions: {
+        embedTilesets: true,
+        exportMinimized: true
+      }
+    }).run(before);
+
+    expect(after.project).toMatchObject({
+      id: before.project.id,
+      name: "demo",
+      compatibilityVersion: "latest",
+      extensionsDirectory: "scripts/extensions",
+      exportOptions: {
+        embedTilesets: true,
+        detachTemplateInstances: false,
+        resolveObjectTypesAndProperties: false,
+        exportMinimized: true
+      }
+    });
+    expect(after.project.automappingRulesFile).toBeUndefined();
     expect(after.session.hasUnsavedChanges).toBe(true);
   });
 });

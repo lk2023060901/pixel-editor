@@ -192,6 +192,34 @@ describe("editor controller", () => {
     );
   });
 
+  it("updates project details through the controller", () => {
+    const store = createTestEditorStore("demo");
+
+    store.updateProjectDetails({
+      compatibilityVersion: "latest",
+      extensionsDirectory: "scripts/extensions",
+      automappingRulesFile: "rules.txt",
+      exportOptions: {
+        embedTilesets: true,
+        detachTemplateInstances: true
+      }
+    });
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.project).toMatchObject({
+      compatibilityVersion: "latest",
+      extensionsDirectory: "scripts/extensions",
+      automappingRulesFile: "rules.txt",
+      exportOptions: {
+        embedTilesets: true,
+        detachTemplateInstances: true,
+        resolveObjectTypesAndProperties: false,
+        exportMinimized: false
+      }
+    });
+  });
+
   it("imports a TMJ document into the workspace through the controller", () => {
     const store = createTestEditorStore("demo");
     const initialMapCount = store.getState().maps.length;
@@ -267,6 +295,446 @@ describe("editor controller", () => {
       }
     ]);
     expect(imported.issues).toEqual([]);
+  });
+
+  it("creates and exports TX templates from the selected object through the controller", () => {
+    const tileset = {
+      ...createTileset({
+        name: "Terrain",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [
+        {
+          ...createTileDefinition(0),
+          imageSource: "../tilesets/terrain.png"
+        }
+      ]
+    };
+    const templateObject = createMapObject({
+      name: "Spawn",
+      shape: "tile",
+      x: 32,
+      y: 64,
+      width: 32,
+      height: 32,
+      tile: {
+        gid: 1
+      }
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      objects: [templateObject]
+    });
+    const map = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [objectLayer],
+      tilesetIds: [tileset.id]
+    });
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"]
+        }),
+        maps: [map],
+        tilesets: [tileset],
+        session: {
+          activeMapId: map.id,
+          activeLayerId: objectLayer.id,
+          selection: {
+            kind: "object",
+            objectIds: [templateObject.id]
+          }
+        }
+      }),
+      {
+        projectAssets: [
+          {
+            id: "tileset:tilesets/terrain.tsx",
+            kind: "tileset",
+            name: "terrain.tsx",
+            path: "tilesets/terrain.tsx",
+            documentId: tileset.id
+          }
+        ]
+      }
+    );
+
+    const templateId = store.createTemplateFromSelectedObject({
+      name: "Spawn Template"
+    });
+    const snapshot = store.getSnapshot();
+    const exported = templateId ? store.exportTxTemplateDocument(templateId) : undefined;
+
+    expect(templateId).toBeDefined();
+    expect(snapshot.workspace.templates).toMatchObject([
+      {
+        name: "Spawn Template",
+        tilesetIds: [tileset.id],
+        object: {
+          name: "Spawn",
+          shape: "tile",
+          tile: {
+            gid: 1,
+            tilesetId: tileset.id,
+            tileId: 0
+          }
+        }
+      }
+    ]);
+    expect(snapshot.workspace.session.activeTemplateId).toBe(templateId);
+    expect(snapshot.bootstrap.projectAssets).toContainEqual(
+      expect.objectContaining({
+        kind: "template",
+        path: "templates/spawn-template.tx",
+        documentId: templateId
+      })
+    );
+    expect(exported).toContain("<template>");
+    expect(exported).toContain('<tileset firstgid="1" source="../tilesets/terrain.tsx"/>');
+  });
+
+  it("imports TX templates into the workspace and records TX issues", () => {
+    const tileset = {
+      ...createTileset({
+        name: "Terrain",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [
+        {
+          ...createTileDefinition(0),
+          imageSource: "../tilesets/terrain.png"
+        }
+      ]
+    };
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"]
+        }),
+        tilesets: [tileset]
+      }),
+      {
+        projectAssets: [
+          {
+            id: "tileset:tilesets/terrain.tsx",
+            kind: "tileset",
+            name: "terrain.tsx",
+            path: "tilesets/terrain.tsx",
+            documentId: tileset.id
+          }
+        ]
+      }
+    );
+
+    const imported = store.importTxTemplateDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<template>
+  <tileset firstgid="1" name="Embedded" tilewidth="32" tileheight="32" tilecount="1" columns="1">
+    <image source="../tilesets/terrain.png" width="32" height="32"/>
+  </tileset>
+  <object id="1" name="Spawn" gid="1" x="32" y="64" width="32" height="32"/>
+</template>`, {
+      documentPath: "templates/spawn.tx"
+    });
+    const snapshot = store.getSnapshot();
+
+    expect(imported.template.name).toBe("spawn");
+    expect(snapshot.workspace.templates).toHaveLength(1);
+    expect(snapshot.workspace.templates[0]?.object.tile).toMatchObject({
+      gid: 1
+    });
+    expect(snapshot.bootstrap.projectAssets).toContainEqual(
+      expect.objectContaining({
+        kind: "template",
+        path: "templates/spawn.tx",
+        documentId: imported.template.id
+      })
+    );
+    expect(snapshot.runtime.issues.entries).toEqual([
+      expect.objectContaining({
+        documentName: "spawn",
+        sourceKind: "tx",
+        code: "tx.tileset.embeddedUnsupported",
+        path: "tx.tilesets[0]"
+      })
+    ]);
+  });
+
+  it("replaces selected objects with the active template while remapping tile gids for the target map", () => {
+    const terrainTileset = {
+      ...createTileset({
+        name: "Terrain",
+        kind: "image",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1)]
+    };
+    const propsTileset = {
+      ...createTileset({
+        name: "Props",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0)]
+    };
+    const targetObject = createMapObject({
+      name: "Spawn",
+      shape: "rectangle",
+      x: 96,
+      y: 128,
+      width: 16,
+      height: 20
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      objects: [targetObject]
+    });
+    const map = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [objectLayer],
+      tilesetIds: [terrainTileset.id]
+    });
+    const template = createObjectTemplate(
+      "Torch Template",
+      createMapObject({
+        name: "Torch",
+        className: "Decoration",
+        shape: "tile",
+        width: 32,
+        height: 32,
+        properties: [createProperty("kind", "string", "torch")],
+        tile: {
+          tilesetId: propsTileset.id,
+          tileId: 0,
+          gid: 1
+        }
+      }),
+      [propsTileset.id]
+    );
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"]
+        }),
+        maps: [map],
+        tilesets: [terrainTileset, propsTileset],
+        templates: [template],
+        session: {
+          activeMapId: map.id,
+          activeLayerId: objectLayer.id,
+          activeTemplateId: template.id,
+          selection: {
+            kind: "object",
+            objectIds: [targetObject.id]
+          }
+        }
+      })
+    );
+
+    store.replaceSelectedObjectsWithActiveTemplate();
+
+    const snapshot = store.getSnapshot();
+    const replacedObject =
+      snapshot.activeLayer?.kind === "object" ? snapshot.activeLayer.objects[0] : undefined;
+    const expectedGid = getMapGlobalTileGid(
+      snapshot.activeMap!,
+      snapshot.workspace.tilesets,
+      propsTileset.id,
+      0
+    );
+
+    expect(expectedGid).toBeDefined();
+
+    expect(snapshot.activeMap?.tilesetIds).toEqual([terrainTileset.id, propsTileset.id]);
+    expect(replacedObject).toMatchObject({
+      id: targetObject.id,
+      name: "Torch",
+      className: "Decoration",
+      x: 96,
+      y: 128,
+      width: 32,
+      height: 32,
+      templateId: template.id,
+      properties: [createProperty("kind", "string", "torch")],
+      tile: {
+        tilesetId: propsTileset.id,
+        tileId: 0,
+        gid: expectedGid!
+      }
+    });
+  });
+
+  it("resets selected template instances to their template state while preserving ids and positions", () => {
+    const template = createObjectTemplate(
+      "Marker Template",
+      createMapObject({
+        name: "Marker",
+        className: "Encounter",
+        shape: "ellipse",
+        width: 24,
+        height: 24,
+        rotation: 15,
+        visible: false,
+        properties: [createProperty("facing", "string", "north")]
+      })
+    );
+    const instance = createMapObject({
+      name: "Changed Marker",
+      className: "Override",
+      shape: "rectangle",
+      x: 96,
+      y: 128,
+      width: 12,
+      height: 40,
+      rotation: 45,
+      properties: [createProperty("facing", "string", "south")],
+      templateId: template.id
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      objects: [instance]
+    });
+    const map = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [objectLayer]
+    });
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "templates"]
+        }),
+        maps: [map],
+        templates: [template],
+        session: {
+          activeMapId: map.id,
+          activeLayerId: objectLayer.id,
+          selection: {
+            kind: "object",
+            objectIds: [instance.id]
+          }
+        }
+      })
+    );
+
+    store.resetSelectedTemplateInstances();
+
+    const snapshot = store.getSnapshot();
+    const resetObject =
+      snapshot.activeLayer?.kind === "object" ? snapshot.activeLayer.objects[0] : undefined;
+
+    expect(resetObject).toMatchObject({
+      id: instance.id,
+      name: "Marker",
+      className: "Encounter",
+      shape: "ellipse",
+      x: 96,
+      y: 128,
+      width: 24,
+      height: 24,
+      rotation: 15,
+      visible: false,
+      templateId: template.id,
+      properties: [createProperty("facing", "string", "north")]
+    });
+  });
+
+  it("detaches selected template instances while preserving the current object state", () => {
+    const template = createObjectTemplate(
+      "Torch Template",
+      createMapObject({
+        name: "Torch",
+        className: "Decoration",
+        shape: "tile",
+        width: 32,
+        height: 32,
+        properties: [createProperty("kind", "string", "torch")]
+      })
+    );
+    const instance = createMapObject({
+      name: "Torch",
+      className: "Decoration",
+      shape: "tile",
+      x: 96,
+      y: 128,
+      width: 32,
+      height: 32,
+      properties: [createProperty("kind", "string", "torch")],
+      templateId: template.id
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      objects: [instance]
+    });
+    const map = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [objectLayer]
+    });
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "templates"]
+        }),
+        maps: [map],
+        templates: [template],
+        session: {
+          activeMapId: map.id,
+          activeLayerId: objectLayer.id,
+          selection: {
+            kind: "object",
+            objectIds: [instance.id]
+          }
+        }
+      })
+    );
+
+    store.detachSelectedTemplateInstances();
+
+    const snapshot = store.getSnapshot();
+    const detachedObject =
+      snapshot.activeLayer?.kind === "object" ? snapshot.activeLayer.objects[0] : undefined;
+
+    expect(detachedObject).toMatchObject({
+      id: instance.id,
+      name: "Torch",
+      className: "Decoration",
+      shape: "tile",
+      x: 96,
+      y: 128,
+      width: 32,
+      height: 32,
+      properties: [createProperty("kind", "string", "torch")]
+    });
+    expect(detachedObject?.templateId).toBeUndefined();
   });
 
   it("imports a TSJ tileset into the workspace through the controller", () => {
@@ -435,6 +903,113 @@ describe("editor controller", () => {
       })
     ]);
     expect(snapshot.workspace.session.hasUnsavedChanges).toBe(true);
+  });
+
+  it("imports and exports world documents through the controller", () => {
+    const store = createTestEditorStore("demo");
+
+    const imported = store.importTiledWorldDocument(
+      {
+        type: "world",
+        maps: [
+          {
+            fileName: "../maps/starter-map.tmj",
+            x: 0,
+            y: 0,
+            width: 320,
+            height: 160
+          }
+        ],
+        properties: [
+          {
+            name: "rules",
+            type: "file",
+            value: "../rules/biome.txt"
+          }
+        ],
+        onlyShowAdjacentMaps: true
+      },
+      {
+        documentPath: "worlds/demo.world",
+        assetRoots: ["maps", "worlds", "rules"]
+      }
+    );
+    const snapshot = store.getSnapshot();
+    const exported = store.exportTiledWorldDocument(imported.world.id);
+
+    expect(snapshot.workspace.worlds).toHaveLength(1);
+    expect(snapshot.workspace.worlds[0]).toMatchObject({
+      name: "demo",
+      maps: [
+        {
+          fileName: "maps/starter-map.tmj",
+          x: 0,
+          y: 0,
+          width: 320,
+          height: 160
+        }
+      ],
+      onlyShowAdjacentMaps: true
+    });
+    expect(imported.assetReferences).toEqual([
+      expect.objectContaining({
+        kind: "map",
+        ownerPath: "world.maps[0].fileName",
+        resolvedPath: "maps/starter-map.tmj"
+      }),
+      expect.objectContaining({
+        kind: "property-file",
+        ownerPath: "world.properties[0].value",
+        resolvedPath: "rules/biome.txt"
+      })
+    ]);
+    expect(imported.issues).toEqual([]);
+    expect(snapshot.bootstrap.projectAssets).toContainEqual(
+      expect.objectContaining({
+        kind: "world",
+        path: "worlds/demo.world",
+        documentId: imported.world.id
+      })
+    );
+    expect(exported).toBeDefined();
+    expect(exported).toContain('"type": "world"');
+    expect(exported).toContain('"fileName": "../maps/starter-map.tmj"');
+  });
+
+  it("records world import issues with world source kind", () => {
+    const store = createTestEditorStore("demo");
+
+    store.importTiledWorldDocument(
+      {
+        type: "world",
+        patterns: [
+          {
+            regexp: "chunk_(\\d+)\\.tmj"
+          }
+        ]
+      },
+      {
+        documentPath: "worlds/broken.world"
+      }
+    );
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.runtime.issues.panelOpen).toBe(true);
+    expect(snapshot.runtime.issues.entries).toEqual([
+      expect.objectContaining({
+        documentName: "broken",
+        sourceKind: "world",
+        code: "world.pattern.captureCount.invalid",
+        path: "world.patterns[0].regexp"
+      }),
+      expect.objectContaining({
+        documentName: "broken",
+        sourceKind: "world",
+        code: "world.empty",
+        path: "world"
+      })
+    ]);
   });
 
   it("applies localized naming config to generated maps, layers and objects", () => {

@@ -1,4 +1,5 @@
 export type AssetReferenceKind =
+  | "map"
   | "tileset"
   | "image"
   | "template"

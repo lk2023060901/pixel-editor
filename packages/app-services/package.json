@@ -13,8 +13,13 @@
     "@pixel-editor/editor-state": "0.1.0",
     "@pixel-editor/map": "0.1.0",
     "@pixel-editor/objects": "0.1.0",
+    "@pixel-editor/project": "0.1.0",
+    "@pixel-editor/template": "0.1.0",
     "@pixel-editor/tiled-json": "0.1.0",
+    "@pixel-editor/tiled-project": "0.1.0",
+    "@pixel-editor/tiled-world": "0.1.0",
     "@pixel-editor/tiled-xml": "0.1.0",
-    "@pixel-editor/tileset": "0.1.0"
+    "@pixel-editor/tileset": "0.1.0",
+    "@pixel-editor/world": "0.1.0"
   }
 }

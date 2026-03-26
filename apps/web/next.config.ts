@@ -12,9 +12,12 @@ const nextConfig: NextConfig = {
     "@pixel-editor/map",
     "@pixel-editor/objects",
     "@pixel-editor/project",
+    "@pixel-editor/template",
+    "@pixel-editor/world",
     "@pixel-editor/renderer-pixi",
     "@pixel-editor/tiled-json",
     "@pixel-editor/tiled-project",
+    "@pixel-editor/tiled-world",
     "@pixel-editor/tiled-xml",
     "@pixel-editor/tileset",
     "@pixel-editor/ui-editor"

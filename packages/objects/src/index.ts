@@ -3,6 +3,7 @@ import {
   type HistoryCommand
 } from "@pixel-editor/command-engine";
 import {
+  attachTilesetToMap,
   appendObjectsToLayer,
   cloneMapObject,
   createMapObject,
@@ -17,7 +18,10 @@ import {
   type MapObject,
   type ObjectBoundsRect,
   type ObjectId,
+  type ObjectTemplate,
   type PropertyDefinition,
+  type TemplateId,
+  type TilesetId,
   type UpdateMapObjectDetailsInput
 } from "@pixel-editor/domain";
 import type {
@@ -107,6 +111,215 @@ export function createRectangleObjectCommand(
       height: input.height
     })
   );
+}
+
+export function replaceObjectsWithTemplateCommand(input: {
+  mapId: MapId;
+  layerId: LayerId;
+  objectIds: readonly ObjectId[];
+  template: ObjectTemplate;
+  templateObject: MapObject;
+  attachTilesetId?: TilesetId;
+}): HistoryCommand<EditorWorkspaceState> {
+  if (input.objectIds.length === 0) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "object.replaceWithTemplate",
+      description: "Replace empty object selection with template",
+      run: (state) => state
+    });
+  }
+
+  const selection = [...input.objectIds];
+
+  return createHistoryCommand({
+    id: "object.replaceWithTemplate",
+    description: `Replace ${selection.length} object(s) with template ${input.template.name}`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) => {
+        if (map.id !== input.mapId) {
+          return map;
+        }
+
+        const nextMap =
+          input.attachTilesetId !== undefined
+            ? attachTilesetToMap(map, input.attachTilesetId)
+            : map;
+
+        return updateLayerInMap(nextMap, input.layerId, (layer) => {
+          if (layer.kind !== "object") {
+            return layer;
+          }
+
+          const targetIds = new Set(selection);
+
+          return {
+            ...layer,
+            objects: layer.objects.map((object) => {
+              if (!targetIds.has(object.id)) {
+                return object;
+              }
+
+              return {
+                ...cloneMapObject(input.templateObject, {
+                  x: object.x,
+                  y: object.y,
+                  templateId: input.template.id
+                }),
+                id: object.id
+              };
+            })
+          };
+        });
+      }),
+      session: {
+        ...state.session,
+        activeLayerId: input.layerId,
+        selection: {
+          kind: "object",
+          objectIds: selection
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+function detachTemplateInstance(object: MapObject): MapObject {
+  const detachedObject = cloneMapObject(object);
+  detachedObject.id = object.id;
+  delete detachedObject.templateId;
+  return detachedObject;
+}
+
+export function resetTemplateInstancesCommand(input: {
+  mapId: MapId;
+  layerId: LayerId;
+  replacements: ReadonlyArray<{
+    objectId: ObjectId;
+    templateId: TemplateId;
+    templateObject: MapObject;
+  }>;
+  attachTilesetIds?: readonly TilesetId[];
+}): HistoryCommand<EditorWorkspaceState> {
+  if (input.replacements.length === 0) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "object.resetTemplateInstances",
+      description: "Reset empty template instance selection",
+      run: (state) => state
+    });
+  }
+
+  const replacementEntries = [...input.replacements];
+  const selection = replacementEntries.map((entry) => entry.objectId);
+
+  return createHistoryCommand({
+    id: "object.resetTemplateInstances",
+    description: `Reset ${selection.length} template instance(s)`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) => {
+        if (map.id !== input.mapId) {
+          return map;
+        }
+
+        const nextMap = (input.attachTilesetIds ?? []).reduce(
+          (currentMap, tilesetId) => attachTilesetToMap(currentMap, tilesetId),
+          map
+        );
+
+        return updateLayerInMap(nextMap, input.layerId, (layer) => {
+          if (layer.kind !== "object") {
+            return layer;
+          }
+
+          const replacementsByObjectId = new Map(
+            replacementEntries.map((entry) => [entry.objectId, entry])
+          );
+
+          return {
+            ...layer,
+            objects: layer.objects.map((object) => {
+              const replacement = replacementsByObjectId.get(object.id);
+
+              if (!replacement) {
+                return object;
+              }
+
+              return {
+                ...cloneMapObject(replacement.templateObject, {
+                  x: object.x,
+                  y: object.y,
+                  templateId: replacement.templateId
+                }),
+                id: object.id
+              };
+            })
+          };
+        });
+      }),
+      session: {
+        ...state.session,
+        activeLayerId: input.layerId,
+        selection: {
+          kind: "object",
+          objectIds: selection
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function detachTemplateInstancesCommand(input: {
+  mapId: MapId;
+  layerId: LayerId;
+  objectIds: readonly ObjectId[];
+}): HistoryCommand<EditorWorkspaceState> {
+  if (input.objectIds.length === 0) {
+    return createHistoryCommand<EditorWorkspaceState>({
+      id: "object.detachTemplateInstances",
+      description: "Detach empty template instance selection",
+      run: (state) => state
+    });
+  }
+
+  const selection = [...input.objectIds];
+
+  return createHistoryCommand({
+    id: "object.detachTemplateInstances",
+    description: `Detach ${selection.length} template instance(s)`,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) =>
+        map.id === input.mapId
+          ? updateLayerInMap(map, input.layerId, (layer) => {
+              if (layer.kind !== "object") {
+                return layer;
+              }
+
+              const targetIds = new Set(selection);
+
+              return {
+                ...layer,
+                objects: layer.objects.map((object) =>
+                  targetIds.has(object.id) ? detachTemplateInstance(object) : object
+                )
+              };
+            })
+          : map
+      ),
+      session: {
+        ...state.session,
+        activeLayerId: input.layerId,
+        selection: {
+          kind: "object",
+          objectIds: selection
+        },
+        hasUnsavedChanges: true
+      }
+    })
+  });
 }
 
 export function removeSelectedObjectsCommand(

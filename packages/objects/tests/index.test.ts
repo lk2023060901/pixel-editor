@@ -3,16 +3,23 @@ import { describe, expect, it } from "vitest";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
   createMapObject,
+  createObjectTemplate,
   createProperty,
-  createProject
+  createProject,
+  createTileDefinition,
+  createTileset,
+  getMapGlobalTileGid
 } from "@pixel-editor/domain";
 import { createEditorWorkspaceState } from "@pixel-editor/editor-state";
 import { createMapDocumentCommand } from "@pixel-editor/map";
 
 import {
   addObjectCommand,
+  detachTemplateInstancesCommand,
   moveObjectsCommand,
   pasteObjectClipboardCommand,
+  replaceObjectsWithTemplateCommand,
+  resetTemplateInstancesCommand,
   removeObjectPropertyCommand,
   removeSelectedObjectsCommand,
   selectObjectCommand,
@@ -228,5 +235,271 @@ describe("object commands", () => {
     expect(
       withoutPropertyLayer?.kind === "object" ? withoutPropertyLayer.objects[0]?.properties : []
     ).toEqual([]);
+  });
+
+  it("replaces selected objects with template instances while preserving object ids and positions", () => {
+    const propsTileset = {
+      ...createTileset({
+        name: "Props",
+        kind: "image-collection",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0)]
+    };
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps", "tilesets", "templates"]
+      }),
+      tilesets: [propsTileset]
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const objectLayer = map.layers.find((layer) => layer.kind === "object")!;
+    const object = createMapObject({
+      name: "Spawn",
+      shape: "rectangle",
+      x: 32,
+      y: 64,
+      width: 16,
+      height: 24
+    });
+    const template = createObjectTemplate(
+      "Torch Template",
+      createMapObject({
+        name: "Torch",
+        className: "Decoration",
+        shape: "tile",
+        x: 0,
+        y: 0,
+        width: 32,
+        height: 32,
+        properties: [createProperty("kind", "string", "torch")],
+        tile: {
+          tilesetId: propsTileset.id,
+          tileId: 0,
+          gid: 1
+        }
+      }),
+      [propsTileset.id]
+    );
+    const expectedGid = getMapGlobalTileGid(
+      {
+        ...map,
+        tilesetIds: [...map.tilesetIds, propsTileset.id]
+      },
+      history.state.tilesets,
+      propsTileset.id,
+      0
+    );
+
+    expect(expectedGid).toBeDefined();
+
+    history.execute(addObjectCommand(map.id, objectLayer.id, object));
+    history.execute(
+      replaceObjectsWithTemplateCommand({
+        mapId: map.id,
+        layerId: objectLayer.id,
+        objectIds: [object.id],
+        template,
+        templateObject: {
+          ...template.object,
+          tile: {
+            ...template.object.tile,
+            gid: expectedGid!
+          }
+        },
+        attachTilesetId: propsTileset.id
+      })
+    );
+
+    const replacedLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "object");
+    const replacedObject =
+      replacedLayer?.kind === "object" ? replacedLayer.objects[0] : undefined;
+
+    expect(history.state.maps[0]?.tilesetIds).toContain(propsTileset.id);
+    expect(replacedObject).toMatchObject({
+      id: object.id,
+      name: "Torch",
+      className: "Decoration",
+      x: 32,
+      y: 64,
+      width: 32,
+      height: 32,
+      templateId: template.id,
+      properties: [createProperty("kind", "string", "torch")],
+      tile: {
+        tilesetId: propsTileset.id,
+        tileId: 0,
+        gid: expectedGid!
+      }
+    });
+  });
+
+  it("resets template instances back to their template state while preserving ids and positions", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps", "templates"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const objectLayer = map.layers.find((layer) => layer.kind === "object")!;
+    const template = createObjectTemplate(
+      "Marker Template",
+      createMapObject({
+        name: "Marker",
+        className: "Encounter",
+        shape: "ellipse",
+        width: 24,
+        height: 24,
+        rotation: 15,
+        visible: false,
+        properties: [createProperty("facing", "string", "north")]
+      })
+    );
+    const instance = createMapObject({
+      name: "Changed Marker",
+      className: "Override",
+      shape: "rectangle",
+      x: 96,
+      y: 128,
+      width: 12,
+      height: 40,
+      rotation: 45,
+      properties: [createProperty("facing", "string", "south")],
+      templateId: template.id
+    });
+
+    history.execute(addObjectCommand(map.id, objectLayer.id, instance));
+    history.execute(
+      resetTemplateInstancesCommand({
+        mapId: map.id,
+        layerId: objectLayer.id,
+        replacements: [
+          {
+            objectId: instance.id,
+            templateId: template.id,
+            templateObject: template.object
+          }
+        ]
+      })
+    );
+
+    const resetLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "object");
+    const resetObject = resetLayer?.kind === "object" ? resetLayer.objects[0] : undefined;
+
+    expect(resetObject).toMatchObject({
+      id: instance.id,
+      name: "Marker",
+      className: "Encounter",
+      shape: "ellipse",
+      x: 96,
+      y: 128,
+      width: 24,
+      height: 24,
+      rotation: 15,
+      visible: false,
+      templateId: template.id,
+      properties: [createProperty("facing", "string", "north")]
+    });
+  });
+
+  it("detaches template instances while preserving the current object state", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps", "templates"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const map = history.state.maps[0]!;
+    const objectLayer = map.layers.find((layer) => layer.kind === "object")!;
+    const template = createObjectTemplate(
+      "Torch Template",
+      createMapObject({
+        name: "Torch",
+        className: "Decoration",
+        shape: "tile",
+        width: 32,
+        height: 32,
+        properties: [createProperty("kind", "string", "torch")]
+      })
+    );
+    const instance = createMapObject({
+      name: "Torch",
+      className: "Decoration",
+      shape: "tile",
+      x: 64,
+      y: 96,
+      width: 32,
+      height: 32,
+      properties: [createProperty("kind", "string", "torch")],
+      templateId: template.id
+    });
+
+    history.execute(addObjectCommand(map.id, objectLayer.id, instance));
+    history.execute(
+      detachTemplateInstancesCommand({
+        mapId: map.id,
+        layerId: objectLayer.id,
+        objectIds: [instance.id]
+      })
+    );
+
+    const detachedLayer = history.state.maps[0]!.layers.find((layer) => layer.kind === "object");
+    const detachedObject =
+      detachedLayer?.kind === "object" ? detachedLayer.objects[0] : undefined;
+
+    expect(detachedObject).toMatchObject({
+      id: instance.id,
+      name: "Torch",
+      className: "Decoration",
+      shape: "tile",
+      x: 64,
+      y: 96,
+      width: 32,
+      height: 32,
+      properties: [createProperty("kind", "string", "torch")]
+    });
+    expect(detachedObject?.templateId).toBeUndefined();
   });
 });

@@ -121,11 +121,11 @@ Last updated: 2026-03-26
 | PROJ-001 | 项目 | Project 文件读写 | DOM-008, IO-007 | 已完成 | 已补齐 `.tiled-project` 读写适配、路径引用解析、controller 导入入口与 project metadata 替换命令，并通过 adapter/controller 回归测试 |
 | PROJ-002 | 项目 | 资源树与项目视图 | PROJ-001, UI-001 | 已完成 | 已接入 Project 资源树，按项目根目录展示 map / tileset / image / project file，并支持 map / tileset 资产激活与示例 seed 资产映射 |
 | PROJ-003 | 项目 | Custom Property Types Editor | DOM-006, PROJ-001, UI-005 | 已完成 | 已接入 Tiled 风格 `Custom Types Editor`：支持 enum/class 类型的创建、删除、重命名、usage / enum values / class fields / field default value 编辑；通过 `project` 命令与 controller API 统一替换类型定义，并按稳定 `id` 迁移 map/layer/object/tile/template/world 中的重命名引用，已完成 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
-| PROJ-004 | 项目 | 兼容版本与导出选项 | PROJ-001 | 未开始 | 保存兼容目标与导出偏好 |
-| TMPL-001 | 模板 | 模板创建与保存 | DOM-009, OBJ-001, IO-007 | 未开始 | object template 文件支持 |
-| TMPL-002 | 模板 | 模板实例化 | TMPL-001, OBJ-001 | 未开始 | 替换对象为模板实例 |
-| TMPL-003 | 模板 | 模板重置与脱离 | TMPL-002, CMD-001 | 未开始 | reset / detach instance |
-| WORLD-001 | 世界 | World 文件读写 | DOM-010, IO-007 | 未开始 | `.world` 支持 |
+| PROJ-004 | 项目 | 兼容版本与导出选项 | PROJ-001 | 已完成 | 已补齐项目兼容版本、扩展目录、自动映射规则与项目级导出偏好（embed tilesets / detach template instances / resolve object types / minimized output）的 domain / command / controller / `.tiled-project` 读写链路，并接入 `Project Properties...` 对话框；已通过 `npm run typecheck`、`npm test`、`npm run lint` |
+| TMPL-001 | 模板 | 模板创建与保存 | DOM-009, OBJ-001, IO-007 | 已完成 | 已补齐 object template `.tx` 读写适配、`packages/template` 命令层、controller 的模板导入/导出/激活/由选中对象保存为模板 API、项目树模板资源接入，以及最小 `Save as Template` UI 入口；已通过 `npm run typecheck`、`npm test`、`npm run lint` |
+| TMPL-002 | 模板 | 模板实例化 | TMPL-001, OBJ-001 | 已完成 | 已补齐 controller 的“将选中对象替换为当前激活模板” API、对象命令层模板实例替换、模板 tile object 的 `tilesetId/tileId` 归一化与目标地图 gid 重映射、Objects dock 的 `Replace With Template` 入口，以及对应 `TX`/controller/object 回归；已通过 `npm run typecheck`、`npm test`、`npm run lint` |
+| TMPL-003 | 模板 | 模板重置与脱离 | TMPL-002, CMD-001 | 已完成 | 已补齐模板实例的 reset / detach 命令、controller API 与 Objects dock 入口；`Reset` 会按对象自身 `templateId` 回放模板内容并保留 `id/x/y`，`Detach` 仅移除模板关联保留当前对象状态；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
+| WORLD-001 | 世界 | World 文件读写 | DOM-010, IO-007 | 已完成 | 已新增 `@pixel-editor/tiled-world` 与 `@pixel-editor/world`：补齐 `.world` 的导入/导出、map/file property 资源引用解析、pattern 校验与 issue 报告，并接入 controller 级 world import/export API；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
 | WORLD-002 | 世界 | World 视图与地图定位 | WORLD-001, REN-002 | 未开始 | 多地图展示与导航 |
 | AUTO-001 | 自动映射 | Rules 文件解析 | IO-007, DOM-008 | 未开始 | `rules.txt` 与单 rule map |
 | AUTO-002 | 自动映射 | Rule Map 执行引擎 | AUTO-001, DOM-003, DOM-007 | 未开始 | 输入输出模式匹配 |

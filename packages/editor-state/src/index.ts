@@ -9,6 +9,7 @@ import {
   type MapId,
   type ObjectId,
   type ObjectTemplate,
+  type TemplateId,
   type TilesetDefinition,
   type TilesetId
 } from "@pixel-editor/domain";
@@ -40,6 +41,7 @@ export interface EditorSessionState {
   activeMapId?: MapId;
   activeLayerId?: LayerId;
   activeTilesetId?: TilesetId;
+  activeTemplateId?: TemplateId;
   activeTilesetTileLocalId: number | null;
   activeTool: EditorToolId;
   shapeFillMode: ShapeFillMode;
@@ -80,6 +82,9 @@ export function createEditorSessionState(
       : {}),
     ...(overrides.activeTilesetId !== undefined
       ? { activeTilesetId: overrides.activeTilesetId }
+      : {}),
+    ...(overrides.activeTemplateId !== undefined
+      ? { activeTemplateId: overrides.activeTemplateId }
       : {})
   };
 }
@@ -140,6 +145,12 @@ export function getActiveTileset(
   state: EditorWorkspaceState
 ): TilesetDefinition | undefined {
   return state.tilesets.find((tileset) => tileset.id === state.session.activeTilesetId);
+}
+
+export function getActiveTemplate(
+  state: EditorWorkspaceState
+): ObjectTemplate | undefined {
+  return state.templates.find((template) => template.id === state.session.activeTemplateId);
 }
 
 export function getActiveStampPrimaryGid(
