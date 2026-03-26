@@ -8,7 +8,9 @@ import type {
 import type { ObjectId } from "@pixel-editor/domain";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { createPixiEditorRenderer } from "@pixel-editor/renderer-pixi";
-import { useDeferredValue, useEffect, useRef } from "react";
+import { useDeferredValue, useEffect, useRef, useState } from "react";
+
+import { WorldContextOverlay } from "./world-context-overlay";
 
 export interface RendererCanvasProps {
   snapshot: EditorRuntimeSnapshot;
@@ -25,6 +27,8 @@ export interface RendererCanvasProps {
   ) => void;
   onObjectMove?: (x: number, y: number, modifiers: ObjectMoveGestureModifiers) => void;
   onObjectMoveEnd?: () => void;
+  onWorldMapActivate?: (mapId: string) => void;
+  onWorldMapMove?: (worldId: string, fileName: string, x: number, y: number) => void;
 }
 
 const OBJECT_DRAG_START_DISTANCE = 4;
@@ -50,10 +54,13 @@ export function RendererCanvas({
   onObjectSelect,
   onObjectMoveStart,
   onObjectMove,
-  onObjectMoveEnd
+  onObjectMoveEnd,
+  onWorldMapActivate,
+  onWorldMapMove
 }: RendererCanvasProps) {
   const { t } = useI18n();
   const hostRef = useRef<HTMLDivElement | null>(null);
+  const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(
     createPixiEditorRenderer({
       labels: {
@@ -66,6 +73,7 @@ export function RendererCanvas({
   const lastPickedTileRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const pendingObjectDragRef = useRef<PendingObjectDragState | undefined>(undefined);
   const lastStatusInfoRef = useRef("");
+  const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
 
   function readModifiers(event: {
     shiftKey: boolean;
@@ -86,7 +94,7 @@ export function RendererCanvas({
   }
 
   useEffect(() => {
-    const host = hostRef.current;
+    const host = canvasHostRef.current;
 
     if (!host) {
       return;
@@ -96,6 +104,37 @@ export function RendererCanvas({
 
     return () => {
       rendererRef.current.destroy();
+    };
+  }, []);
+
+  useEffect(() => {
+    const host = hostRef.current;
+
+    if (!host) {
+      return;
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      const entry = entries[0];
+
+      if (!entry) {
+        return;
+      }
+
+      setHostSize({
+        width: entry.contentRect.width,
+        height: entry.contentRect.height
+      });
+    });
+
+    observer.observe(host);
+    setHostSize({
+      width: host.clientWidth,
+      height: host.clientHeight
+    });
+
+    return () => {
+      observer.disconnect();
     };
   }, []);
 
@@ -262,9 +301,14 @@ export function RendererCanvas({
   return (
     <div
       ref={hostRef}
-      className="h-full min-h-0 w-full overflow-hidden bg-slate-950 outline-none"
+      className="relative h-full min-h-0 w-full overflow-hidden bg-slate-950 outline-none"
       onPointerDown={(event) => {
         if (event.button !== 0) {
+          return;
+        }
+
+        if (snapshot.workspace.session.activeTool === "world-tool") {
+          hostRef.current?.focus();
           return;
         }
 
@@ -443,6 +487,25 @@ export function RendererCanvas({
         );
       }}
       tabIndex={0}
-    />
+    >
+      <div ref={canvasHostRef} className="absolute inset-0" />
+      {snapshot.activeMap && snapshot.worldContext ? (
+        <WorldContextOverlay
+          activeMap={snapshot.activeMap}
+          activeTool={snapshot.workspace.session.activeTool}
+          height={hostSize.height}
+          viewport={snapshot.bootstrap.viewport}
+          visible={
+            snapshot.workspace.session.showWorlds ||
+            snapshot.workspace.session.activeTool === "world-tool"
+          }
+          width={hostSize.width}
+          worldContext={snapshot.worldContext}
+          onActivateMap={onWorldMapActivate}
+          onMoveWorldMap={onWorldMapMove}
+          onStatusInfoChange={publishStatusInfo}
+        />
+      ) : null}
+    </div>
   );
 }

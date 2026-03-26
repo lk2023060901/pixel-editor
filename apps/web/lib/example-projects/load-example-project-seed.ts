@@ -8,6 +8,7 @@ import {
   buildExampleProjectAssetDescriptors,
   buildExampleAssetUrl,
   type ExampleProjectDescriptor,
+  type ExampleProjectTextAsset,
   type ExampleProjectSeed,
   type ExampleTilesetDescriptor
 } from "./schema";
@@ -31,6 +32,21 @@ function exampleProjectDirectory(projectId: string): string {
 
 function exampleProjectFilePath(projectId: string): string {
   return path.join(exampleProjectDirectory(projectId), "project.json");
+}
+
+async function loadAuxiliaryTextAssets(
+  projectId: string,
+  descriptor: ExampleProjectDescriptor
+): Promise<ExampleProjectTextAsset[]> {
+  return Promise.all(
+    (descriptor.auxiliaryAssets ?? []).map(async (asset) => ({
+      path: asset.path,
+      content: await fs.readFile(
+        resolveExampleAssetFilePath(projectId, asset.path.split("/")),
+        "utf8"
+      )
+    }))
+  );
 }
 
 function resolveTilesetAssets(
@@ -62,6 +78,7 @@ export async function loadExampleProjectSeed(
     projectId,
     project: descriptor.project,
     projectAssets: buildExampleProjectAssetDescriptors(descriptor),
+    textAssets: await loadAuxiliaryTextAssets(projectId, descriptor),
     tilesets: descriptor.tilesets.map((tileset) =>
       resolveTilesetAssets(projectId, tileset)
     ),
@@ -71,6 +88,21 @@ export async function loadExampleProjectSeed(
 
 export async function readExampleProjectFile(projectId: string): Promise<string> {
   return fs.readFile(exampleProjectFilePath(projectId), "utf8");
+}
+
+export async function writeExampleProjectTextFile(
+  projectId: string,
+  relativePath: string,
+  content: string
+): Promise<void> {
+  const normalizedPath = relativePath
+    .replaceAll("\\", "/")
+    .trim()
+    .replace(/^\.\/+/, "");
+  const filePath = resolveExampleAssetFilePath(projectId, normalizedPath.split("/"));
+
+  await fs.mkdir(path.dirname(filePath), { recursive: true });
+  await fs.writeFile(filePath, content, "utf8");
 }
 
 export function resolveExampleAssetFilePath(

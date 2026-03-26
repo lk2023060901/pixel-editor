@@ -5,6 +5,7 @@ import {
   createProject,
   createProperty,
   createMap,
+  createTileLayer,
   createObjectLayer,
   createMapObject,
   createTileDefinition,
@@ -12,6 +13,7 @@ import {
   createWorld,
   createObjectTemplate,
   createEnumPropertyTypeDefinition,
+  paintTileInMap,
   getMapGlobalTileGid,
   getTileLayerCell,
   type TileAnimationFrame
@@ -22,7 +24,7 @@ import {
   getTileStampPrimaryGid
 } from "@pixel-editor/editor-state";
 
-import { createEditorStore } from "../src/controller";
+import { createEditorStore, type SavedEditorDocument } from "../src/controller";
 import { createTestEditorStore } from "./support/create-test-editor-store";
 
 describe("editor controller", () => {
@@ -218,6 +220,534 @@ describe("editor controller", () => {
         exportMinimized: false
       }
     });
+  });
+
+  it("saves native map, tileset, template and world documents through the document repository", async () => {
+    const tileset = createTileset({
+      name: "Terrain",
+      kind: "image",
+      tileWidth: 32,
+      tileHeight: 32,
+      source: {
+        imagePath: "assets/terrain.png",
+        imageWidth: 64,
+        imageHeight: 32,
+        margin: 0,
+        spacing: 0,
+        columns: 2
+      }
+    });
+    const map = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      tilesetIds: [tileset.id],
+      layers: [
+        createTileLayer({
+          name: "Ground",
+          width: 8,
+          height: 8
+        })
+      ]
+    });
+    const template = createObjectTemplate(
+      "spawn-template",
+      createMapObject({
+        name: "spawn",
+        shape: "rectangle",
+        width: 32,
+        height: 32
+      })
+    );
+    const world = createWorld("demo-world", [
+      {
+        fileName: "maps/starter-map.tmx",
+        x: 0,
+        y: 0,
+        width: 256,
+        height: 256
+      }
+    ]);
+    const savedDocuments: SavedEditorDocument[] = [];
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"]
+        }),
+        maps: [map],
+        tilesets: [tileset],
+        templates: [template],
+        worlds: [world]
+      }),
+      {
+        documents: {
+          async saveDocument(document) {
+            savedDocuments.push(document);
+          }
+        },
+        projectAssets: [
+          {
+            id: "map:maps/starter-map.tmx",
+            kind: "map",
+            name: "starter-map.tmx",
+            path: "maps/starter-map.tmx",
+            documentId: map.id
+          },
+          {
+            id: "tileset:tilesets/terrain.tsx",
+            kind: "tileset",
+            name: "terrain.tsx",
+            path: "tilesets/terrain.tsx",
+            documentId: tileset.id
+          },
+          {
+            id: "template:templates/spawn-template.tx",
+            kind: "template",
+            name: "spawn-template.tx",
+            path: "templates/spawn-template.tx",
+            documentId: template.id
+          },
+          {
+            id: "world:demo.world",
+            kind: "world",
+            name: "demo.world",
+            path: "demo.world",
+            documentId: world.id
+          }
+        ]
+      }
+    );
+
+    expect(await store.saveDocument(map.id)).toBe(true);
+    expect(await store.saveDocument(tileset.id)).toBe(true);
+    expect(await store.saveDocument(template.id)).toBe(true);
+    expect(await store.saveDocument(world.id)).toBe(true);
+
+    expect(savedDocuments).toHaveLength(4);
+    expect(savedDocuments[0]).toMatchObject({
+      kind: "map",
+      path: "maps/starter-map.tmx",
+      contentType: "application/xml; charset=utf-8"
+    });
+    expect(savedDocuments[0]?.content).toContain('source="../tilesets/terrain.tsx"');
+    expect(savedDocuments[1]).toMatchObject({
+      kind: "tileset",
+      path: "tilesets/terrain.tsx",
+      contentType: "application/xml; charset=utf-8"
+    });
+    expect(savedDocuments[1]?.content).toContain("<tileset");
+    expect(savedDocuments[2]).toMatchObject({
+      kind: "template",
+      path: "templates/spawn-template.tx",
+      contentType: "application/xml; charset=utf-8"
+    });
+    expect(savedDocuments[2]?.content).toContain("<template");
+    expect(savedDocuments[3]).toMatchObject({
+      kind: "world",
+      path: "demo.world",
+      contentType: "application/json; charset=utf-8"
+    });
+    expect(savedDocuments[3]?.content).toContain('"type": "world"');
+  });
+
+  it("assigns default native paths when saving all unsaved documents", async () => {
+    const tileset = createTileset({
+      name: "Terrain Core",
+      kind: "image",
+      tileWidth: 32,
+      tileHeight: 32,
+      source: {
+        imagePath: "assets/terrain.png",
+        imageWidth: 64,
+        imageHeight: 32,
+        margin: 0,
+        spacing: 0,
+        columns: 2
+      }
+    });
+    const map = createMap({
+      name: "Starter Map",
+      orientation: "orthogonal",
+      width: 8,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32,
+      tilesetIds: [tileset.id],
+      layers: [
+        createTileLayer({
+          name: "Ground",
+          width: 8,
+          height: 8
+        })
+      ]
+    });
+    const template = createObjectTemplate(
+      "Spawn Template",
+      createMapObject({
+        name: "spawn",
+        shape: "rectangle",
+        width: 32,
+        height: 32
+      })
+    );
+    const world = createWorld("Overworld");
+    const savedDocuments: SavedEditorDocument[] = [];
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"]
+        }),
+        maps: [map],
+        tilesets: [tileset],
+        templates: [template],
+        worlds: [world]
+      }),
+      {
+        documents: {
+          async saveDocument(document) {
+            savedDocuments.push(document);
+          }
+        }
+      }
+    );
+
+    expect(await store.saveAllDocuments()).toBe(true);
+
+    expect(savedDocuments.map((document) => document.path)).toEqual([
+      "maps/starter-map.tmx",
+      "tilesets/terrain-core.tsx",
+      "templates/spawn-template.tx",
+      "overworld.world"
+    ]);
+    expect(savedDocuments[0]?.content).toContain('source="../tilesets/terrain-core.tsx"');
+    expect(store.getSnapshot().bootstrap.projectAssets).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: "map", path: "maps/starter-map.tmx" }),
+        expect.objectContaining({ kind: "tileset", path: "tilesets/terrain-core.tsx" }),
+        expect.objectContaining({ kind: "template", path: "templates/spawn-template.tx" }),
+        expect.objectContaining({ kind: "world", path: "overworld.world" })
+      ])
+    );
+  });
+
+  it("runs manual automapping against the active map and remaps rule map gids by tileset source", () => {
+    const propsTileset = {
+      ...createTileset({
+        name: "Props",
+        kind: "image",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1)]
+    };
+    const terrainTileset = {
+      ...createTileset({
+        name: "Terrain",
+        kind: "image",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1)]
+    };
+    const baseMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [
+        createTileLayer({
+          name: "Ground",
+          width: 4,
+          height: 4
+        })
+      ],
+      tilesetIds: [propsTileset.id, terrainTileset.id]
+    });
+    const terrainLocal0Gid = getMapGlobalTileGid(
+      baseMap,
+      [propsTileset, terrainTileset],
+      terrainTileset.id,
+      0
+    );
+    const terrainLocal1Gid = getMapGlobalTileGid(
+      baseMap,
+      [propsTileset, terrainTileset],
+      terrainTileset.id,
+      1
+    );
+
+    expect(terrainLocal0Gid).toBeDefined();
+    expect(terrainLocal1Gid).toBeDefined();
+
+    const paintedMap = paintTileInMap(
+      baseMap,
+      baseMap.layers[0]!.id,
+      0,
+      0,
+      terrainLocal0Gid!
+    );
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"],
+          automappingRulesFile: "rules.txt"
+        }),
+        maps: [paintedMap],
+        tilesets: [propsTileset, terrainTileset],
+        session: {
+          activeMapId: paintedMap.id,
+          activeLayerId: paintedMap.layers[0]!.id
+        }
+      }),
+      {
+        projectAssets: [
+          {
+            id: "map:maps/starter-map.tmj",
+            kind: "map",
+            name: "starter-map.tmj",
+            path: "maps/starter-map.tmj",
+            documentId: paintedMap.id
+          },
+          {
+            id: "tileset:tilesets/props.tsj",
+            kind: "tileset",
+            name: "props.tsj",
+            path: "tilesets/props.tsj",
+            documentId: propsTileset.id
+          },
+          {
+            id: "tileset:tilesets/terrain.tsj",
+            kind: "tileset",
+            name: "terrain.tsj",
+            path: "tilesets/terrain.tsj",
+            documentId: terrainTileset.id
+          },
+          {
+            id: "file:rules.txt",
+            kind: "file",
+            name: "rules.txt",
+            path: "rules.txt"
+          },
+          {
+            id: "map:maps/automapping/replace.tmj",
+            kind: "map",
+            name: "replace.tmj",
+            path: "maps/automapping/replace.tmj"
+          }
+        ],
+        resolveProjectTextAsset: (path) => {
+          if (path === "rules.txt") {
+            return "maps/automapping/replace.tmj";
+          }
+
+          if (path === "maps/automapping/replace.tmj") {
+            return JSON.stringify({
+              name: "replace",
+              orientation: "orthogonal",
+              width: 1,
+              height: 1,
+              tilewidth: 32,
+              tileheight: 32,
+              layers: [
+                {
+                  type: "tilelayer",
+                  name: "input_Ground",
+                  width: 1,
+                  height: 1,
+                  data: [1]
+                },
+                {
+                  type: "tilelayer",
+                  name: "output_Ground",
+                  width: 1,
+                  height: 1,
+                  data: [2]
+                }
+              ],
+              tilesets: [
+                {
+                  firstgid: 1,
+                  source: "../../tilesets/terrain.tsj"
+                }
+              ]
+            });
+          }
+
+          return undefined;
+        }
+      }
+    );
+
+    store.runManualAutomapping();
+
+    const snapshot = store.getSnapshot();
+    const groundLayer = snapshot.activeMap?.layers[0];
+
+    expect(groundLayer?.kind).toBe("tile");
+    expect(
+      groundLayer?.kind === "tile" ? getTileLayerCell(groundLayer, 0, 0)?.gid : undefined
+    ).toBe(terrainLocal1Gid);
+    expect(snapshot.runtime.issues.entries).toEqual([]);
+  });
+
+  it("applies automapping while drawing as a single undoable operation", () => {
+    const terrainTileset = {
+      ...createTileset({
+        name: "Terrain",
+        kind: "image",
+        tileWidth: 32,
+        tileHeight: 32
+      }),
+      tiles: [createTileDefinition(0), createTileDefinition(1)]
+    };
+    const baseMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [
+        createTileLayer({
+          name: "Ground",
+          width: 4,
+          height: 4
+        })
+      ],
+      tilesetIds: [terrainTileset.id]
+    });
+    const terrainLocal0Gid = getMapGlobalTileGid(
+      baseMap,
+      [terrainTileset],
+      terrainTileset.id,
+      0
+    );
+    const terrainLocal1Gid = getMapGlobalTileGid(
+      baseMap,
+      [terrainTileset],
+      terrainTileset.id,
+      1
+    );
+
+    expect(terrainLocal0Gid).toBe(1);
+    expect(terrainLocal1Gid).toBe(2);
+
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "tilesets", "templates"],
+          automappingRulesFile: "rules.txt"
+        }),
+        maps: [baseMap],
+        tilesets: [terrainTileset],
+        session: {
+          activeMapId: baseMap.id,
+          activeLayerId: baseMap.layers[0]!.id
+        }
+      }),
+      {
+        projectAssets: [
+          {
+            id: "map:maps/starter-map.tmj",
+            kind: "map",
+            name: "starter-map.tmj",
+            path: "maps/starter-map.tmj",
+            documentId: baseMap.id
+          },
+          {
+            id: "tileset:tilesets/terrain.tsj",
+            kind: "tileset",
+            name: "terrain.tsj",
+            path: "tilesets/terrain.tsj",
+            documentId: terrainTileset.id
+          },
+          {
+            id: "file:rules.txt",
+            kind: "file",
+            name: "rules.txt",
+            path: "rules.txt"
+          },
+          {
+            id: "map:maps/automapping/replace.tmj",
+            kind: "map",
+            name: "replace.tmj",
+            path: "maps/automapping/replace.tmj"
+          }
+        ],
+        resolveProjectTextAsset: (path) => {
+          if (path === "rules.txt") {
+            return "maps/automapping/replace.tmj";
+          }
+
+          if (path === "maps/automapping/replace.tmj") {
+            return JSON.stringify({
+              name: "replace",
+              orientation: "orthogonal",
+              width: 1,
+              height: 1,
+              tilewidth: 32,
+              tileheight: 32,
+              layers: [
+                {
+                  type: "tilelayer",
+                  name: "input_Ground",
+                  width: 1,
+                  height: 1,
+                  data: [1]
+                },
+                {
+                  type: "tilelayer",
+                  name: "output_Ground",
+                  width: 1,
+                  height: 1,
+                  data: [2]
+                }
+              ],
+              tilesets: [
+                {
+                  firstgid: 1,
+                  source: "../../tilesets/terrain.tsj"
+                }
+              ]
+            });
+          }
+
+          return undefined;
+        }
+      }
+    );
+
+    store.toggleAutoMapWhileDrawing();
+    expect(store.getSnapshot().workspace.session.autoMapWhileDrawing).toBe(true);
+
+    store.selectStampTile(terrainTileset.id, 0);
+    store.handleCanvasPrimaryAction(0, 0);
+
+    let snapshot = store.getSnapshot();
+    let groundLayer = snapshot.activeMap?.layers[0];
+
+    expect(groundLayer?.kind).toBe("tile");
+    expect(
+      groundLayer?.kind === "tile" ? getTileLayerCell(groundLayer, 0, 0)?.gid : undefined
+    ).toBe(terrainLocal1Gid);
+
+    store.undo();
+
+    snapshot = store.getSnapshot();
+    groundLayer = snapshot.activeMap?.layers[0];
+
+    expect(
+      groundLayer?.kind === "tile" ? getTileLayerCell(groundLayer, 0, 0)?.gid : undefined
+    ).toBeNull();
   });
 
   it("imports a TMJ document into the workspace through the controller", () => {
@@ -1010,6 +1540,223 @@ describe("editor controller", () => {
         path: "world"
       })
     ]);
+  });
+
+  it("builds world context for the active map and toggles world visibility", () => {
+    const starterMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const eastMap = createMap({
+      name: "east-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const farMap = createMap({
+      name: "far-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const world = createWorld(
+      "demo-world",
+      [
+        {
+          fileName: "maps/starter-map.tmj",
+          x: 0,
+          y: 0,
+          width: 128,
+          height: 128
+        },
+        {
+          fileName: "maps/east-map.tmj",
+          x: 128,
+          y: 0,
+          width: 128,
+          height: 128
+        },
+        {
+          fileName: "maps/far-map.tmj",
+          x: 640,
+          y: 0,
+          width: 128,
+          height: 128
+        }
+      ],
+      [],
+      {
+        onlyShowAdjacentMaps: true
+      }
+    );
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "worlds"]
+        }),
+        maps: [starterMap, eastMap, farMap],
+        worlds: [world]
+      }),
+      {
+        projectAssets: [
+          {
+            id: "map:starter",
+            name: "starter-map",
+            kind: "map",
+            path: "maps/starter-map.tmj",
+            documentId: starterMap.id
+          },
+          {
+            id: "map:east",
+            name: "east-map",
+            kind: "map",
+            path: "maps/east-map.tmj",
+            documentId: eastMap.id
+          },
+          {
+            id: "map:far",
+            name: "far-map",
+            kind: "map",
+            path: "maps/far-map.tmj",
+            documentId: farMap.id
+          },
+          {
+            id: "world:demo",
+            name: "demo",
+            kind: "world",
+            path: "worlds/demo.world",
+            documentId: world.id
+          }
+        ]
+      }
+    );
+
+    const initialSnapshot = store.getSnapshot();
+
+    expect(initialSnapshot.workspace.session.showWorlds).toBe(false);
+    expect(initialSnapshot.worldContext).toMatchObject({
+      worldId: world.id,
+      modifiable: true,
+      activeMapFileName: "maps/starter-map.tmj",
+      activeMapRect: {
+        x: 0,
+        y: 0,
+        width: 128,
+        height: 128
+      }
+    });
+    expect(initialSnapshot.worldContext?.maps.map((entry) => entry.fileName)).toEqual([
+      "maps/starter-map.tmj",
+      "maps/east-map.tmj"
+    ]);
+
+    store.toggleWorlds();
+
+    const nextSnapshot = store.getSnapshot();
+
+    expect(nextSnapshot.workspace.session.showWorlds).toBe(true);
+    expect(nextSnapshot.workspace.session.hasUnsavedChanges).toBe(false);
+  });
+
+  it("moves world map references through the controller", () => {
+    const starterMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const eastMap = createMap({
+      name: "east-map",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const world = createWorld("demo-world", [
+      {
+        fileName: "maps/starter-map.tmj",
+        x: 0,
+        y: 0,
+        width: 128,
+        height: 128
+      },
+      {
+        fileName: "maps/east-map.tmj",
+        x: 128,
+        y: 0,
+        width: 128,
+        height: 128
+      }
+    ]);
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps", "worlds"]
+        }),
+        maps: [starterMap, eastMap],
+        worlds: [world]
+      }),
+      {
+        projectAssets: [
+          {
+            id: "map:starter",
+            name: "starter-map",
+            kind: "map",
+            path: "maps/starter-map.tmj",
+            documentId: starterMap.id
+          },
+          {
+            id: "map:east",
+            name: "east-map",
+            kind: "map",
+            path: "maps/east-map.tmj",
+            documentId: eastMap.id
+          },
+          {
+            id: "world:demo",
+            name: "demo",
+            kind: "world",
+            path: "worlds/demo.world",
+            documentId: world.id
+          }
+        ]
+      }
+    );
+
+    store.moveWorldMap(world.id, "maps/east-map.tmj", 256, 64);
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.worlds[0]?.maps).toContainEqual(
+      expect.objectContaining({
+        fileName: "maps/east-map.tmj",
+        x: 256,
+        y: 64,
+        width: 128,
+        height: 128
+      })
+    );
+    expect(snapshot.worldContext?.maps).toContainEqual(
+      expect.objectContaining({
+        fileName: "maps/east-map.tmj",
+        x: 256,
+        y: 64
+      })
+    );
+    expect(snapshot.workspace.session.hasUnsavedChanges).toBe(true);
   });
 
   it("applies localized naming config to generated maps, layers and objects", () => {

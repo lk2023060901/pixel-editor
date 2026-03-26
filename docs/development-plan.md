@@ -126,12 +126,12 @@ Last updated: 2026-03-26
 | TMPL-002 | 模板 | 模板实例化 | TMPL-001, OBJ-001 | 已完成 | 已补齐 controller 的“将选中对象替换为当前激活模板” API、对象命令层模板实例替换、模板 tile object 的 `tilesetId/tileId` 归一化与目标地图 gid 重映射、Objects dock 的 `Replace With Template` 入口，以及对应 `TX`/controller/object 回归；已通过 `npm run typecheck`、`npm test`、`npm run lint` |
 | TMPL-003 | 模板 | 模板重置与脱离 | TMPL-002, CMD-001 | 已完成 | 已补齐模板实例的 reset / detach 命令、controller API 与 Objects dock 入口；`Reset` 会按对象自身 `templateId` 回放模板内容并保留 `id/x/y`，`Detach` 仅移除模板关联保留当前对象状态；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
 | WORLD-001 | 世界 | World 文件读写 | DOM-010, IO-007 | 已完成 | 已新增 `@pixel-editor/tiled-world` 与 `@pixel-editor/world`：补齐 `.world` 的导入/导出、map/file property 资源引用解析、pattern 校验与 issue 报告，并接入 controller 级 world import/export API；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
-| WORLD-002 | 世界 | World 视图与地图定位 | WORLD-001, REN-002 | 未开始 | 多地图展示与导航 |
-| AUTO-001 | 自动映射 | Rules 文件解析 | IO-007, DOM-008 | 未开始 | `rules.txt` 与单 rule map |
-| AUTO-002 | 自动映射 | Rule Map 执行引擎 | AUTO-001, DOM-003, DOM-007 | 未开始 | 输入输出模式匹配 |
-| AUTO-003 | 自动映射 | Manual AutoMap | AUTO-002, UI-003 | 未开始 | 手动触发 automap |
-| AUTO-004 | 自动映射 | AutoMap While Drawing | AUTO-002, MAP-004 | 未开始 | 绘制过程中自动应用规则 |
-| EXP-001 | 导出 | 原生格式保存流程 | IO-002, IO-003, IO-005, IO-006 | 未开始 | map、tileset、template、world 保存 |
+| WORLD-002 | 世界 | World 视图与地图定位 | WORLD-001, REN-002 | 已完成 | 已在主地图画布接入 world context overlay：`View -> Show World`、`World Tool`、相邻地图可见性、点击切换地图、world map 拖拽定位与吸附均已打通；并补齐 map/tileset 导入的 project asset 登记；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
+| AUTO-001 | 自动映射 | Rules 文件解析 | IO-007, DOM-008 | 已完成 | 已新增 `@pixel-editor/tiled-automapping`：补齐 `rules.txt` 解析、递归 include、map name filter 继承/恢复、rule map 引用清单、外部路径与缺失文件 issue，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
+| AUTO-002 | 自动映射 | Rule Map 执行引擎 | AUTO-001, DOM-003, DOM-007 | 开发中 | 已新增 `@pixel-editor/automapping`：补齐 rule map layer 编译、连通规则拆分、`input/inputnot/output` tile 模式匹配、`MatchInOrder`、flip ignore、rule option area、命名输出集、缺失输出层创建，以及 `MatchType` 与有限地图边界判定；已通过 Tiled fixture 级回归与 `npm run typecheck`、`npm test`、`npm run lint` 验证，`regions/object output` 等高级语义仍待补齐 |
+| AUTO-003 | 自动映射 | Manual AutoMap | AUTO-002, UI-003 | 已完成 | 已打通 `Map -> AutoMap` 手动触发链路：controller 通过项目 `automappingRulesFile`、project text asset resolver、`@pixel-editor/tiled-automapping` 与 `@pixel-editor/automapping` 顺序加载并执行规则；支持 `TMJ/TMX` rule map 导入、按 tileset source 将 rule map gid 归一化到 active map、将规则/导入/执行 issue 写入 Issues Panel，并在 example seed 中接入真实 `rules.txt` 与 rule map 资产；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
+| AUTO-004 | 自动映射 | AutoMap While Drawing | AUTO-002, MAP-004 | 已完成 | 已新增 session 级 `AutoMap While Drawing` 开关，并将 stamp / eraser / bucket-fill / shape-fill / stroke 提交统一改为“绘制命令 + AutoMap”单条 undoable 提交；自动重用 `AUTO-003` 的 rules/rule map 加载链与 issue reporting，绘制后规则执行结果会与原始绘制一起撤销/重做；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
+| EXP-001 | 导出 | 原生格式保存流程 | IO-002, IO-003, IO-005, IO-006 | 已完成 | 已补齐 controller 级 `saveDocument/saveActiveDocument/saveAllDocuments`、`DocumentRepository` 文档保存网关、map/tileset/template/world 的原生格式序列化与默认落盘路径规划，并在 web example 工程接入最小文件写回 API；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` |
 | EXP-002 | 导出 | JSON 导出 | EXP-001 | 未开始 | 面向 TMJ/TSJ 目标输出 |
 | EXP-003 | 导出 | Image Export | REN-003, REN-011, LYR-006 | 未开始 | 导出整图像 |
 | EXP-004 | 导出 | Export Options | EXP-001, PROJ-004 | 未开始 | 包括 embed tilesets 等选项 |

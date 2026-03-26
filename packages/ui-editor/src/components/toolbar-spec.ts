@@ -145,10 +145,17 @@ export interface TiledMenuContext {
   activeDocumentKind: TiledMenuDocumentKind | undefined;
   canUndo: boolean;
   canRedo: boolean;
+  canSaveActiveDocument: boolean;
+  canSaveAllDocuments: boolean;
   showGrid: boolean;
+  showWorlds: boolean;
+  autoMapWhileDrawing: boolean;
   hasProject: boolean;
   hasActiveMap: boolean;
+  hasAutomappingRulesFile: boolean;
   hasActiveLayer: boolean;
+  hasWorldContext: boolean;
+  canMoveWorldMaps: boolean;
   canMoveLayerUp: boolean;
   canMoveLayerDown: boolean;
   customTypesEditorOpen: boolean;
@@ -217,12 +224,18 @@ export function getTiledMainMenus(
         })
       ]),
       menuSeparator,
-      menuAction("save", t("action.save"), { implemented: false }),
+      menuAction("save", t("action.save"), {
+        implemented: true,
+        disabled: !context.canSaveActiveDocument
+      }),
       menuAction("save-as", t("action.saveAs"), {
         implemented: false,
         shortcut: "Ctrl+Shift+S"
       }),
-      menuAction("save-all", t("action.saveAll"), { implemented: false }),
+      menuAction("save-all", t("action.saveAll"), {
+        implemented: true,
+        disabled: !context.canSaveAllDocuments
+      }),
       menuAction("export", t("action.export"), {
         implemented: false,
         shortcut: "Ctrl+E"
@@ -334,7 +347,10 @@ export function getTiledMainMenus(
       menuAction("show-tile-collision-shapes", t("action.showTileCollisionShapes"), {
         implemented: false
       }),
-      menuAction("enable-worlds", t("action.showWorld"), { implemented: false }),
+      menuAction("enable-worlds", t("action.showWorld"), {
+        implemented: context.hasWorldContext,
+        checked: context.showWorlds
+      }),
       menuAction("enable-parallax", t("action.enableParallax"), { implemented: false }),
       menuAction("highlight-current-layer", t("action.highlightCurrentLayer"), {
         implemented: false,
@@ -407,11 +423,14 @@ export function getTiledMainMenus(
       menuAction("offset-map", t("action.offsetMap"), { implemented: false }),
       menuSeparator,
       menuAction("auto-map", t("action.autoMap"), {
-        implemented: false,
+        implemented: context.hasActiveMap,
+        disabled: !context.hasAutomappingRulesFile,
         shortcut: "Ctrl+M"
       }),
       menuAction("auto-map-while-drawing", t("action.autoMapWhileDrawing"), {
-        implemented: false
+        implemented: context.hasActiveMap,
+        disabled: !context.hasAutomappingRulesFile,
+        checked: context.autoMapWhileDrawing
       }),
       menuSeparator,
       menuAction("select-previous-tileset", t("action.selectPreviousTileset"), {
@@ -604,7 +623,7 @@ export function getTiledMainToolbarActions(t: TranslationFn): ToolbarActionSpec[
       id: "save",
       label: t("action.save"),
       icon: "document-save",
-      implemented: false
+      implemented: true
     },
     {
       id: "undo",
@@ -809,7 +828,8 @@ export function getTiledToolToolbarItems(t: TranslationFn): ToolbarItemSpec[] {
         id: "world-tool",
         label: t("action.worldTool"),
         icon: "world-tool",
-        implemented: false
+        implemented: true,
+        editorToolId: "world-tool"
       }
     },
     {

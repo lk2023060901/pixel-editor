@@ -29,10 +29,12 @@ export interface ExampleProjectDescriptor {
   project: {
     name: string;
     assetRoots: string[];
+    automappingRulesFile?: string;
     propertyTypes?: ExamplePropertyTypeDescriptor[];
   };
   tilesets: ExampleTilesetDescriptor[];
   maps: ExampleMapDescriptor[];
+  auxiliaryAssets?: ExampleAuxiliaryAssetDescriptor[];
 }
 
 export type ExamplePropertyTypeDescriptor =
@@ -128,12 +130,24 @@ export interface ExampleProjectAssetDescriptor {
   path: string;
 }
 
+export interface ExampleAuxiliaryAssetDescriptor {
+  kind: Exclude<ProjectAssetKind, "folder">;
+  path: string;
+  name?: string;
+}
+
+export interface ExampleProjectTextAsset {
+  path: string;
+  content: string;
+}
+
 export interface ExampleProjectSeed {
   projectId: string;
   project: ExampleProjectDescriptor["project"];
   tilesets: ExampleTilesetDescriptor[];
   maps: ExampleMapDescriptor[];
   projectAssets?: ExampleProjectAssetDescriptor[];
+  textAssets?: ExampleProjectTextAsset[];
 }
 
 export function buildExampleAssetUrl(
@@ -166,7 +180,8 @@ export function buildExampleProjectAssetDescriptors(
 
   function addAsset(
     kind: Exclude<ProjectAssetKind, "folder">,
-    path: string
+    path: string,
+    name?: string
   ): void {
     const normalizedPath = normalizeExampleProjectPath(path);
 
@@ -177,7 +192,7 @@ export function buildExampleProjectAssetDescriptors(
     assets.set(normalizedPath, {
       id: `${kind}:${normalizedPath}`,
       kind,
-      name: basename(normalizedPath),
+      name: name?.trim() || basename(normalizedPath),
       path: normalizedPath
     });
   }
@@ -199,6 +214,10 @@ export function buildExampleProjectAssetDescriptors(
     for (const imageSource of tileset.imageSources) {
       addAsset("image", imageSource);
     }
+  }
+
+  for (const asset of descriptor.auxiliaryAssets ?? []) {
+    addAsset(asset.kind, asset.path, asset.name);
   }
 
   return [...assets.values()].sort((left, right) =>

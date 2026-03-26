@@ -1,19 +1,33 @@
 import type {
+  DocumentSummary,
   EditorBootstrapContract,
   ProjectAssetSummary
 } from "@pixel-editor/contracts";
+import { resolveAssetPath } from "@pixel-editor/asset-reference";
 import { CommandHistory } from "@pixel-editor/command-engine";
+import { createMacroCommand } from "@pixel-editor/command-engine";
+import {
+  runAutomappingRuleMap,
+  type AutomappingEngineIssue
+} from "@pixel-editor/automapping";
 import {
   importTiledProjectDocument as importTiledProjectDocumentAdapter,
   type ImportedTiledProjectDocument
 } from "@pixel-editor/tiled-project";
+import {
+  importAutomappingRulesFile,
+  matchesAutomappingMapName,
+  type ImportedAutomappingRulesFile
+} from "@pixel-editor/tiled-automapping";
 import {
   stringifyTiledWorldDocument as exportTiledWorldDocumentAdapter,
   importTiledWorldDocument as importTiledWorldDocumentAdapter,
   type ImportedTiledWorldDocument
 } from "@pixel-editor/tiled-world";
 import {
-  exportTxTemplateDocument as exportTxTemplateDocumentAdapter,
+  stringifyTmxMapDocument as exportTmxMapDocumentAdapter,
+  stringifyTsxTilesetDocument as exportTsxTilesetDocumentAdapter,
+  stringifyTxTemplateDocument as exportTxTemplateDocumentAdapter,
   importTmxMapDocument as importTmxMapDocumentAdapter,
   importTxTemplateDocument as importTxTemplateDocumentAdapter,
   importTsxTilesetDocument as importTsxTilesetDocumentAdapter,
@@ -22,6 +36,8 @@ import {
   type ImportedTsxTilesetDocument
 } from "@pixel-editor/tiled-xml";
 import {
+  stringifyTmjMapDocument as exportTmjMapDocumentAdapter,
+  stringifyTsjTilesetDocument as exportTsjTilesetDocumentAdapter,
   importTmjMapDocument as importTmjMapDocumentAdapter,
   importTsjTilesetDocument as importTsjTilesetDocumentAdapter,
   type ImportedTmjMapDocument,
@@ -36,6 +52,7 @@ import {
   getMapObjectBounds,
   getMapGlobalTileGid,
   getObjectById,
+  getTilesetTileCount,
   resolveMapTileGid,
   getTilesetTileByLocalId,
   getTilesetWangSet,
@@ -43,6 +60,7 @@ import {
   type CreateImageCollectionTilesetInput,
   type CreateImageTilesetInput,
   type CreateMapInput,
+  type EditorWorld,
   type EditorMap,
   type LayerDefinition,
   type LayerId,
@@ -132,11 +150,13 @@ import {
   setActiveToolCommand,
   setShapeFillModeCommand,
   setViewportZoomCommand,
+  toggleAutoMapWhileDrawingCommand,
   toggleGridCommand,
   upsertLayerPropertyCommand,
   upsertMapPropertyCommand,
   updateLayerDetailsCommand,
   updateMapDetailsCommand,
+  replaceMapDocumentCommand,
   type UpdateLayerDetailsInput,
   zoomViewportCommand
 } from "@pixel-editor/map";
@@ -163,7 +183,11 @@ import {
   buildObjectTemplateDocument,
   setActiveTemplateCommand
 } from "@pixel-editor/template";
-import { addImportedWorldCommand } from "@pixel-editor/world";
+import {
+  addImportedWorldCommand,
+  moveWorldMapCommand,
+  toggleShowWorldsCommand
+} from "@pixel-editor/world";
 import {
   addImportedTilesetCommand,
   createTilesetWangSetCommand,
@@ -197,7 +221,7 @@ import {
 import { toEditorBootstrap } from "./bootstrap";
 
 export interface DocumentRepository {
-  saveWorkspace(state: EditorWorkspaceState): Promise<void>;
+  saveDocument(document: SavedEditorDocument): Promise<void>;
 }
 
 export interface AssetRepository {
@@ -221,8 +245,12 @@ export interface EditorInfrastructure {
 
 export interface EditorControllerOptions {
   naming?: EditorNamingConfig;
+  documents?: DocumentRepository;
   projectAssets?: readonly ProjectAssetSummary[];
+  resolveProjectTextAsset?: ProjectTextAssetResolver;
 }
+
+export type ProjectTextAssetResolver = (path: string) => string | undefined;
 
 export interface ExternalDocumentImportOptions {
   documentPath?: string;
@@ -237,8 +265,50 @@ export interface EditorRuntimeSnapshot {
   activeLayer?: LayerDefinition;
   activeTemplate?: ObjectTemplate;
   activeTileset?: TilesetDefinition;
+  worldContext?: EditorWorldContextSnapshot;
   canUndo: boolean;
   canRedo: boolean;
+  canSaveActiveDocument: boolean;
+  canSaveAllDocuments: boolean;
+}
+
+export interface SavedEditorDocument {
+  id: string;
+  kind: DocumentSummary["kind"] | "project";
+  name: string;
+  path: string;
+  content: string;
+  contentType: string;
+}
+
+export interface EditorWorldContextMapSnapshot {
+  worldId: EditorWorld["id"];
+  mapId?: EditorMap["id"];
+  fileName: string;
+  name: string;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  active: boolean;
+  loaded: boolean;
+  canActivate: boolean;
+  gridWidth?: number;
+  gridHeight?: number;
+}
+
+export interface EditorWorldContextSnapshot {
+  worldId: EditorWorld["id"];
+  worldName: string;
+  modifiable: boolean;
+  activeMapFileName: string;
+  activeMapRect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+  maps: EditorWorldContextMapSnapshot[];
 }
 
 export interface EditorController {
@@ -274,11 +344,16 @@ export interface EditorController {
     options?: ExternalDocumentImportOptions
   ): ImportedTsjTilesetDocument;
   createQuickMapDocument(name?: string): string;
+  saveDocument(documentId: string): Promise<boolean>;
+  saveActiveDocument(): Promise<boolean>;
+  saveAllDocuments(): Promise<boolean>;
   setActiveMap(mapId: string): void;
   setActiveLayer(layerId: string): void;
   setActiveTileset(tilesetId: string): void;
   setActiveTemplate(templateId: string): void;
   setActiveTool(tool: EditorToolId): void;
+  toggleWorlds(): void;
+  toggleAutoMapWhileDrawing(): void;
   setShapeFillMode(mode: ShapeFillMode): void;
   setActiveStamp(stamp: TileStamp): void;
   selectObject(objectId: ObjectId): void;
@@ -364,6 +439,8 @@ export interface EditorController {
   setViewportZoom(zoom: number): void;
   panBy(deltaX: number, deltaY: number): void;
   toggleGrid(): void;
+  moveWorldMap(worldId: string, fileName: string, x: number, y: number): void;
+  runManualAutomapping(): void;
   undo(): void;
   redo(): void;
   toggleIssuesPanel(): void;
@@ -380,6 +457,28 @@ interface CanvasStrokeState {
   cellIndicesByKey: Map<string, number>;
   lastX: number;
   lastY: number;
+}
+
+interface ImportedAutomappingRuleMapDocument {
+  map: EditorMap;
+  tilesetReferences: Array<{
+    firstGid: number;
+    source?: string;
+    name?: string;
+    tileCount?: number;
+  }>;
+  issues: Array<{
+    severity: "warning";
+    code: string;
+    message: string;
+    path: string;
+  }>;
+}
+
+interface TargetMapTilesetBinding {
+  tilesetId: TilesetId;
+  sourcePath?: string;
+  name: string;
 }
 
 function createTileKey(x: number, y: number): string {
@@ -432,6 +531,136 @@ function relativeProjectPath(fromPath: string, toPath: string): string {
   const relativeSegments = [...upwardSegments, ...downwardSegments];
 
   return relativeSegments.length > 0 ? relativeSegments.join("/") : ".";
+}
+
+function dirname(path: string): string {
+  const normalizedPath = normalizeProjectAssetPath(path);
+  const segments = normalizedPath.split("/").filter((segment) => segment.length > 0);
+
+  if (segments.length <= 1) {
+    return "";
+  }
+
+  return segments.slice(0, -1).join("/");
+}
+
+function lowerCaseExtension(path: string): string {
+  const normalizedPath = basename(path);
+  const extensionIndex = normalizedPath.lastIndexOf(".");
+
+  if (extensionIndex < 0) {
+    return "";
+  }
+
+  return normalizedPath.slice(extensionIndex).toLowerCase();
+}
+
+function mapLayerTree(
+  layers: readonly LayerDefinition[],
+  mapper: (layer: LayerDefinition) => LayerDefinition
+): LayerDefinition[] {
+  return layers.map((layer) => {
+    if (layer.kind !== "group") {
+      return mapper(layer);
+    }
+
+    return mapper({
+      ...layer,
+      layers: mapLayerTree(layer.layers, mapper)
+    });
+  });
+}
+
+function getMapPixelSize(map: EditorMap): { width: number; height: number } {
+  return {
+    width: Math.max(0, map.settings.width * map.settings.tileWidth),
+    height: Math.max(0, map.settings.height * map.settings.tileHeight)
+  };
+}
+
+function rectsIntersect(
+  left: { x: number; y: number; width: number; height: number },
+  right: { x: number; y: number; width: number; height: number }
+): boolean {
+  return (
+    left.x < right.x + right.width &&
+    left.x + left.width > right.x &&
+    left.y < right.y + right.height &&
+    left.y + left.height > right.y
+  );
+}
+
+interface ResolvedWorldMapEntry {
+  fileName: string;
+  x: number;
+  y: number;
+  width?: number;
+  height?: number;
+  derived: boolean;
+}
+
+function resolveWorldPatternEntry(
+  fileName: string,
+  worldDirectory: string | undefined,
+  world: EditorWorld
+): ResolvedWorldMapEntry | undefined {
+  const normalizedFileName = normalizeProjectAssetPath(fileName);
+
+  if (worldDirectory !== undefined && dirname(normalizedFileName) !== worldDirectory) {
+    return undefined;
+  }
+
+  const baseFileName = basename(normalizedFileName);
+
+  for (const pattern of world.patterns) {
+    const match = new RegExp(pattern.regexp).exec(baseFileName);
+
+    if (!match) {
+      continue;
+    }
+
+    const x = Number.parseInt(match[1] ?? "", 10);
+    const y = Number.parseInt(match[2] ?? "", 10);
+
+    if (!Number.isFinite(x) || !Number.isFinite(y)) {
+      continue;
+    }
+
+    return {
+      fileName: normalizedFileName,
+      x: x * pattern.multiplierX + pattern.offsetX,
+      y: y * pattern.multiplierY + pattern.offsetY,
+      width: pattern.mapWidth,
+      height: pattern.mapHeight,
+      derived: true
+    };
+  }
+
+  return undefined;
+}
+
+function resolveWorldMapEntry(
+  world: EditorWorld,
+  fileName: string,
+  worldDirectory: string | undefined
+): ResolvedWorldMapEntry | undefined {
+  const normalizedFileName = normalizeProjectAssetPath(fileName);
+  const explicitEntry = world.maps.find(
+    (map) => normalizeProjectAssetPath(map.fileName) === normalizedFileName
+  );
+
+  if (explicitEntry) {
+    return {
+      fileName: normalizedFileName,
+      x: explicitEntry.x,
+      y: explicitEntry.y,
+      ...(explicitEntry.width !== undefined ? { width: explicitEntry.width } : {}),
+      ...(explicitEntry.height !== undefined ? { height: explicitEntry.height } : {}),
+      derived: false
+    };
+  }
+
+  return resolveWorldPatternEntry(normalizedFileName, worldDirectory, world);
 }
 
 function rasterizeLine(
@@ -489,6 +718,7 @@ function deriveIssueSourceKind(code: string): EditorIssueSourceKind {
   const prefix = code.split(".", 1)[0];
 
   if (
+    prefix === "automapping" ||
     prefix === "project" ||
     prefix === "world" ||
     prefix === "tmj" ||
@@ -503,9 +733,31 @@ function deriveIssueSourceKind(code: string): EditorIssueSourceKind {
   return "validation";
 }
 
+interface NativeDocumentSaveTarget {
+  id: string;
+  kind: DocumentSummary["kind"];
+  name: string;
+  path: string;
+}
+
+type NativeDocumentSaveDraft = Omit<NativeDocumentSaveTarget, "path">;
+
+interface NativeDocumentSerializationContext {
+  pathsByDocumentKey: Map<string, string>;
+}
+
+function createDocumentKey(
+  kind: DocumentSummary["kind"],
+  documentId: string
+): string {
+  return `${kind}:${documentId}`;
+}
+
 class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly naming: EditorNamingConfig;
+  private readonly documents: DocumentRepository | undefined;
+  private readonly resolveProjectTextAsset: ProjectTextAssetResolver | undefined;
   private readonly listeners = new Set<() => void>();
   private projectAssets: ProjectAssetSummary[];
   private canvasStroke: CanvasStrokeState | undefined;
@@ -518,7 +770,9 @@ class InMemoryEditorController implements EditorController {
   ) {
     this.history = new CommandHistory(initialState);
     this.naming = options.naming ?? defaultEditorNamingConfig;
+    this.documents = options.documents;
     this.projectAssets = [...(options.projectAssets ?? [])];
+    this.resolveProjectTextAsset = options.resolveProjectTextAsset;
   }
 
   getState(): EditorWorkspaceState {
@@ -535,6 +789,7 @@ class InMemoryEditorController implements EditorController {
     const activeLayer = getActiveLayer(workspace);
     const activeTemplate = getActiveTemplate(workspace);
     const activeTileset = getActiveTileset(workspace);
+    const worldContext = this.buildWorldContext(workspace, activeMap);
 
     this.cachedSnapshot = {
       bootstrap: toEditorBootstrap(workspace, this.projectAssets),
@@ -542,10 +797,19 @@ class InMemoryEditorController implements EditorController {
       runtime: this.runtime,
       canUndo: this.history.canUndo,
       canRedo: this.history.canRedo,
+      canSaveActiveDocument:
+        this.documents !== undefined && workspace.maps.length > 0,
+      canSaveAllDocuments:
+        this.documents !== undefined &&
+        (workspace.maps.length > 0 ||
+          workspace.tilesets.length > 0 ||
+          workspace.templates.length > 0 ||
+          workspace.worlds.length > 0),
       ...(activeMap ? { activeMap } : {}),
       ...(activeLayer ? { activeLayer } : {}),
       ...(activeTemplate ? { activeTemplate } : {}),
-      ...(activeTileset ? { activeTileset } : {})
+      ...(activeTileset ? { activeTileset } : {}),
+      ...(worldContext ? { worldContext } : {})
     };
 
     return this.cachedSnapshot;
@@ -618,6 +882,446 @@ class InMemoryEditorController implements EditorController {
         asset.kind === kind &&
         normalizeProjectAssetPath(asset.path) === normalizedPath
     );
+  }
+
+  private getPreferredAssetRoot(preferredRoot: string): string {
+    const matchedRoot = this.history.state.project.assetRoots.find(
+      (assetRoot) => normalizeProjectAssetPath(assetRoot) === preferredRoot
+    );
+
+    return normalizeProjectAssetPath(matchedRoot ?? preferredRoot);
+  }
+
+  private createUniqueDocumentPath(
+    kind: DocumentSummary["kind"],
+    name: string,
+    reservedPaths: Set<string>
+  ): string {
+    let preferredPath = "";
+
+    switch (kind) {
+      case "map":
+        preferredPath = `${this.getPreferredAssetRoot("maps")}/${slugifyPathSegment(name)}.tmx`;
+        break;
+      case "tileset":
+        preferredPath = `${this.getPreferredAssetRoot("tilesets")}/${slugifyPathSegment(name)}.tsx`;
+        break;
+      case "template":
+        preferredPath = `${this.getPreferredAssetRoot("templates")}/${slugifyPathSegment(name)}.tx`;
+        break;
+      case "world":
+        preferredPath = `${slugifyPathSegment(name)}.world`;
+        break;
+    }
+
+    let candidatePath = preferredPath;
+    let suffix = 2;
+
+    while (reservedPaths.has(candidatePath)) {
+      const extensionIndex = preferredPath.lastIndexOf(".");
+      const stem =
+        extensionIndex >= 0 ? preferredPath.slice(0, extensionIndex) : preferredPath;
+      const extension = extensionIndex >= 0 ? preferredPath.slice(extensionIndex) : "";
+      candidatePath = `${stem}-${suffix}${extension}`;
+      suffix += 1;
+    }
+
+    reservedPaths.add(candidatePath);
+    return candidatePath;
+  }
+
+  private collectNativeDocumentSaveTargets(): NativeDocumentSaveDraft[] {
+    const state = this.history.state;
+
+    return [
+      ...state.maps.map((map) => ({
+        id: map.id,
+        kind: "map" as const,
+        name: map.name
+      })),
+      ...state.tilesets.map((tileset) => ({
+        id: tileset.id,
+        kind: "tileset" as const,
+        name: tileset.name
+      })),
+      ...state.templates.map((template) => ({
+        id: template.id,
+        kind: "template" as const,
+        name: template.name
+      })),
+      ...state.worlds.map((world) => ({
+        id: world.id,
+        kind: "world" as const,
+        name: world.name
+      }))
+    ];
+  }
+
+  private buildNativeSaveTargets(
+    documentIds?: readonly string[]
+  ): NativeDocumentSaveTarget[] {
+    const reservedPaths = new Set(
+      this.projectAssets
+        .filter((asset) =>
+          asset.kind === "map" ||
+          asset.kind === "tileset" ||
+          asset.kind === "template" ||
+          asset.kind === "world"
+        )
+        .map((asset) => normalizeProjectAssetPath(asset.path))
+    );
+
+    return this.collectNativeDocumentSaveTargets()
+      .filter((target) => documentIds === undefined || documentIds.includes(target.id))
+      .map((target) => {
+        const asset = this.getProjectAssetByDocumentId(target.kind, target.id);
+        const path =
+          asset !== undefined
+            ? normalizeProjectAssetPath(asset.path)
+            : this.createUniqueDocumentPath(target.kind, target.name, reservedPaths);
+
+        reservedPaths.add(path);
+
+        return {
+          ...target,
+          path
+        };
+      });
+  }
+
+  private buildNativeDocumentSerializationContext(
+    targets: readonly NativeDocumentSaveTarget[]
+  ): NativeDocumentSerializationContext {
+    return {
+      pathsByDocumentKey: new Map(
+        targets.map((target) => [createDocumentKey(target.kind, target.id), target.path])
+      )
+    };
+  }
+
+  private buildMapTilesetReferences(
+    map: EditorMap,
+    mapPath: string,
+    context: NativeDocumentSerializationContext
+  ): Array<{
+    firstGid: number;
+    source: string;
+  }> {
+    let firstGid = 1;
+    const references: Array<{
+      firstGid: number;
+      source: string;
+    }> = [];
+
+    for (const tilesetId of map.tilesetIds) {
+      const tileset = this.history.state.tilesets.find((entry) => entry.id === tilesetId);
+
+      if (!tileset) {
+        continue;
+      }
+
+      const tilesetPath = context.pathsByDocumentKey.get(
+        createDocumentKey("tileset", tileset.id)
+      );
+
+      if (!tilesetPath) {
+        throw new Error(`Missing save path for tileset ${tileset.name}`);
+      }
+
+      references.push({
+        firstGid,
+        source: relativeProjectPath(mapPath, tilesetPath)
+      });
+      firstGid += getTilesetTileCount(tileset);
+    }
+
+    return references;
+  }
+
+  private serializeNativeDocument(
+    target: NativeDocumentSaveTarget,
+    context: NativeDocumentSerializationContext
+  ): SavedEditorDocument {
+    switch (target.kind) {
+      case "map": {
+        const map = this.history.state.maps.find((entry) => entry.id === target.id);
+
+        if (!map) {
+          throw new Error(`Map ${target.id} not found`);
+        }
+
+        const extension = lowerCaseExtension(target.path);
+        const tilesetReferences = this.buildMapTilesetReferences(map, target.path, context);
+        const content =
+          extension === ".tmj" || extension === ".json"
+            ? exportTmjMapDocumentAdapter({ map, tilesetReferences })
+            : exportTmxMapDocumentAdapter({ map, tilesetReferences });
+
+        return {
+          id: target.id,
+          kind: target.kind,
+          name: target.name,
+          path: target.path,
+          content,
+          contentType:
+            extension === ".tmj" || extension === ".json"
+              ? "application/json; charset=utf-8"
+              : "application/xml; charset=utf-8"
+        };
+      }
+      case "tileset": {
+        const tileset = this.history.state.tilesets.find((entry) => entry.id === target.id);
+
+        if (!tileset) {
+          throw new Error(`Tileset ${target.id} not found`);
+        }
+
+        const extension = lowerCaseExtension(target.path);
+        const content =
+          extension === ".tsj" || extension === ".json"
+            ? exportTsjTilesetDocumentAdapter({ tileset })
+            : exportTsxTilesetDocumentAdapter({ tileset });
+
+        return {
+          id: target.id,
+          kind: target.kind,
+          name: target.name,
+          path: target.path,
+          content,
+          contentType:
+            extension === ".tsj" || extension === ".json"
+              ? "application/json; charset=utf-8"
+              : "application/xml; charset=utf-8"
+        };
+      }
+      case "template": {
+        const template = this.history.state.templates.find((entry) => entry.id === target.id);
+
+        if (!template) {
+          throw new Error(`Template ${target.id} not found`);
+        }
+
+        const tilesetId =
+          template.object.shape === "tile" && template.object.tile
+            ? template.object.tile.tilesetId ?? template.tilesetIds[0]
+            : undefined;
+        const tilesetPath =
+          tilesetId !== undefined
+            ? context.pathsByDocumentKey.get(createDocumentKey("tileset", tilesetId))
+            : undefined;
+        const tilesetSource =
+          tilesetPath !== undefined ? relativeProjectPath(target.path, tilesetPath) : undefined;
+
+        return {
+          id: target.id,
+          kind: target.kind,
+          name: target.name,
+          path: target.path,
+          content: exportTxTemplateDocumentAdapter({
+            template,
+            ...(tilesetSource !== undefined ? { tilesetSource } : {})
+          }),
+          contentType: "application/xml; charset=utf-8"
+        };
+      }
+      case "world": {
+        const world = this.history.state.worlds.find((entry) => entry.id === target.id);
+
+        if (!world) {
+          throw new Error(`World ${target.id} not found`);
+        }
+
+        return {
+          id: target.id,
+          kind: target.kind,
+          name: target.name,
+          path: target.path,
+          content: exportTiledWorldDocumentAdapter({
+            world,
+            documentPath: target.path
+          }),
+          contentType: "application/json; charset=utf-8"
+        };
+      }
+    }
+  }
+
+  private createSaveIssueEntry(
+    target: NativeDocumentSaveTarget,
+    error: unknown
+  ): EditorIssueEntry {
+    const message =
+      error instanceof Error ? error.message : "Failed to save document.";
+
+    return {
+      id: `save:${target.id}:${target.path}`,
+      sourceId: `save:${target.id}`,
+      sourceKind: "validation",
+      documentName: target.name,
+      documentPath: target.path,
+      severity: "error",
+      code: "save.document.failed",
+      message,
+      path: target.path
+    };
+  }
+
+  private async persistNativeDocument(
+    target: NativeDocumentSaveTarget,
+    context: NativeDocumentSerializationContext
+  ): Promise<boolean> {
+    if (!this.documents) {
+      return false;
+    }
+
+    try {
+      const serializedDocument = this.serializeNativeDocument(target, context);
+      await this.documents.saveDocument(serializedDocument);
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: target.kind,
+          path: target.path,
+          documentId: target.id
+        })
+      );
+      this.replaceIssueSourceEntries(`save:${target.id}`, []);
+      return true;
+    } catch (error) {
+      this.replaceIssueSourceEntries(`save:${target.id}`, [
+        this.createSaveIssueEntry(target, error)
+      ]);
+      return false;
+    }
+  }
+
+  private buildWorldContext(
+    state: EditorWorkspaceState,
+    activeMap: EditorMap | undefined
+  ): EditorWorldContextSnapshot | undefined {
+    if (!activeMap) {
+      return undefined;
+    }
+
+    const activeMapAsset = this.getProjectAssetByDocumentId("map", activeMap.id);
+
+    if (!activeMapAsset) {
+      return undefined;
+    }
+
+    const activeMapPath = normalizeProjectAssetPath(activeMapAsset.path);
+    const activeMapSize = getMapPixelSize(activeMap);
+
+    for (const world of state.worlds) {
+      const worldAssetPath = this.getProjectAssetByDocumentId("world", world.id)?.path;
+      const worldDirectory =
+        worldAssetPath !== undefined ? dirname(worldAssetPath) : undefined;
+      const activeEntry = resolveWorldMapEntry(world, activeMapPath, worldDirectory);
+
+      if (!activeEntry) {
+        continue;
+      }
+
+      const activeMapRect = {
+        x: activeEntry.x,
+        y: activeEntry.y,
+        width: activeEntry.width ?? activeMapSize.width,
+        height: activeEntry.height ?? activeMapSize.height
+      };
+      const visibleRect = world.onlyShowAdjacentMaps
+        ? {
+            x: activeMapRect.x - 1,
+            y: activeMapRect.y - 1,
+            width: activeMapRect.width + 2,
+            height: activeMapRect.height + 2
+          }
+        : activeMapRect;
+      const entriesByPath = new Map<string, EditorWorldContextMapSnapshot>();
+
+      for (const asset of this.projectAssets) {
+        if (asset.kind !== "map") {
+          continue;
+        }
+
+        const normalizedMapPath = normalizeProjectAssetPath(asset.path);
+        const resolvedEntry = resolveWorldMapEntry(world, normalizedMapPath, worldDirectory);
+
+        if (!resolvedEntry) {
+          continue;
+        }
+
+        const mappedDocument =
+          asset.documentId !== undefined
+            ? state.maps.find((map) => map.id === asset.documentId)
+            : undefined;
+        const mapSize = mappedDocument ? getMapPixelSize(mappedDocument) : undefined;
+        const width = resolvedEntry.width ?? mapSize?.width ?? 0;
+        const height = resolvedEntry.height ?? mapSize?.height ?? 0;
+
+        if (
+          world.onlyShowAdjacentMaps &&
+          !rectsIntersect(
+            visibleRect,
+            {
+              x: resolvedEntry.x,
+              y: resolvedEntry.y,
+              width,
+              height
+            }
+          )
+        ) {
+          continue;
+        }
+
+        entriesByPath.set(normalizedMapPath, {
+          worldId: world.id,
+          ...(asset.documentId !== undefined ? { mapId: asset.documentId as EditorMap["id"] } : {}),
+          fileName: normalizedMapPath,
+          name: mappedDocument?.name ?? asset.name,
+          x: resolvedEntry.x,
+          y: resolvedEntry.y,
+          width,
+          height,
+          active: normalizedMapPath === activeMapPath,
+          loaded: mappedDocument !== undefined,
+          canActivate: mappedDocument !== undefined && normalizedMapPath !== activeMapPath,
+          ...(mappedDocument !== undefined
+            ? {
+                gridWidth: mappedDocument.settings.tileWidth,
+                gridHeight: mappedDocument.settings.tileHeight
+              }
+            : {})
+        });
+      }
+
+      if (!entriesByPath.has(activeMapPath)) {
+        entriesByPath.set(activeMapPath, {
+          worldId: world.id,
+          mapId: activeMap.id,
+          fileName: activeMapPath,
+          name: activeMap.name,
+          x: activeMapRect.x,
+          y: activeMapRect.y,
+          width: activeMapRect.width,
+          height: activeMapRect.height,
+          active: true,
+          loaded: true,
+          canActivate: false,
+          gridWidth: activeMap.settings.tileWidth,
+          gridHeight: activeMap.settings.tileHeight
+        });
+      }
+
+      return {
+        worldId: world.id,
+        worldName: world.name,
+        modifiable: world.patterns.length === 0,
+        activeMapFileName: activeMapPath,
+        activeMapRect,
+        maps: [...entriesByPath.values()]
+      };
+    }
+
+    return undefined;
   }
 
   private createUniqueTemplatePath(name: string, explicitPath?: string): string {
@@ -696,8 +1400,27 @@ class InMemoryEditorController implements EditorController {
       path: string;
     }>
   ): void {
-    const entries: EditorIssueEntry[] = issues.map((issue) => ({
-      id: `${sourceId}:${issue.code}:${issue.path}`,
+    this.replaceIssueSourceEntries(
+      sourceId,
+      issues.map((issue) =>
+        this.createIssueEntry(sourceId, documentName, documentPath, issue)
+      )
+    );
+  }
+
+  private createIssueEntry(
+    sourceId: string,
+    documentName: string,
+    documentPath: string | undefined,
+    issue: {
+      severity: "warning" | "error";
+      code: string;
+      message: string;
+      path: string;
+    }
+  ): EditorIssueEntry {
+    return {
+      id: `${sourceId}:${documentName}:${issue.code}:${issue.path}`,
       sourceId,
       sourceKind: deriveIssueSourceKind(issue.code),
       documentName,
@@ -706,13 +1429,193 @@ class InMemoryEditorController implements EditorController {
       message: issue.message,
       path: issue.path,
       ...(documentPath !== undefined ? { documentPath } : {})
-    }));
+    };
+  }
 
+  private replaceIssueSourceEntries(
+    sourceId: string,
+    entries: readonly EditorIssueEntry[]
+  ): void {
     this.runtime = replaceEditorRuntimeIssueSourceEntries(this.runtime, sourceId, entries);
 
     if (entries.length > 0) {
       this.runtime = setEditorRuntimeIssuePanelOpen(this.runtime, true);
     }
+  }
+
+  private loadProjectTextAsset(path: string): string | undefined {
+    const normalizedPath = normalizeProjectAssetPath(path);
+
+    return this.resolveProjectTextAsset?.(normalizedPath);
+  }
+
+  private importAutomappingRuleMapDocument(
+    documentPath: string,
+    source: string
+  ): ImportedAutomappingRuleMapDocument | undefined {
+    const normalizedDocumentPath = normalizeProjectAssetPath(documentPath);
+    const resolvedOptions = this.resolveImportOptions({
+      documentPath: normalizedDocumentPath
+    });
+    const extension = lowerCaseExtension(normalizedDocumentPath);
+
+    if (extension === ".tmj" || extension === ".json") {
+      const imported = importTmjMapDocumentAdapter(source, resolvedOptions);
+      return {
+        map: imported.map,
+        tilesetReferences: imported.tilesetReferences,
+        issues: imported.issues
+      };
+    }
+
+    if (extension === ".tmx") {
+      const imported = importTmxMapDocumentAdapter(source, resolvedOptions);
+      return {
+        map: imported.map,
+        tilesetReferences: imported.tilesetReferences,
+        issues: imported.issues
+      };
+    }
+
+    return undefined;
+  }
+
+  private getTargetMapTilesetBindings(
+    map: EditorMap,
+    availableTilesets: TilesetDefinition[]
+  ): TargetMapTilesetBinding[] {
+    return map.tilesetIds
+      .map((tilesetId) => {
+        const tileset = availableTilesets.find((entry) => entry.id === tilesetId);
+
+        if (!tileset) {
+          return undefined;
+        }
+
+        const tilesetAsset = this.getProjectAssetByDocumentId("tileset", tileset.id);
+
+        return {
+          tilesetId: tileset.id,
+          name: tileset.name,
+          ...(tilesetAsset?.path !== undefined
+            ? { sourcePath: normalizeProjectAssetPath(tilesetAsset.path) }
+            : {})
+        };
+      })
+      .filter((binding): binding is TargetMapTilesetBinding => binding !== undefined);
+  }
+
+  private normalizeAutomappingRuleMap(
+    ruleMap: EditorMap,
+    tilesetReferences: ImportedAutomappingRuleMapDocument["tilesetReferences"],
+    targetMap: EditorMap,
+    documentPath: string,
+    availableTilesets: TilesetDefinition[],
+    assetRoots: readonly string[]
+  ): {
+    map: EditorMap;
+    issues: AutomappingEngineIssue[];
+  } {
+    const issues: AutomappingEngineIssue[] = [];
+    const targetBindings = this.getTargetMapTilesetBindings(targetMap, availableTilesets);
+    const seenUnresolvedKeys = new Set<string>();
+
+    const resolveRuleCellGid = (gid: number | null): number | null => {
+      if (gid === null) {
+        return null;
+      }
+
+      const tilesetReference = [...tilesetReferences]
+        .sort((left, right) => right.firstGid - left.firstGid)
+        .find((reference) => gid >= reference.firstGid);
+
+      if (!tilesetReference) {
+        return null;
+      }
+
+      const localId = gid - tilesetReference.firstGid;
+      const resolvedSourcePath =
+        tilesetReference.source !== undefined
+          ? resolveAssetPath(tilesetReference.source, {
+              documentPath: documentPath,
+              assetRoots
+            }).resolvedPath
+          : undefined;
+      const candidateBindings =
+        resolvedSourcePath !== undefined
+          ? targetBindings.filter((binding) => binding.sourcePath === resolvedSourcePath)
+          : targetBindings.filter((binding) => binding.name === tilesetReference.name);
+      const targetBinding =
+        candidateBindings.length === 1 ? candidateBindings[0] : undefined;
+      const key = `${resolvedSourcePath ?? tilesetReference.name ?? "unknown"}:${localId}`;
+
+      if (!targetBinding) {
+        if (!seenUnresolvedKeys.has(key)) {
+          seenUnresolvedKeys.add(key);
+          issues.push({
+            severity: "warning",
+            code: "automapping.ruleMap.tileset.unresolved",
+            message:
+              resolvedSourcePath !== undefined
+                ? `Automapping rule tile source \`${resolvedSourcePath}\` is not attached to the active map.`
+                : `Automapping rule tile source \`${tilesetReference.name ?? "unknown"}\` could not be matched to a unique active-map tileset.`,
+            path: "ruleMap.tilesets"
+          });
+        }
+
+        return null;
+      }
+
+      const nextGid = getMapGlobalTileGid(
+        targetMap,
+        availableTilesets,
+        targetBinding.tilesetId,
+        localId
+      );
+
+      if (nextGid === undefined) {
+        if (!seenUnresolvedKeys.has(key)) {
+          seenUnresolvedKeys.add(key);
+          issues.push({
+            severity: "warning",
+            code: "automapping.ruleMap.tile.unresolved",
+            message: `Automapping rule tile local id ${localId} could not be resolved on active-map tileset \`${targetBinding.name}\`.`,
+            path: "ruleMap.tilesets"
+          });
+        }
+
+        return null;
+      }
+
+      return nextGid;
+    };
+
+    return {
+      map: {
+        ...ruleMap,
+        layers: mapLayerTree(ruleMap.layers, (layer) => {
+          if (layer.kind !== "tile") {
+            return layer;
+          }
+
+          return {
+            ...layer,
+            cells: layer.cells.map((cell) => ({
+              ...cell,
+              gid: resolveRuleCellGid(cell.gid)
+            })),
+            chunks: layer.chunks.map((chunk) => ({
+              ...chunk,
+              cells: chunk.cells.map((cell) => ({
+                ...cell,
+                gid: resolveRuleCellGid(cell.gid)
+              }))
+            }))
+          };
+        })
+      },
+      issues
+    };
   }
 
   subscribe(listener: () => void): () => void {
@@ -1206,7 +2109,7 @@ class InMemoryEditorController implements EditorController {
       return;
     }
 
-    this.commit(
+    this.commitMapCommandWithAutomapping(
       paintTileFillCommand(
         activeMap.id,
         activeLayer.id,
@@ -1214,7 +2117,8 @@ class InMemoryEditorController implements EditorController {
         x,
         y,
         getActiveStampPrimaryGid(state) ?? 1
-      )
+      ),
+      activeMap.id
     );
   }
 
@@ -1359,6 +2263,20 @@ class InMemoryEditorController implements EditorController {
       resolvedOptions.documentPath,
       imported.issues
     );
+
+    for (const assetReference of imported.assetReferences) {
+      if (assetReference.kind !== "automapping-rules") {
+        continue;
+      }
+
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "file",
+          path: assetReference.resolvedPath
+        })
+      );
+    }
+
     this.commit(replaceProjectCommand(imported.project));
 
     return imported;
@@ -1409,6 +2327,17 @@ class InMemoryEditorController implements EditorController {
       resolvedOptions.documentPath,
       imported.issues
     );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "map",
+          path: resolvedOptions.documentPath,
+          documentId: imported.map.id
+        })
+      );
+    }
+
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
@@ -1490,6 +2419,17 @@ class InMemoryEditorController implements EditorController {
       resolvedOptions.documentPath,
       imported.issues
     );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "tileset",
+          path: resolvedOptions.documentPath,
+          documentId: imported.tileset.id
+        })
+      );
+    }
+
     this.commit(
       addImportedTilesetCommand({
         tileset: imported.tileset,
@@ -1516,6 +2456,17 @@ class InMemoryEditorController implements EditorController {
       resolvedOptions.documentPath,
       imported.issues
     );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "map",
+          path: resolvedOptions.documentPath,
+          documentId: imported.map.id
+        })
+      );
+    }
+
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
@@ -1538,6 +2489,17 @@ class InMemoryEditorController implements EditorController {
       resolvedOptions.documentPath,
       imported.issues
     );
+
+    if (resolvedOptions.documentPath) {
+      this.upsertProjectAsset(
+        this.createProjectAssetSummary({
+          kind: "tileset",
+          path: resolvedOptions.documentPath,
+          documentId: imported.tileset.id
+        })
+      );
+    }
+
     this.commit(
       addImportedTilesetCommand({
         tileset: imported.tileset,
@@ -1560,6 +2522,59 @@ class InMemoryEditorController implements EditorController {
       name: nextName,
       ...quickMapBlueprint
     });
+  }
+
+  async saveDocument(documentId: string): Promise<boolean> {
+    if (!this.documents) {
+      return false;
+    }
+
+    const targets = this.buildNativeSaveTargets([documentId]);
+
+    if (targets.length === 0) {
+      return false;
+    }
+
+    const result = await this.persistNativeDocument(
+      targets[0]!,
+      this.buildNativeDocumentSerializationContext(this.buildNativeSaveTargets())
+    );
+
+    this.emit();
+    return result;
+  }
+
+  async saveActiveDocument(): Promise<boolean> {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return false;
+    }
+
+    return this.saveDocument(activeMap.id);
+  }
+
+  async saveAllDocuments(): Promise<boolean> {
+    if (!this.documents) {
+      return false;
+    }
+
+    const targets = this.buildNativeSaveTargets();
+
+    if (targets.length === 0) {
+      return false;
+    }
+
+    const context = this.buildNativeDocumentSerializationContext(targets);
+    let allSaved = true;
+
+    for (const target of targets) {
+      const saved = await this.persistNativeDocument(target, context);
+      allSaved = allSaved && saved;
+    }
+
+    this.emit();
+    return allSaved;
   }
 
   setActiveMap(mapId: string): void {
@@ -1616,6 +2631,14 @@ class InMemoryEditorController implements EditorController {
   setActiveTool(tool: EditorToolId): void {
     this.clearTransientInteractions();
     this.commit(setActiveToolCommand(tool));
+  }
+
+  toggleWorlds(): void {
+    this.commit(toggleShowWorldsCommand());
+  }
+
+  toggleAutoMapWhileDrawing(): void {
+    this.commit(toggleAutoMapWhileDrawingCommand());
   }
 
   setShapeFillMode(mode: ShapeFillMode): void {
@@ -2734,7 +3757,7 @@ class InMemoryEditorController implements EditorController {
         return;
       }
 
-      this.commit(
+      this.commitMapCommandWithAutomapping(
         paintTileShapeCommand(
           preview.mapId,
           preview.layerId,
@@ -2745,7 +3768,8 @@ class InMemoryEditorController implements EditorController {
           preview.currentY,
           preview.gid,
           preview.modifiers
-        )
+        ),
+        preview.mapId
       );
       return;
     }
@@ -2757,7 +3781,10 @@ class InMemoryEditorController implements EditorController {
       return;
     }
 
-    this.commit(paintTileStrokeCommand(stroke.mapId, stroke.layerId, stroke.cells));
+    this.commitMapCommandWithAutomapping(
+      paintTileStrokeCommand(stroke.mapId, stroke.layerId, stroke.cells),
+      stroke.mapId
+    );
   }
 
   handleCanvasPrimaryAction(x: number, y: number): void {
@@ -2785,7 +3812,7 @@ class InMemoryEditorController implements EditorController {
     }
 
     if (tool === "bucket-fill") {
-      this.commit(
+      this.commitMapCommandWithAutomapping(
         paintTileFillCommand(
           activeMap.id,
           activeLayer.id,
@@ -2793,13 +3820,14 @@ class InMemoryEditorController implements EditorController {
           x,
           y,
           getActiveStampPrimaryGid(state) ?? 1
-        )
+        ),
+        activeMap.id
       );
       return;
     }
 
     if (tool === "shape-fill") {
-      this.commit(
+      this.commitMapCommandWithAutomapping(
         paintTileShapeCommand(
           activeMap.id,
           activeLayer.id,
@@ -2809,26 +3837,31 @@ class InMemoryEditorController implements EditorController {
           x,
           y,
           getActiveStampPrimaryGid(state) ?? 1
-        )
+        ),
+        activeMap.id
       );
       return;
     }
 
     if (tool === "stamp") {
-      this.commit(
+      this.commitMapCommandWithAutomapping(
         paintTileStampCommand(
           activeMap.id,
           activeLayer.id,
           x,
           y,
           state.session.activeStamp
-        )
+        ),
+        activeMap.id
       );
       return;
     }
 
     if (tool === "eraser") {
-      this.commit(paintTileAtCommand(activeMap.id, activeLayer.id, x, y, null));
+      this.commitMapCommandWithAutomapping(
+        paintTileAtCommand(activeMap.id, activeLayer.id, x, y, null),
+        activeMap.id
+      );
     }
   }
 
@@ -2850,6 +3883,257 @@ class InMemoryEditorController implements EditorController {
 
   toggleGrid(): void {
     this.commit(toggleGridCommand());
+  }
+
+  moveWorldMap(worldId: string, fileName: string, x: number, y: number): void {
+    const state = this.history.state;
+    const normalizedFileName = normalizeProjectAssetPath(fileName);
+    const world = state.worlds.find((entry) => entry.id === worldId);
+
+    if (!world || world.patterns.length > 0) {
+      return;
+    }
+
+    const mapEntry = resolveWorldMapEntry(world, normalizedFileName, undefined);
+
+    if (!mapEntry) {
+      return;
+    }
+
+    const targetMapAsset = this.getProjectAssetByPath("map", normalizedFileName);
+    const targetMap =
+      targetMapAsset?.documentId !== undefined
+        ? state.maps.find((map) => map.id === targetMapAsset.documentId)
+        : undefined;
+    const targetMapSize = targetMap ? getMapPixelSize(targetMap) : undefined;
+    const width = mapEntry.width ?? targetMapSize?.width;
+    const height = mapEntry.height ?? targetMapSize?.height;
+
+    this.commit(
+      moveWorldMapCommand({
+        worldId: world.id,
+        fileName: normalizedFileName,
+        x,
+        y,
+        ...(width !== undefined ? { width } : {}),
+        ...(height !== undefined ? { height } : {})
+      })
+    );
+  }
+
+  private getAutomappingSourceId(mapId: MapId): string {
+    return `automapping:${mapId}`;
+  }
+
+  private executeAutomappingForMap(
+    state: EditorWorkspaceState,
+    activeMap: EditorMap
+  ): {
+    map: EditorMap;
+    issueEntries: EditorIssueEntry[];
+    matchCount: number;
+  } {
+    const sourceId = this.getAutomappingSourceId(activeMap.id);
+    const rulesFilePath = state.project.automappingRulesFile
+      ? normalizeProjectAssetPath(state.project.automappingRulesFile)
+      : "";
+    const issueEntries: EditorIssueEntry[] = [];
+    const addIssueEntries = (
+      documentPath: string | undefined,
+      documentName: string,
+      issues: ReadonlyArray<{
+        severity: "warning" | "error";
+        code: string;
+        message: string;
+        path: string;
+      }>
+    ) => {
+      issueEntries.push(
+        ...issues.map((issue) =>
+          this.createIssueEntry(sourceId, documentName, documentPath, issue)
+        )
+      );
+    };
+
+    if (rulesFilePath.length === 0) {
+      addIssueEntries(undefined, activeMap.name, [
+        {
+          severity: "warning",
+          code: "automapping.rulesFile.missing",
+          message: "Project automapping rules file is not configured.",
+          path: "project.automappingRulesFile"
+        }
+      ]);
+
+      return {
+        map: activeMap,
+        issueEntries,
+        matchCount: 0
+      };
+    }
+
+    const rulesFileName = basename(rulesFilePath);
+    const rulesText = this.loadProjectTextAsset(rulesFilePath);
+
+    if (rulesText === undefined) {
+      addIssueEntries(rulesFilePath, rulesFileName, [
+        {
+          severity: "warning",
+          code: "automapping.rules.file.notFound",
+          message: `Automapping rules file \`${rulesFilePath}\` could not be loaded.`,
+          path: "rules"
+        }
+      ]);
+
+      return {
+        map: activeMap,
+        issueEntries,
+        matchCount: 0
+      };
+    }
+
+    const importedRules: ImportedAutomappingRulesFile = importAutomappingRulesFile(rulesText, {
+      documentPath: rulesFilePath,
+      assetRoots: state.project.assetRoots,
+      loadTextFile: (path) => this.loadProjectTextAsset(path)
+    });
+
+    addIssueEntries(rulesFilePath, rulesFileName, importedRules.issues);
+
+    const matchingRuleMaps = importedRules.ruleMaps.filter((reference) =>
+      matchesAutomappingMapName(activeMap.name, reference.mapNameFilter)
+    );
+
+    let nextMap = activeMap;
+    let totalMatchCount = 0;
+
+    for (const ruleMapReference of matchingRuleMaps) {
+      const ruleMapPath = normalizeProjectAssetPath(ruleMapReference.filePath);
+      const ruleMapName = basename(ruleMapPath);
+      const ruleMapText = this.loadProjectTextAsset(ruleMapPath);
+
+      if (ruleMapText === undefined) {
+        addIssueEntries(ruleMapPath, ruleMapName, [
+          {
+            severity: "warning",
+            code: "automapping.ruleMap.file.notFound",
+            message: `Automapping rule map \`${ruleMapPath}\` could not be loaded.`,
+            path: "rules"
+          }
+        ]);
+        continue;
+      }
+
+      const importedRuleMap = this.importAutomappingRuleMapDocument(ruleMapPath, ruleMapText);
+
+      if (!importedRuleMap) {
+        addIssueEntries(ruleMapPath, ruleMapName, [
+          {
+            severity: "warning",
+            code: "automapping.ruleMap.format.unsupported",
+            message: `Automapping rule map format \`${lowerCaseExtension(ruleMapPath) || "unknown"}\` is not supported.`,
+            path: "rules"
+          }
+        ]);
+        continue;
+      }
+
+      addIssueEntries(ruleMapPath, ruleMapName, importedRuleMap.issues);
+
+      const normalizedRuleMap = this.normalizeAutomappingRuleMap(
+        importedRuleMap.map,
+        importedRuleMap.tilesetReferences,
+        nextMap,
+        ruleMapPath,
+        state.tilesets,
+        state.project.assetRoots
+      );
+
+      addIssueEntries(ruleMapPath, ruleMapName, normalizedRuleMap.issues);
+
+      const executed = runAutomappingRuleMap(normalizedRuleMap.map, nextMap);
+
+      addIssueEntries(ruleMapPath, ruleMapName, executed.issues);
+
+      nextMap = executed.map;
+      totalMatchCount += executed.matches.length;
+    }
+
+    return {
+      map: nextMap,
+      issueEntries,
+      matchCount: totalMatchCount
+    };
+  }
+
+  private commitMapCommandWithAutomapping(
+    command: Parameters<CommandHistory<EditorWorkspaceState>["execute"]>[0],
+    mapId: MapId
+  ): void {
+    const state = this.history.state;
+
+    if (!state.session.autoMapWhileDrawing) {
+      this.commit(command);
+      return;
+    }
+
+    const projectedState = command.run(state);
+    const projectedMap = projectedState.maps.find((map) => map.id === mapId);
+
+    if (!projectedMap) {
+      this.commit(command);
+      return;
+    }
+
+    const execution = this.executeAutomappingForMap(projectedState, projectedMap);
+
+    this.replaceIssueSourceEntries(this.getAutomappingSourceId(mapId), execution.issueEntries);
+
+    if (execution.matchCount > 0) {
+      this.commit(
+        createMacroCommand(
+          `${command.description} + AutoMap`,
+          [
+            command,
+            replaceMapDocumentCommand(
+              mapId,
+              execution.map,
+              `Run AutoMap on ${projectedMap.name}`
+            )
+          ],
+          `${command.id}.automap`
+        )
+      );
+      return;
+    }
+
+    this.commit(command);
+  }
+
+  runManualAutomapping(): void {
+    const state = this.history.state;
+    const activeMap = getActiveMap(state);
+
+    if (!activeMap) {
+      return;
+    }
+
+    const execution = this.executeAutomappingForMap(state, activeMap);
+
+    this.replaceIssueSourceEntries(
+      this.getAutomappingSourceId(activeMap.id),
+      execution.issueEntries
+    );
+
+    if (execution.matchCount > 0) {
+      this.clearTransientInteractions();
+      this.commit(
+        replaceMapDocumentCommand(activeMap.id, execution.map, `Run AutoMap on ${activeMap.name}`)
+      );
+      return;
+    }
+
+    this.emit();
   }
 
   undo(): void {

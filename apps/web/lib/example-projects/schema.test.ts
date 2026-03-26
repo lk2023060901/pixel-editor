@@ -48,6 +48,16 @@ describe("example project schema helpers", () => {
           tileHeight: 32,
           tilesetKeys: ["terrain-core"]
         }
+      ],
+      auxiliaryAssets: [
+        {
+          kind: "file",
+          path: "rules.txt"
+        },
+        {
+          kind: "map",
+          path: "maps/automapping/ruins-fill.tmj"
+        }
       ]
     };
 
@@ -71,6 +81,12 @@ describe("example project schema helpers", () => {
         path: "assets/terrain-core.svg"
       },
       {
+        id: "map:maps/automapping/ruins-fill.tmj",
+        kind: "map",
+        name: "ruins-fill.tmj",
+        path: "maps/automapping/ruins-fill.tmj"
+      },
+      {
         id: "map:maps/starter-map.tmj",
         kind: "map",
         name: "starter-map.tmj",
@@ -81,6 +97,12 @@ describe("example project schema helpers", () => {
         kind: "project",
         name: "project.json",
         path: "project.json"
+      },
+      {
+        id: "file:rules.txt",
+        kind: "file",
+        name: "rules.txt",
+        path: "rules.txt"
       },
       {
         id: "tileset:tilesets/props-collection.tsj",

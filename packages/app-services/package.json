@@ -7,6 +7,8 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@pixel-editor/asset-reference": "0.1.0",
+    "@pixel-editor/automapping": "0.1.0",
     "@pixel-editor/command-engine": "0.1.0",
     "@pixel-editor/contracts": "0.1.0",
     "@pixel-editor/domain": "0.1.0",
@@ -15,6 +17,7 @@
     "@pixel-editor/objects": "0.1.0",
     "@pixel-editor/project": "0.1.0",
     "@pixel-editor/template": "0.1.0",
+    "@pixel-editor/tiled-automapping": "0.1.0",
     "@pixel-editor/tiled-json": "0.1.0",
     "@pixel-editor/tiled-project": "0.1.0",
     "@pixel-editor/tiled-world": "0.1.0",

@@ -16,9 +16,17 @@ Allowed dependency direction:
 
 `app-services -> contracts`
 
+`app-services -> asset-reference`
+
+`app-services -> automapping`
+
+`app-services -> tiled-automapping`
+
 `map -> command-engine`
 
 `tileset -> command-engine`
+
+`automapping -> domain`
 
 `renderer-pixi -> domain`
 
@@ -274,6 +282,52 @@ Public API rules:
 - expose world-specific commands and helpers only
 - depend on shared domain and command primitives instead of duplicating them
 - keep world behavior reusable by both UI and future import/export flows
+
+## `packages/tiled-automapping`
+
+Owns:
+
+- `rules.txt` parsing
+- automapping rules include expansion
+- rule map reference normalization
+- automapping path reference issue reporting
+
+Must not own:
+
+- rule execution
+- React components
+- renderer internals
+- authoritative editor state
+
+Public API rules:
+
+- accept raw rules text plus explicit path resolution options
+- keep include traversal deterministic and side-effect free
+- expose normalized rule map references and issues for reuse by future editor and worker flows
+
+## `packages/automapping`
+
+Owns:
+
+- rule map layer analysis
+- compiled automapping rule structures
+- input/output pattern matching
+- deterministic rule execution against map snapshots
+- automapping execution issues for unsupported rule semantics
+
+Must not own:
+
+- `rules.txt` parsing
+- React components
+- authoritative editor session state
+- storage adapters
+
+Public API rules:
+
+- accept normalized rule maps as domain models
+- keep compilation and execution pure and reusable
+- expose explicit execution options instead of reaching into controller state
+- leave document loading and trigger orchestration to `app-services`
 
 ## `packages/renderer-pixi`
 

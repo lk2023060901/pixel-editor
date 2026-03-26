@@ -23,7 +23,11 @@ export {
   type EditorController,
   type EditorControllerOptions,
   type EditorInfrastructure,
+  type SavedEditorDocument,
+  type ProjectTextAssetResolver,
   type EditorRuntimeSnapshot,
+  type EditorWorldContextMapSnapshot,
+  type EditorWorldContextSnapshot,
   type ExternalDocumentImportOptions,
   type ExportJobGateway,
   type ValidationGateway

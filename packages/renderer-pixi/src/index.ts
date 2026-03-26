@@ -73,6 +73,24 @@ export type RendererLocationResult =
       tileY: number;
     };
 
+export interface RendererViewportProjection {
+  canvasX: number;
+  canvasY: number;
+  canvasWidth: number;
+  canvasHeight: number;
+  mapLeft: number;
+  mapTop: number;
+  pixelScaleX: number;
+  pixelScaleY: number;
+}
+
+export interface RendererProjectedRect {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+
 export interface EditorRenderer {
   mount(host: HTMLElement): Promise<void>;
   update(snapshot: RendererSnapshot): void;
@@ -169,6 +187,59 @@ function buildViewportGeometry(
     startTileY,
     endTileX: startTileX + visibleColumns,
     endTileY: startTileY + visibleRows
+  };
+}
+
+export function resolveRendererViewportProjection(input: {
+  map: EditorMap;
+  viewport: RendererViewportSnapshot;
+  width: number;
+  height: number;
+  layout?: Partial<RendererLayoutMetrics>;
+}): RendererViewportProjection {
+  const layout = createRendererLayoutMetrics(input.layout);
+  const geometry = buildViewportGeometry(
+    input.map,
+    input.viewport,
+    input.width,
+    input.height,
+    layout
+  );
+
+  return {
+    canvasX: geometry.canvasX,
+    canvasY: geometry.canvasY,
+    canvasWidth: geometry.canvasWidth,
+    canvasHeight: geometry.canvasHeight,
+    mapLeft: geometry.gridOriginX - input.viewport.originX,
+    mapTop: geometry.gridOriginY - input.viewport.originY,
+    pixelScaleX: geometry.tileWidth / input.map.settings.tileWidth,
+    pixelScaleY: geometry.tileHeight / input.map.settings.tileHeight
+  };
+}
+
+export function projectWorldRectToScreenRect(input: {
+  projection: RendererViewportProjection;
+  activeWorldRect: {
+    x: number;
+    y: number;
+  };
+  worldRect: {
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+  };
+}): RendererProjectedRect {
+  return {
+    left:
+      input.projection.mapLeft +
+      (input.worldRect.x - input.activeWorldRect.x) * input.projection.pixelScaleX,
+    top:
+      input.projection.mapTop +
+      (input.worldRect.y - input.activeWorldRect.y) * input.projection.pixelScaleY,
+    width: input.worldRect.width * input.projection.pixelScaleX,
+    height: input.worldRect.height * input.projection.pixelScaleY
   };
 }
 

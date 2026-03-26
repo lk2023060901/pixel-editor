@@ -26,7 +26,8 @@ export type EditorToolId =
   | "bucket-fill"
   | "shape-fill"
   | "select"
-  | "object-select";
+  | "object-select"
+  | "world-tool";
 
 export type ShapeFillMode = "rectangle" | "ellipse";
 
@@ -48,6 +49,8 @@ export interface EditorSessionState {
   activeStamp: TileStamp;
   selection: SelectionState;
   viewport: ViewportState;
+  showWorlds: boolean;
+  autoMapWhileDrawing: boolean;
   hasUnsavedChanges: boolean;
 }
 
@@ -75,6 +78,8 @@ export function createEditorSessionState(
       originY: 0,
       showGrid: true
     },
+    showWorlds: overrides.showWorlds ?? false,
+    autoMapWhileDrawing: overrides.autoMapWhileDrawing ?? false,
     hasUnsavedChanges: overrides.hasUnsavedChanges ?? false,
     ...(overrides.activeMapId !== undefined ? { activeMapId: overrides.activeMapId } : {}),
     ...(overrides.activeLayerId !== undefined

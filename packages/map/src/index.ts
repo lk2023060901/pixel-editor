@@ -396,6 +396,20 @@ export function toggleGridCommand(): HistoryCommand<EditorWorkspaceState> {
   });
 }
 
+export function toggleAutoMapWhileDrawingCommand(): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "session.toggleAutoMapWhileDrawing",
+    description: "Toggle AutoMap While Drawing",
+    run: (state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        autoMapWhileDrawing: !state.session.autoMapWhileDrawing
+      }
+    })
+  });
+}
+
 export function updateMapDetailsCommand(
   mapId: MapId,
   patch: UpdateMapDetailsInput
@@ -406,6 +420,25 @@ export function updateMapDetailsCommand(
     run: (state) => ({
       ...state,
       maps: state.maps.map((map) => (map.id === mapId ? updateMapDetails(map, patch) : map)),
+      session: {
+        ...state.session,
+        hasUnsavedChanges: true
+      }
+    })
+  });
+}
+
+export function replaceMapDocumentCommand(
+  mapId: MapId,
+  nextMap: EditorMap,
+  description = `Replace map ${mapId}`
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "map.replace",
+    description,
+    run: (state) => ({
+      ...state,
+      maps: state.maps.map((map) => (map.id === mapId ? nextMap : map)),
       session: {
         ...state.session,
         hasUnsavedChanges: true

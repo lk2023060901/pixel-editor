@@ -1,0 +1,31 @@
+{
+  "type": "map",
+  "name": "ruins-fill",
+  "orientation": "orthogonal",
+  "width": 1,
+  "height": 1,
+  "tilewidth": 32,
+  "tileheight": 32,
+  "layers": [
+    {
+      "type": "tilelayer",
+      "name": "input_Ground",
+      "width": 1,
+      "height": 1,
+      "data": [1]
+    },
+    {
+      "type": "tilelayer",
+      "name": "output_Ground",
+      "width": 1,
+      "height": 1,
+      "data": [2]
+    }
+  ],
+  "tilesets": [
+    {
+      "firstgid": 1,
+      "source": "../../tilesets/terrain-core.tsj"
+    }
+  ]
+}

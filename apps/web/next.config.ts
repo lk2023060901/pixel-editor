@@ -4,6 +4,7 @@ const nextConfig: NextConfig = {
   transpilePackages: [
     "@pixel-editor/app-services",
     "@pixel-editor/asset-reference",
+    "@pixel-editor/automapping",
     "@pixel-editor/command-engine",
     "@pixel-editor/contracts",
     "@pixel-editor/domain",
@@ -13,6 +14,7 @@ const nextConfig: NextConfig = {
     "@pixel-editor/objects",
     "@pixel-editor/project",
     "@pixel-editor/template",
+    "@pixel-editor/tiled-automapping",
     "@pixel-editor/world",
     "@pixel-editor/renderer-pixi",
     "@pixel-editor/tiled-json",

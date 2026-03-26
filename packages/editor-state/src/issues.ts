@@ -1,6 +1,7 @@
 export type EditorIssueSeverity = "warning" | "error";
 
 export type EditorIssueSourceKind =
+  | "automapping"
   | "project"
   | "world"
   | "tmj"

@@ -17,6 +17,7 @@ import type {
   ExamplePropertyTypeDescriptor,
   ExampleTilesetDescriptor
 } from "./schema";
+import { createExampleProjectDocumentRepository } from "./create-document-repository";
 import {
   resolveExampleMapDocumentPath,
   resolveExampleTilesetDocumentPath
@@ -30,6 +31,10 @@ function isImageTileset(
 
 export interface ExampleStoreFromSeedOptions {
   naming?: EditorNamingConfig;
+}
+
+function normalizeExampleProjectPath(path: string): string {
+  return path.replaceAll("\\", "/").trim().replace(/^\.\/+/, "");
 }
 
 function materializePropertyTypes(
@@ -73,16 +78,34 @@ export function createEditorStoreFromExampleSeed(
   const project = createProject({
     name: seed.project.name,
     assetRoots: seed.project.assetRoots,
+    ...(seed.project.automappingRulesFile !== undefined
+      ? { automappingRulesFile: seed.project.automappingRulesFile }
+      : {}),
     ...(seed.project.propertyTypes !== undefined
       ? { propertyTypes: materializePropertyTypes(seed.project.propertyTypes) }
       : {})
   });
+  const textAssetsByPath = new Map(
+    (seed.textAssets ?? []).map((asset) => [
+      normalizeExampleProjectPath(asset.path),
+      asset.content
+    ])
+  );
   const store = createEditorStore(
     createEditorWorkspaceState({
       project,
       tilesets: []
     }),
-    options
+    {
+      ...options,
+      documents: createExampleProjectDocumentRepository(seed.projectId),
+      ...(textAssetsByPath.size > 0
+        ? {
+            resolveProjectTextAsset: (path: string) =>
+              textAssetsByPath.get(normalizeExampleProjectPath(path))
+          }
+        : {})
+    }
   );
   const tilesetIdsByKey = new Map<string, TilesetDefinition["id"]>();
   const tilesetIdsByPath = new Map<string, TilesetDefinition["id"]>();

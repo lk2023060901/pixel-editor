@@ -1,0 +1,12 @@
+{
+  "name": "@pixel-editor/tiled-automapping",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@pixel-editor/asset-reference": "0.1.0"
+  }
+}

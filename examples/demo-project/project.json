@@ -2,6 +2,7 @@
   "project": {
     "name": "Example Terrain Project",
     "assetRoots": ["maps", "tilesets", "templates"],
+    "automappingRulesFile": "rules.txt",
     "propertyTypes": [
       {
         "kind": "enum",
@@ -137,6 +138,16 @@
         }
       ],
       "tilesetKeys": ["terrain-core", "props-collection"]
+    }
+  ],
+  "auxiliaryAssets": [
+    {
+      "kind": "file",
+      "path": "rules.txt"
+    },
+    {
+      "kind": "map",
+      "path": "maps/automapping/ruins-fill.tmj"
     }
   ]
 }

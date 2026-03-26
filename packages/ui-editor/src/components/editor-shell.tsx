@@ -275,6 +275,7 @@ export function EditorShell({ store }: EditorShellProps) {
     snapshot.bootstrap.documents.find(
       (document) => document.id === snapshot.bootstrap.activeDocumentId
     ) ?? snapshot.bootstrap.documents[0];
+  const worldContext = snapshot.worldContext;
   const activeProjectDocumentIds = [
     ...(activeMap ? [activeMap.id] : []),
     ...(snapshot.workspace.session.activeTilesetId !== undefined
@@ -282,11 +283,13 @@ export function EditorShell({ store }: EditorShellProps) {
       : []),
     ...(snapshot.workspace.session.activeTemplateId !== undefined
       ? [snapshot.workspace.session.activeTemplateId]
-      : [])
+      : []),
+    ...(worldContext !== undefined ? [worldContext.worldId] : [])
   ];
   const activeLayerIndex =
     activeMap?.layers.findIndex((layer) => layer.id === snapshot.workspace.session.activeLayerId) ?? -1;
   const activeTool = snapshot.workspace.session.activeTool;
+  const canMoveWorldMaps = worldContext?.modifiable ?? false;
   const toolOptionItems = getTiledToolOptionItems(
     {
       activeTool,
@@ -314,10 +317,17 @@ export function EditorShell({ store }: EditorShellProps) {
       activeDocumentKind: activeDocument?.kind,
       canUndo: snapshot.canUndo,
       canRedo: snapshot.canRedo,
+      canSaveActiveDocument: snapshot.canSaveActiveDocument,
+      canSaveAllDocuments: snapshot.canSaveAllDocuments,
       showGrid: snapshot.bootstrap.viewport.showGrid,
+      showWorlds: snapshot.workspace.session.showWorlds,
+      autoMapWhileDrawing: snapshot.workspace.session.autoMapWhileDrawing,
       hasProject: true,
       hasActiveMap: Boolean(activeMap),
+      hasAutomappingRulesFile: Boolean(snapshot.workspace.project.automappingRulesFile),
       hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
+      hasWorldContext: Boolean(worldContext),
+      canMoveWorldMaps,
       canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
       canMoveLayerDown: Boolean(
         activeMap &&
@@ -364,6 +374,10 @@ export function EditorShell({ store }: EditorShellProps) {
     const toolId = action.editorToolId;
 
     if (toolId !== undefined) {
+      if (toolId === "world-tool" && !canMoveWorldMaps) {
+        return;
+      }
+
       startTransition(() => {
         store.setActiveTool(toolId);
       });
@@ -380,6 +394,9 @@ export function EditorShell({ store }: EditorShellProps) {
         startTransition(() => {
           store.undo();
         });
+        return;
+      case "save":
+        void store.saveActiveDocument();
         return;
       case "redo":
         startTransition(() => {
@@ -423,6 +440,12 @@ export function EditorShell({ store }: EditorShellProps) {
           store.undo();
         });
         return;
+      case "save":
+        void store.saveActiveDocument();
+        return;
+      case "save-all":
+        void store.saveAllDocuments();
+        return;
       case "redo":
         startTransition(() => {
           store.redo();
@@ -433,11 +456,26 @@ export function EditorShell({ store }: EditorShellProps) {
           store.toggleGrid();
         });
         return;
+      case "enable-worlds":
+        startTransition(() => {
+          store.toggleWorlds();
+        });
+        return;
+      case "auto-map-while-drawing":
+        startTransition(() => {
+          store.toggleAutoMapWhileDrawing();
+        });
+        return;
       case "custom-types-editor":
         setCustomTypesEditorOpen((current) => !current);
         return;
       case "project-properties":
         setProjectPropertiesOpen((current) => !current);
+        return;
+      case "auto-map":
+        startTransition(() => {
+          store.runManualAutomapping();
+        });
         return;
       case "zoom-in":
         startTransition(() => {
@@ -648,6 +686,7 @@ export function EditorShell({ store }: EditorShellProps) {
                 action={action}
                 disabled={
                   !action.implemented ||
+                  (action.id === "save" && !snapshot.canSaveActiveDocument) ||
                   (action.id === "undo" && !snapshot.canUndo) ||
                   (action.id === "redo" && !snapshot.canRedo)
                 }
@@ -665,6 +704,10 @@ export function EditorShell({ store }: EditorShellProps) {
                   key={item.action.id}
                   action={item.action}
                   active={item.action.editorToolId === activeTool}
+                  disabled={
+                    !item.action.implemented ||
+                    (item.action.editorToolId === "world-tool" && !canMoveWorldMaps)
+                  }
                   onClick={() => {
                     handleToolbarAction(item.action);
                   }}
@@ -705,6 +748,26 @@ export function EditorShell({ store }: EditorShellProps) {
                 return;
               }
 
+              if (asset.kind === "world" && asset.documentId !== undefined) {
+                const world = snapshot.workspace.worlds.find((entry) => entry.id === asset.documentId);
+                const firstMapPath = world?.maps[0]?.fileName;
+                const firstMapAsset =
+                  firstMapPath !== undefined
+                    ? snapshot.bootstrap.projectAssets.find(
+                        (entry) =>
+                          entry.kind === "map" &&
+                          entry.path === firstMapPath &&
+                          entry.documentId !== undefined
+                      )
+                    : undefined;
+
+                if (firstMapAsset?.documentId !== undefined) {
+                  store.setActiveMap(firstMapAsset.documentId);
+                }
+
+                return;
+              }
+
               if (asset.kind === "tileset" && asset.documentId !== undefined) {
                 setLowerRightDockTab("tilesets");
                 store.setActiveTileset(asset.documentId);
@@ -741,6 +804,12 @@ export function EditorShell({ store }: EditorShellProps) {
             <div className="min-h-0 flex-1">
               <RendererCanvas
                 snapshot={snapshot}
+                onWorldMapActivate={(mapId) => {
+                  store.setActiveMap(mapId);
+                }}
+                onWorldMapMove={(worldId, fileName, x, y) => {
+                  store.moveWorldMap(worldId, fileName, x, y);
+                }}
                 onStrokeStart={(x, y, modifiers) => {
                   store.beginCanvasStroke(x, y, modifiers);
                 }}

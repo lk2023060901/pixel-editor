@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { getTileLayerCell } from "@pixel-editor/domain";
+
 import type { ExampleProjectSeed } from "./schema";
 import { createEditorStoreFromExampleSeed } from "./create-store-from-seed";
 
@@ -337,5 +339,131 @@ describe("createEditorStoreFromExampleSeed", () => {
         type: "mixed"
       }
     ]);
+  });
+
+  it("wires auxiliary text assets into manual automapping", () => {
+    const seed: ExampleProjectSeed = {
+      projectId: "demo-project",
+      project: {
+        name: "Example Terrain Project",
+        assetRoots: ["maps", "tilesets", "templates"],
+        automappingRulesFile: "rules.txt"
+      },
+      projectAssets: [
+        {
+          id: "project:project.json",
+          kind: "project",
+          name: "project.json",
+          path: "project.json"
+        },
+        {
+          id: "map:maps/starter-map.tmj",
+          kind: "map",
+          name: "starter-map.tmj",
+          path: "maps/starter-map.tmj"
+        },
+        {
+          id: "map:maps/automapping/ruins-fill.tmj",
+          kind: "map",
+          name: "ruins-fill.tmj",
+          path: "maps/automapping/ruins-fill.tmj"
+        },
+        {
+          id: "file:rules.txt",
+          kind: "file",
+          name: "rules.txt",
+          path: "rules.txt"
+        },
+        {
+          id: "tileset:tilesets/terrain-core.tsj",
+          kind: "tileset",
+          name: "terrain-core.tsj",
+          path: "tilesets/terrain-core.tsj"
+        }
+      ],
+      textAssets: [
+        {
+          path: "rules.txt",
+          content: "maps/automapping/ruins-fill.tmj"
+        },
+        {
+          path: "maps/automapping/ruins-fill.tmj",
+          content: JSON.stringify({
+            name: "ruins-fill",
+            orientation: "orthogonal",
+            width: 1,
+            height: 1,
+            tilewidth: 32,
+            tileheight: 32,
+            layers: [
+              {
+                type: "tilelayer",
+                name: "input_Ground",
+                width: 1,
+                height: 1,
+                data: [1]
+              },
+              {
+                type: "tilelayer",
+                name: "output_Ground",
+                width: 1,
+                height: 1,
+                data: [2]
+              }
+            ],
+            tilesets: [
+              {
+                firstgid: 1,
+                source: "../../tilesets/terrain-core.tsj"
+              }
+            ]
+          })
+        }
+      ],
+      tilesets: [
+        {
+          key: "terrain-core",
+          kind: "image",
+          name: "Terrain Core",
+          path: "tilesets/terrain-core.tsj",
+          tileWidth: 32,
+          tileHeight: 32,
+          imagePath: "/terrain-core.svg",
+          imageWidth: 64,
+          imageHeight: 32,
+          columns: 2
+        }
+      ],
+      maps: [
+        {
+          name: "starter-map",
+          path: "maps/starter-map.tmj",
+          orientation: "orthogonal",
+          width: 8,
+          height: 8,
+          tileWidth: 32,
+          tileHeight: 32,
+          tilesetKeys: ["terrain-core"]
+        }
+      ]
+    };
+
+    const store = createEditorStoreFromExampleSeed(seed);
+    const activeTileset = store.getSnapshot().activeTileset ?? store.getState().tilesets[0];
+
+    expect(activeTileset).toBeDefined();
+
+    store.selectStampTile(activeTileset!.id, 0);
+    store.beginCanvasStroke(0, 0);
+    store.endCanvasStroke();
+    store.runManualAutomapping();
+
+    const activeMap = store.getSnapshot().activeMap;
+    const groundLayer = activeMap?.layers[0];
+
+    expect(groundLayer?.kind).toBe("tile");
+    expect(
+      groundLayer?.kind === "tile" ? getTileLayerCell(groundLayer, 0, 0)?.gid : undefined
+    ).toBe(2);
   });
 });
