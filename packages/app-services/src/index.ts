@@ -34,6 +34,12 @@ export type {
   TileStamp
 } from "@pixel-editor/editor-state";
 export type {
+  ImportedTmxMapDocument,
+  ImportedTsxTilesetDocument,
+  TmxImportIssue,
+  TsxImportIssue
+} from "@pixel-editor/tiled-xml";
+export type {
   ImportedTmjMapDocument,
   ImportedTsjTilesetDocument,
   TmjImportIssue,

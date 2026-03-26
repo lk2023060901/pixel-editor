@@ -51,9 +51,9 @@ Last updated: 2026-03-26
 | IO-001 | 格式兼容 | TMJ 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 开发中 | 已新增 `@pixel-editor/tiled-json` 适配包，支持将 TMJ JSON 读取为 normalized import result：覆盖 map settings、tile/object/image/group layers、tile flips、基础 properties 与 tileset references；并已接入 `app-services` / workspace 导入 API 与控制器测试，剩余更完整兼容性待补 |
 | IO-002 | 格式兼容 | TMJ 写入 | IO-001 | 开发中 | 已在 `@pixel-editor/tiled-json` 增加 deterministic TMJ serializer：覆盖 finite/infinite tile layers、object/image/group layers、tile flip flags、object reference property 映射与 round-trip 测试；workspace 保存/export integration 待补 |
 | IO-003 | 格式兼容 | TSJ 读取与写入 | DOM-004, DOM-006 | 开发中 | 已在 `@pixel-editor/tiled-json` 增加 TSJ 读取/写出：覆盖 image / image-collection tileset、tile metadata、animation、collision objectgroup、基础 wang set 与 deterministic writer，并已接入 controller 级 tileset import API 与回归测试；更完整的 TSJ 兼容字段与保存链路待补 |
-| IO-004 | 格式兼容 | TMX 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 未开始 | XML map 读取 |
-| IO-005 | 格式兼容 | TMX 写入 | IO-004 | 未开始 | 保留兼容关键元数据 |
-| IO-006 | 格式兼容 | TSX 读取与写入 | DOM-004, DOM-006 | 未开始 | XML tileset 读写 |
+| IO-004 | 格式兼容 | TMX 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 开发中 | 已新增 `@pixel-editor/tiled-xml` 适配包并接入 controller 级 `TMX` 导入：当前覆盖 map settings、CSV/XML tile data、tile/object/image/group layers、基础 XML properties、外部/嵌入式 tileset references，并复用 `TMJ` 归一化链路；base64/compression、更完整 TMX 兼容字段与 TSX 深度联动待补 |
+| IO-005 | 格式兼容 | TMX 写入 | IO-004 | 开发中 | 已在 `@pixel-editor/tiled-xml` 增加 deterministic `TMX` serializer：当前覆盖 map settings、外部/嵌入式 tileset references、finite/infinite tile layers、object/image/group layers、基础 XML properties 与 round-trip 测试；更完整的 embedded tileset fidelity、base64/compression 与保存链路待补 |
+| IO-006 | 格式兼容 | TSX 读取与写入 | DOM-004, DOM-006 | 开发中 | 已在 `@pixel-editor/tiled-xml` 增加 `TSX` 读取/写出：当前覆盖 image / image-collection tileset、tile metadata、animation、collision objectgroup、基础 wang set、deterministic writer 与 controller 级导入测试；legacy terrain metadata、更完整 TSX fidelity 与保存链路待补 |
 | IO-007 | 格式兼容 | 资源路径解析与引用管理 | DOM-004, DOM-008 | 未开始 | 处理相对路径、外部 tileset、模板引用 |
 | IO-008 | 格式兼容 | 兼容性校验与问题报告 | IO-001, IO-004, IO-007 | 未开始 | 对未知字段和不支持能力给出 issue |
 | REN-001 | 渲染 | Pixi 渲染器启动与宿主接口 | FND-004, DOM-002 | 开发中 | 已接入真实 Pixi application 与 renderer host |

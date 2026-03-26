@@ -1,6 +1,12 @@
 import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  importTmxMapDocument as importTmxMapDocumentAdapter,
+  importTsxTilesetDocument as importTsxTilesetDocumentAdapter,
+  type ImportedTmxMapDocument,
+  type ImportedTsxTilesetDocument
+} from "@pixel-editor/tiled-xml";
+import {
   importTmjMapDocument as importTmjMapDocumentAdapter,
   importTsjTilesetDocument as importTsjTilesetDocumentAdapter,
   type ImportedTmjMapDocument,
@@ -188,6 +194,8 @@ export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
   createMapDocument(input: CreateMapInput): string;
+  importTmxMapDocument(input: string): ImportedTmxMapDocument;
+  importTsxTilesetDocument(input: string): ImportedTsxTilesetDocument;
   importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument;
   importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument;
   createQuickMapDocument(name?: string): string;
@@ -815,6 +823,28 @@ class InMemoryEditorController implements EditorController {
     this.commit(command);
 
     return projectedMap?.id ?? "";
+  }
+
+  importTmxMapDocument(input: string): ImportedTmxMapDocument {
+    const imported = importTmxMapDocumentAdapter(input);
+
+    this.commit(addImportedMapDocumentCommand(imported.map));
+
+    return imported;
+  }
+
+  importTsxTilesetDocument(input: string): ImportedTsxTilesetDocument {
+    const imported = importTsxTilesetDocumentAdapter(input);
+    const activeMap = getActiveMap(this.history.state);
+
+    this.commit(
+      addImportedTilesetCommand({
+        tileset: imported.tileset,
+        ...(activeMap ? { mapId: activeMap.id } : {})
+      })
+    );
+
+    return imported;
   }
 
   importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument {

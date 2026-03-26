@@ -20,6 +20,7 @@ export default defineConfig({
       "@pixel-editor/objects": fromRepositoryRoot("./packages/objects/src/index.ts"),
       "@pixel-editor/tileset": fromRepositoryRoot("./packages/tileset/src/index.ts"),
       "@pixel-editor/tiled-json": fromRepositoryRoot("./packages/tiled-json/src/index.ts"),
+      "@pixel-editor/tiled-xml": fromRepositoryRoot("./packages/tiled-xml/src/index.ts"),
       "@pixel-editor/renderer-pixi": fromRepositoryRoot("./packages/renderer-pixi/src/index.ts"),
       "@pixel-editor/ui-editor": fromRepositoryRoot("./packages/ui-editor/src/index.ts")
     }

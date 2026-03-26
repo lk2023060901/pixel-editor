@@ -91,6 +91,29 @@ describe("editor controller", () => {
     expect(imported.issues).toEqual([]);
   });
 
+  it("imports a TMX document into the workspace through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const initialMapCount = store.getState().maps.length;
+
+    const imported = store.importTmxMapDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.11" tiledversion="1.11.2" name="xml-import" orientation="orthogonal" width="2" height="2" tilewidth="32" tileheight="32">
+  <tileset firstgid="1" source="../tilesets/terrain.tsx"/>
+  <layer id="1" name="Ground" width="2" height="2">
+    <data encoding="csv">1,0,2,0</data>
+  </layer>
+</map>`);
+
+    expect(store.getState().maps).toHaveLength(initialMapCount + 1);
+    expect(store.getSnapshot().activeMap?.name).toBe("xml-import");
+    expect(imported.tilesetReferences).toEqual([
+      {
+        firstGid: 1,
+        source: "../tilesets/terrain.tsx"
+      }
+    ]);
+    expect(imported.issues).toEqual([]);
+  });
+
   it("imports a TSJ tileset into the workspace through the controller", () => {
     const store = createTestEditorStore("demo");
     const initialTilesetCount = store.getState().tilesets.length;
@@ -127,6 +150,34 @@ describe("editor controller", () => {
       localId: 1,
       className: "Decoration",
       imageSource: "../tilesets/prop-b.png"
+    });
+    expect(imported.issues).toEqual([]);
+    expect(activeMap?.tilesetIds).not.toContain(imported.tileset.id);
+    expect(snapshot.activeMap?.tilesetIds).toContain(imported.tileset.id);
+  });
+
+  it("imports a TSX tileset into the workspace through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const initialTilesetCount = store.getState().tilesets.length;
+    const activeMap = store.getSnapshot().activeMap;
+
+    const imported = store.importTsxTilesetDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<tileset version="1.11" tiledversion="1.11.2" name="Imported Terrain" tilewidth="32" tileheight="32" tilecount="2" columns="2">
+  <image source="../tilesets/terrain.png" width="64" height="32"/>
+  <tile id="1" type="Decoration"/>
+</tileset>`);
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.tilesets).toHaveLength(initialTilesetCount + 1);
+    expect(snapshot.activeTileset?.name).toBe("Imported Terrain");
+    expect(imported.tileset).toMatchObject({
+      kind: "image",
+      name: "Imported Terrain"
+    });
+    expect(imported.tileset.tiles[1]).toMatchObject({
+      localId: 1,
+      className: "Decoration"
     });
     expect(imported.issues).toEqual([]);
     expect(activeMap?.tilesetIds).not.toContain(imported.tileset.id);
