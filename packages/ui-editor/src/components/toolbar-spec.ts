@@ -147,6 +147,8 @@ export interface TiledMenuContext {
   canRedo: boolean;
   canSaveActiveDocument: boolean;
   canSaveAllDocuments: boolean;
+  canExportActiveDocument: boolean;
+  canExportActiveMapImage: boolean;
   showGrid: boolean;
   showWorlds: boolean;
   autoMapWhileDrawing: boolean;
@@ -237,14 +239,18 @@ export function getTiledMainMenus(
         disabled: !context.canSaveAllDocuments
       }),
       menuAction("export", t("action.export"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.canExportActiveDocument,
         shortcut: "Ctrl+E"
       }),
       menuAction("export-as", t("action.exportAs"), {
         implemented: false,
         shortcut: "Ctrl+Shift+E"
       }),
-      menuAction("export-as-image", t("action.exportAsImage"), { implemented: false }),
+      menuAction("export-as-image", t("action.exportAsImage"), {
+        implemented: true,
+        disabled: !context.canExportActiveMapImage
+      }),
       menuAction("reload", t("action.reload"), {
         implemented: false,
         shortcut: "Ctrl+R"

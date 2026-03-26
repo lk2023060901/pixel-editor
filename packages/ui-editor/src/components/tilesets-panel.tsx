@@ -41,6 +41,7 @@ export interface TilesetsPanelProps {
   activeStamp: TileStamp;
   propertyTypes: readonly PropertyTypeDefinition[] | undefined;
   store: EditorController;
+  onExportJson?: () => void;
   onOpenTileAnimationEditor?: () => void;
   onOpenTileCollisionEditor?: () => void;
   onOpenTerrainSets?: () => void;
@@ -92,7 +93,8 @@ function TilesetsPanelContent({
   activeTileLocalId,
   activeStamp,
   propertyTypes,
-  store
+  store,
+  onExportJson
 }: Omit<TilesetsPanelProps, "embedded">) {
   const { t } = useI18n();
   const availableTilesets = useMemo(() => {
@@ -260,6 +262,7 @@ function TilesetsDockContent({
   activeTilesetId,
   activeTileLocalId,
   store,
+  onExportJson,
   onOpenTileAnimationEditor,
   onOpenTileCollisionEditor,
   onOpenTerrainSets
@@ -418,7 +421,11 @@ function TilesetsDockContent({
             <path d="M2.5 3.5h2v9h-2z" />
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
-        <TilesetDockToolbarButton title={t("action.export")}>
+        <TilesetDockToolbarButton
+          disabled={!activeTileset || !onExportJson}
+          title={t("action.export")}
+          onClick={onExportJson}
+        >
           <TilesetDockIcon>
             <path d="M7 8h6" />
             <path d="M9 4l4 4-4 4" />

@@ -552,7 +552,8 @@ function serializePropertyValue(value: PropertyValue): TiledWorldJsonValue {
 }
 
 function serializeProperties(
-  properties: readonly PropertyDefinition[]
+  properties: readonly PropertyDefinition[],
+  options: Pick<ExportTiledWorldDocumentInput, "resolveObjectTypesAndProperties">
 ): TiledWorldJsonObject[] | undefined {
   if (properties.length === 0) {
     return undefined;
@@ -572,7 +573,8 @@ function serializeProperties(
         name: property.name,
         type,
         value: serializePropertyValue(property.value),
-        ...(property.propertyTypeName !== undefined
+        ...(property.propertyTypeName !== undefined &&
+        !options.resolveObjectTypesAndProperties
           ? { propertytype: property.propertyTypeName }
           : {})
       };
@@ -702,7 +704,9 @@ export function exportTiledWorldDocument(
   const patterns = input.world.patterns.map((pattern) =>
     serializePatternReference(pattern)
   );
-  const properties = serializeProperties(input.world.properties);
+  const properties = serializeProperties(input.world.properties, {
+    resolveObjectTypesAndProperties: input.resolveObjectTypesAndProperties ?? false
+  });
 
   return {
     ...(maps.length > 0 ? { maps } : {}),
@@ -715,7 +719,7 @@ export function exportTiledWorldDocument(
 
 export function stringifyTiledWorldDocument(
   input: ExportTiledWorldDocumentInput,
-  space = 2
+  space = input.minimized ? 0 : 2
 ): string {
   return JSON.stringify(exportTiledWorldDocument(input), null, space);
 }

@@ -18,6 +18,7 @@ import type {
   ExampleTilesetDescriptor
 } from "./schema";
 import { createExampleProjectDocumentRepository } from "./create-document-repository";
+import { createExampleProjectExportJobGateway } from "./create-export-job-gateway";
 import {
   resolveExampleMapDocumentPath,
   resolveExampleTilesetDocumentPath
@@ -99,6 +100,7 @@ export function createEditorStoreFromExampleSeed(
     {
       ...options,
       documents: createExampleProjectDocumentRepository(seed.projectId),
+      exports: createExampleProjectExportJobGateway(seed.projectId),
       ...(textAssetsByPath.size > 0
         ? {
             resolveProjectTextAsset: (path: string) =>

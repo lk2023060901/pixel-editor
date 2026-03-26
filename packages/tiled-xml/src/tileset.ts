@@ -998,7 +998,8 @@ export function stringifyTsxTilesetDocument(input: ExportTsxTilesetDocumentInput
   const document = exportTsjTilesetDocument({
     tileset: input.tileset,
     formatVersion: input.formatVersion ?? TSX_FORMAT_VERSION,
-    tiledVersion: input.tiledVersion ?? TSX_FORMAT_VERSION
+    tiledVersion: input.tiledVersion ?? TSX_FORMAT_VERSION,
+    resolveObjectTypesAndProperties: input.resolveObjectTypesAndProperties ?? false
   });
   const properties = Array.isArray(document.properties)
     ? (document.properties as TmjJsonObject[])

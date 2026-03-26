@@ -12,7 +12,8 @@ export function createExampleProjectDocumentRepository(
         },
         body: JSON.stringify({
           path: document.path,
-          content: document.content
+          content: document.content,
+          contentType: document.contentType
         })
       });
 

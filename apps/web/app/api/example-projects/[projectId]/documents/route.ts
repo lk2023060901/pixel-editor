@@ -1,8 +1,9 @@
-import { writeExampleProjectTextFile } from "../../../../../lib/example-projects/load-example-project-seed";
+import { persistExampleProjectDocument } from "@pixel-editor/example-project-support";
 
 interface SaveExampleProjectDocumentRequest {
   path?: unknown;
   content?: unknown;
+  contentType?: unknown;
 }
 
 export async function POST(
@@ -27,9 +28,20 @@ export async function POST(
   }
 
   try {
-    await writeExampleProjectTextFile(projectId, payload.path, payload.content);
+    await persistExampleProjectDocument({
+      projectId,
+      path: payload.path,
+      content: payload.content,
+      ...(typeof payload.contentType === "string"
+        ? { contentType: payload.contentType }
+        : {})
+    });
     return new Response(null, { status: 204 });
-  } catch {
+  } catch (error) {
+    if (error instanceof Error && error.message === "Image content must be a base64 data URL") {
+      return new Response(error.message, { status: 400 });
+    }
+
     return new Response("Failed to save example project document", { status: 500 });
   }
 }

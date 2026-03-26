@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "node src/index.js"
+    "dev": "node --experimental-strip-types src/index.ts",
+    "start": "node --experimental-strip-types src/index.ts"
+  },
+  "dependencies": {
+    "@pixel-editor/example-project-support": "0.1.0",
+    "@pixel-editor/export-jobs": "0.1.0"
   }
 }
-

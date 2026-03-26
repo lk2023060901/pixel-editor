@@ -1,8 +1,11 @@
 import "server-only";
 
 import { promises as fs } from "node:fs";
-import { fileURLToPath } from "node:url";
-import path from "node:path";
+
+import {
+  readExampleProjectFile as readExampleProjectDescriptorFile,
+  resolveExampleAssetFilePath
+} from "@pixel-editor/example-project-support";
 
 import {
   buildExampleProjectAssetDescriptors,
@@ -12,27 +15,6 @@ import {
   type ExampleProjectSeed,
   type ExampleTilesetDescriptor
 } from "./schema";
-
-function normalizeExampleProjectId(projectId: string): string {
-  if (!/^[a-z0-9-]+$/i.test(projectId)) {
-    throw new Error("Invalid example project identifier");
-  }
-
-  return projectId;
-}
-
-const exampleProjectsRootDirectory = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  "../../../../examples"
-);
-
-function exampleProjectDirectory(projectId: string): string {
-  return path.join(exampleProjectsRootDirectory, normalizeExampleProjectId(projectId));
-}
-
-function exampleProjectFilePath(projectId: string): string {
-  return path.join(exampleProjectDirectory(projectId), "project.json");
-}
 
 async function loadAuxiliaryTextAssets(
   projectId: string,
@@ -71,7 +53,7 @@ function resolveTilesetAssets(
 export async function loadExampleProjectSeed(
   projectId: string
 ): Promise<ExampleProjectSeed> {
-  const fileContent = await fs.readFile(exampleProjectFilePath(projectId), "utf8");
+  const fileContent = await readExampleProjectDescriptorFile(projectId);
   const descriptor = JSON.parse(fileContent) as ExampleProjectDescriptor;
 
   return {
@@ -87,37 +69,5 @@ export async function loadExampleProjectSeed(
 }
 
 export async function readExampleProjectFile(projectId: string): Promise<string> {
-  return fs.readFile(exampleProjectFilePath(projectId), "utf8");
-}
-
-export async function writeExampleProjectTextFile(
-  projectId: string,
-  relativePath: string,
-  content: string
-): Promise<void> {
-  const normalizedPath = relativePath
-    .replaceAll("\\", "/")
-    .trim()
-    .replace(/^\.\/+/, "");
-  const filePath = resolveExampleAssetFilePath(projectId, normalizedPath.split("/"));
-
-  await fs.mkdir(path.dirname(filePath), { recursive: true });
-  await fs.writeFile(filePath, content, "utf8");
-}
-
-export function resolveExampleAssetFilePath(
-  projectId: string,
-  assetPathSegments: string[]
-): string {
-  const baseDirectory = exampleProjectDirectory(projectId);
-  const filePath = path.resolve(baseDirectory, ...assetPathSegments);
-
-  if (
-    filePath !== baseDirectory &&
-    !filePath.startsWith(`${baseDirectory}${path.sep}`)
-  ) {
-    throw new Error("Invalid example asset path");
-  }
-
-  return filePath;
+  return readExampleProjectDescriptorFile(projectId);
 }

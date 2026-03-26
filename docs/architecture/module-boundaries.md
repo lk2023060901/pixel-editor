@@ -30,9 +30,9 @@ Allowed dependency direction:
 
 `renderer-pixi -> domain`
 
-`apps/web -> ui-editor, app-services, contracts`
+`apps/web -> ui-editor, app-services, contracts, example-project-support, export-jobs`
 
-`apps/worker -> contracts, domain, future io/export packages`
+`apps/worker -> contracts, example-project-support, export-jobs`
 
 Anything outside this graph requires an explicit architecture decision.
 
@@ -59,6 +59,46 @@ Public API rules:
 - export stable type aliases and interfaces only
 - avoid leaking framework-specific types
 - version breaking API shape changes explicitly
+
+## `packages/example-project-support`
+
+Owns:
+
+- example project filesystem path resolution
+- example project document read and write helpers
+- content-type aware export artifact persistence for the example app
+
+Must not own:
+
+- UI state
+- controller orchestration
+- queue lifecycle state
+
+Public API rules:
+
+- expose Node-only helpers with explicit project/path inputs
+- keep path normalization and traversal checks centralized
+- remain example-project scoped rather than becoming a generic export API
+
+## `packages/export-jobs`
+
+Owns:
+
+- export job queue storage
+- job state transitions such as queued/running/completed/failed
+- worker-friendly job claim and completion helpers
+
+Must not own:
+
+- export serialization
+- editor session state
+- UI concerns
+
+Public API rules:
+
+- persist stable job records using contracts DTOs
+- expose explicit queue/claim/complete/fail APIs
+- keep storage concerns reusable by web routes and worker processes
 
 ## `packages/domain`
 

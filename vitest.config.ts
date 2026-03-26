@@ -11,6 +11,10 @@ export default defineConfig({
     alias: {
       "@pixel-editor/contracts": fromRepositoryRoot("./packages/contracts/src/index.ts"),
       "@pixel-editor/domain": fromRepositoryRoot("./packages/domain/src/index.ts"),
+      "@pixel-editor/example-project-support": fromRepositoryRoot(
+        "./packages/example-project-support/src/index.ts"
+      ),
+      "@pixel-editor/export-jobs": fromRepositoryRoot("./packages/export-jobs/src/index.ts"),
       "@pixel-editor/i18n": fromRepositoryRoot("./packages/i18n/src/index.ts"),
       "@pixel-editor/i18n/client": fromRepositoryRoot("./packages/i18n/src/client.tsx"),
       "@pixel-editor/command-engine": fromRepositoryRoot("./packages/command-engine/src/index.ts"),

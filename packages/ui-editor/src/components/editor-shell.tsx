@@ -4,6 +4,7 @@ import type { EditorController } from "@pixel-editor/app-services";
 import { getObjectById } from "@pixel-editor/domain";
 import { summarizeEditorIssues } from "@pixel-editor/editor-state";
 import { useI18n } from "@pixel-editor/i18n/client";
+import { exportRendererSnapshotImageDataUrl } from "@pixel-editor/renderer-pixi";
 import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import { LayersPanel } from "./layers-panel";
@@ -319,6 +320,8 @@ export function EditorShell({ store }: EditorShellProps) {
       canRedo: snapshot.canRedo,
       canSaveActiveDocument: snapshot.canSaveActiveDocument,
       canSaveAllDocuments: snapshot.canSaveAllDocuments,
+      canExportActiveDocument: snapshot.canExportActiveDocument,
+      canExportActiveMapImage: snapshot.canExportActiveMapImage,
       showGrid: snapshot.bootstrap.viewport.showGrid,
       showWorlds: snapshot.workspace.session.showWorlds,
       autoMapWhileDrawing: snapshot.workspace.session.autoMapWhileDrawing,
@@ -366,6 +369,35 @@ export function EditorShell({ store }: EditorShellProps) {
     setSaveTemplateDialogOpen(false);
   }, [activeObject, saveTemplateDialogOpen]);
 
+  async function handleExportAsImage(): Promise<void> {
+    if (!activeMap) {
+      return;
+    }
+
+    try {
+      const dataUrl = await exportRendererSnapshotImageDataUrl({
+        snapshot: {
+          map: activeMap,
+          viewport: {
+            zoom: 1,
+            originX: 0,
+            originY: 0,
+            showGrid: false
+          }
+        },
+        width: Math.max(1, activeMap.settings.width) * activeMap.settings.tileWidth,
+        height: Math.max(1, activeMap.settings.height) * activeMap.settings.tileHeight,
+        labels: {
+          noActiveMap: t("canvas.noActiveMap")
+        }
+      });
+
+      await store.exportActiveMapImage(dataUrl);
+    } catch (error) {
+      console.error("Failed to export map image.", error);
+    }
+  }
+
   function handleToolbarAction(action: ToolbarActionSpec): void {
     if (!action.implemented) {
       return;
@@ -397,6 +429,12 @@ export function EditorShell({ store }: EditorShellProps) {
         return;
       case "save":
         void store.saveActiveDocument();
+        return;
+      case "export":
+        void store.exportActiveDocumentAsJson();
+        return;
+      case "export-as-image":
+        void handleExportAsImage();
         return;
       case "redo":
         startTransition(() => {
@@ -445,6 +483,12 @@ export function EditorShell({ store }: EditorShellProps) {
         return;
       case "save-all":
         void store.saveAllDocuments();
+        return;
+      case "export":
+        void store.exportActiveDocumentAsJson();
+        return;
+      case "export-as-image":
+        void handleExportAsImage();
         return;
       case "redo":
         startTransition(() => {
@@ -603,6 +647,9 @@ export function EditorShell({ store }: EditorShellProps) {
         activeStamp={activeStamp}
         onOpenTileAnimationEditor={() => {
           setTileAnimationEditorOpen(true);
+        }}
+        onExportJson={() => {
+          void store.exportActiveTilesetAsJson();
         }}
         onOpenTileCollisionEditor={() => {
           setTileCollisionEditorOpen(true);

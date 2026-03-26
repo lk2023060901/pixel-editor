@@ -534,6 +534,101 @@ function drawGridOverlay(
   scene.addChild(grid);
 }
 
+function buildScene(
+  scene: Container,
+  snapshot: RendererSnapshot,
+  width: number,
+  height: number,
+  layout: RendererLayoutMetrics,
+  labels?: {
+    noActiveMap?: string;
+  }
+): void {
+  const background = new Graphics();
+  background.rect(0, 0, width, height);
+  background.fill({ color: 0x0b1220, alpha: 1 });
+  scene.addChild(background);
+
+  if (!snapshot.map) {
+    const emptyText = new Text({
+      text: labels?.noActiveMap ?? "",
+      style: {
+        fill: 0xe2e8f0,
+        fontSize: 18,
+        fontFamily: "IBM Plex Sans, sans-serif"
+      }
+    });
+    emptyText.position.set(
+      layout.framePadding + layout.emptyStateOffsetX,
+      layout.framePadding + layout.emptyStateOffsetY
+    );
+    scene.addChild(emptyText);
+    return;
+  }
+
+  const geometry = buildViewportGeometry(
+    snapshot.map,
+    snapshot.viewport,
+    width,
+    height,
+    layout
+  );
+
+  drawTileLayers(scene, snapshot, geometry);
+  drawGridOverlay(scene, snapshot, geometry);
+  drawObjectLayers(scene, snapshot, geometry);
+  drawPreviewOverlay(scene, snapshot, geometry);
+  drawSelectionOverlay(scene, snapshot, geometry);
+}
+
+export async function exportRendererSnapshotImageDataUrl(input: {
+  snapshot: RendererSnapshot;
+  width: number;
+  height: number;
+  layout?: Partial<RendererLayoutMetrics>;
+  labels?: {
+    noActiveMap?: string;
+  };
+  mimeType?: "image/png" | "image/jpeg" | "image/webp";
+}): Promise<string> {
+  const app = new Application();
+  const layout = createRendererLayoutMetrics(input.layout);
+
+  await app.init({
+    width: input.width,
+    height: input.height,
+    antialias: true,
+    backgroundAlpha: 0
+  });
+
+  try {
+    for (const child of app.stage.removeChildren()) {
+      child.destroy({ children: true });
+    }
+
+    const scene = new Container();
+    app.stage.addChild(scene);
+    buildScene(
+      scene,
+      input.snapshot,
+      input.width,
+      input.height,
+      layout,
+      input.labels
+    );
+
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+
+    return app.canvas.toDataURL(input.mimeType ?? "image/png");
+  } finally {
+    app.destroy(true, {
+      children: true
+    });
+  }
+}
+
 export function createPixiEditorRenderer(options: {
   layout?: Partial<RendererLayoutMetrics>;
   labels?: {
@@ -563,44 +658,7 @@ export function createPixiEditorRenderer(options: {
 
     const width = app.renderer.width;
     const height = app.renderer.height;
-
-    const background = new Graphics();
-    background.rect(0, 0, width, height);
-    background.fill({ color: 0x0b1220, alpha: 1 });
-    scene.addChild(background);
-
-    if (!snapshot.map) {
-      const emptyText = new Text({
-        text: options.labels?.noActiveMap ?? "",
-        style: {
-          fill: 0xe2e8f0,
-          fontSize: 18,
-          fontFamily: "IBM Plex Sans, sans-serif"
-        }
-      });
-      emptyText.position.set(
-        layout.framePadding + layout.emptyStateOffsetX,
-        layout.framePadding + layout.emptyStateOffsetY
-      );
-      scene.addChild(emptyText);
-      return;
-    }
-
-    const map = snapshot.map;
-    const zoom = snapshot.viewport.zoom;
-    const geometry = buildViewportGeometry(
-      map,
-      snapshot.viewport,
-      width,
-      height,
-      layout
-    );
-
-    drawTileLayers(scene, snapshot, geometry);
-    drawGridOverlay(scene, snapshot, geometry);
-    drawObjectLayers(scene, snapshot, geometry);
-    drawPreviewOverlay(scene, snapshot, geometry);
-    drawSelectionOverlay(scene, snapshot, geometry);
+    buildScene(scene, snapshot, width, height, layout, options.labels);
   }
 
   return {

@@ -459,7 +459,8 @@ export function stringifyTmxMapDocument(input: ExportTmxMapDocumentInput): strin
       ? { tilesetReferences: input.tilesetReferences }
       : {}),
     formatVersion: input.formatVersion ?? TMX_FORMAT_VERSION,
-    tiledVersion: input.tiledVersion ?? TMX_FORMAT_VERSION
+    tiledVersion: input.tiledVersion ?? TMX_FORMAT_VERSION,
+    resolveObjectTypesAndProperties: input.resolveObjectTypesAndProperties ?? false
   });
   const properties = Array.isArray(document.properties)
     ? (document.properties as TmjJsonObject[])

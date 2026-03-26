@@ -452,7 +452,8 @@ export function stringifyTxTemplateDocument(
         }
       : {}),
     formatVersion: input.formatVersion ?? TX_FORMAT_VERSION,
-    tiledVersion: input.tiledVersion ?? TX_FORMAT_VERSION
+    tiledVersion: input.tiledVersion ?? TX_FORMAT_VERSION,
+    resolveObjectTypesAndProperties: input.resolveObjectTypesAndProperties ?? false
   });
   const mapDocument = parseXmlDocument(serializedMap);
   const mapRoot = mapDocument.documentElement;

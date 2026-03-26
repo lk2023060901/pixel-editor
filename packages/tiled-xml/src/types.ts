@@ -51,12 +51,14 @@ export interface ExportTmxMapDocumentInput {
   tilesetReferences?: readonly ImportedTmjTilesetReference[];
   formatVersion?: string;
   tiledVersion?: string;
+  resolveObjectTypesAndProperties?: boolean;
 }
 
 export interface ExportTsxTilesetDocumentInput {
   tileset: TilesetDefinition;
   formatVersion?: string;
   tiledVersion?: string;
+  resolveObjectTypesAndProperties?: boolean;
 }
 
 export interface ExportTxTemplateDocumentInput {
@@ -64,4 +66,5 @@ export interface ExportTxTemplateDocumentInput {
   tilesetSource?: string;
   formatVersion?: string;
   tiledVersion?: string;
+  resolveObjectTypesAndProperties?: boolean;
 }

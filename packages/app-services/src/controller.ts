@@ -1,6 +1,8 @@
 import type {
   DocumentSummary,
   EditorBootstrapContract,
+  ExportJobReceipt,
+  ExportedDocumentArtifactContract,
   ProjectAssetSummary
 } from "@pixel-editor/contracts";
 import { resolveAssetPath } from "@pixel-editor/asset-reference";
@@ -41,6 +43,7 @@ import {
   importTmjMapDocument as importTmjMapDocumentAdapter,
   importTsjTilesetDocument as importTsjTilesetDocumentAdapter,
   type ImportedTmjMapDocument,
+  type ImportedTmjTilesetReference,
   type ImportedTsjTilesetDocument
 } from "@pixel-editor/tiled-json";
 import {
@@ -229,7 +232,9 @@ export interface AssetRepository {
 }
 
 export interface ExportJobGateway {
-  queueMapExport(mapId: string): Promise<{ jobId: string }>;
+  queueDocumentExport(
+    document: ExportedDocumentArtifactContract
+  ): Promise<ExportJobReceipt>;
 }
 
 export interface ValidationGateway {
@@ -246,6 +251,7 @@ export interface EditorInfrastructure {
 export interface EditorControllerOptions {
   naming?: EditorNamingConfig;
   documents?: DocumentRepository;
+  exports?: ExportJobGateway;
   projectAssets?: readonly ProjectAssetSummary[];
   resolveProjectTextAsset?: ProjectTextAssetResolver;
 }
@@ -270,16 +276,12 @@ export interface EditorRuntimeSnapshot {
   canRedo: boolean;
   canSaveActiveDocument: boolean;
   canSaveAllDocuments: boolean;
+  canExportActiveDocument: boolean;
+  canExportActiveTilesetDocument: boolean;
+  canExportActiveMapImage: boolean;
 }
 
-export interface SavedEditorDocument {
-  id: string;
-  kind: DocumentSummary["kind"] | "project";
-  name: string;
-  path: string;
-  content: string;
-  contentType: string;
-}
+export interface SavedEditorDocument extends ExportedDocumentArtifactContract {}
 
 export interface EditorWorldContextMapSnapshot {
   worldId: EditorWorld["id"];
@@ -347,6 +349,10 @@ export interface EditorController {
   saveDocument(documentId: string): Promise<boolean>;
   saveActiveDocument(): Promise<boolean>;
   saveAllDocuments(): Promise<boolean>;
+  exportDocumentAsJson(documentId: string): Promise<boolean>;
+  exportActiveDocumentAsJson(): Promise<boolean>;
+  exportActiveTilesetAsJson(): Promise<boolean>;
+  exportActiveMapImage(dataUrl: string): Promise<boolean>;
   setActiveMap(mapId: string): void;
   setActiveLayer(layerId: string): void;
   setActiveTileset(tilesetId: string): void;
@@ -492,6 +498,17 @@ function normalizeProjectAssetPath(path: string): string {
 function basename(path: string): string {
   const normalizedPath = normalizeProjectAssetPath(path);
   return normalizedPath.split("/").at(-1) ?? normalizedPath;
+}
+
+function replacePathExtension(path: string, extension: string): string {
+  const normalizedPath = normalizeProjectAssetPath(path);
+  const dotIndex = normalizedPath.lastIndexOf(".");
+
+  if (dotIndex < 0) {
+    return `${normalizedPath}${extension}`;
+  }
+
+  return `${normalizedPath.slice(0, dotIndex)}${extension}`;
 }
 
 function ensureTemplateExtension(path: string): string {
@@ -757,6 +774,7 @@ class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly naming: EditorNamingConfig;
   private readonly documents: DocumentRepository | undefined;
+  private readonly exports: ExportJobGateway | undefined;
   private readonly resolveProjectTextAsset: ProjectTextAssetResolver | undefined;
   private readonly listeners = new Set<() => void>();
   private projectAssets: ProjectAssetSummary[];
@@ -771,6 +789,7 @@ class InMemoryEditorController implements EditorController {
     this.history = new CommandHistory(initialState);
     this.naming = options.naming ?? defaultEditorNamingConfig;
     this.documents = options.documents;
+    this.exports = options.exports;
     this.projectAssets = [...(options.projectAssets ?? [])];
     this.resolveProjectTextAsset = options.resolveProjectTextAsset;
   }
@@ -805,6 +824,15 @@ class InMemoryEditorController implements EditorController {
           workspace.tilesets.length > 0 ||
           workspace.templates.length > 0 ||
           workspace.worlds.length > 0),
+      canExportActiveDocument:
+        (this.documents !== undefined || this.exports !== undefined) &&
+        activeMap !== undefined,
+      canExportActiveTilesetDocument:
+        (this.documents !== undefined || this.exports !== undefined) &&
+        activeTileset !== undefined,
+      canExportActiveMapImage:
+        (this.documents !== undefined || this.exports !== undefined) &&
+        activeMap !== undefined,
       ...(activeMap ? { activeMap } : {}),
       ...(activeLayer ? { activeLayer } : {}),
       ...(activeTemplate ? { activeTemplate } : {}),
@@ -999,19 +1027,94 @@ class InMemoryEditorController implements EditorController {
     };
   }
 
+  private createJsonExportTarget(
+    kind: Extract<DocumentSummary["kind"], "map" | "tileset">,
+    documentId: string
+  ): NativeDocumentSaveTarget | undefined {
+    const nativeTarget = this.buildNativeSaveTargets([documentId])[0];
+
+    if (!nativeTarget || nativeTarget.kind !== kind) {
+      return undefined;
+    }
+
+    return {
+      ...nativeTarget,
+      path:
+        kind === "map"
+          ? replacePathExtension(nativeTarget.path, ".tmj")
+          : replacePathExtension(nativeTarget.path, ".tsj")
+    };
+  }
+
+  private createActiveMapImageExportTarget(): NativeDocumentSaveTarget | undefined {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return undefined;
+    }
+
+    const nativeTarget = this.buildNativeSaveTargets([activeMap.id])[0];
+
+    if (!nativeTarget || nativeTarget.kind !== "map") {
+      return undefined;
+    }
+
+    return {
+      ...nativeTarget,
+      path: replacePathExtension(nativeTarget.path, ".png")
+    };
+  }
+
+  private buildJsonExportSerializationContext(
+    targets: readonly NativeDocumentSaveTarget[]
+  ): NativeDocumentSerializationContext {
+    const exportPathsByDocumentKey = new Map<string, string>();
+
+    for (const target of this.collectNativeDocumentSaveTargets()) {
+      if (target.kind === "map") {
+        exportPathsByDocumentKey.set(
+          createDocumentKey("map", target.id),
+          this.createJsonExportTarget("map", target.id)?.path ??
+            replacePathExtension(
+              `${this.getPreferredAssetRoot("maps")}/${slugifyPathSegment(target.name)}.tmx`,
+              ".tmj"
+            )
+        );
+        continue;
+      }
+
+      if (target.kind === "tileset") {
+        exportPathsByDocumentKey.set(
+          createDocumentKey("tileset", target.id),
+          this.createJsonExportTarget("tileset", target.id)?.path ??
+            replacePathExtension(
+              `${this.getPreferredAssetRoot("tilesets")}/${slugifyPathSegment(target.name)}.tsx`,
+              ".tsj"
+            )
+        );
+        continue;
+      }
+    }
+
+    for (const target of targets) {
+      exportPathsByDocumentKey.set(createDocumentKey(target.kind, target.id), target.path);
+    }
+
+    return {
+      pathsByDocumentKey: exportPathsByDocumentKey
+    };
+  }
+
   private buildMapTilesetReferences(
     map: EditorMap,
     mapPath: string,
-    context: NativeDocumentSerializationContext
-  ): Array<{
-    firstGid: number;
-    source: string;
-  }> {
+    context: NativeDocumentSerializationContext,
+    options: {
+      embedTilesets: boolean;
+    }
+  ): ImportedTmjTilesetReference[] {
     let firstGid = 1;
-    const references: Array<{
-      firstGid: number;
-      source: string;
-    }> = [];
+    const references: ImportedTmjTilesetReference[] = [];
 
     for (const tilesetId of map.tilesetIds) {
       const tileset = this.history.state.tilesets.find((entry) => entry.id === tilesetId);
@@ -1024,14 +1127,26 @@ class InMemoryEditorController implements EditorController {
         createDocumentKey("tileset", tileset.id)
       );
 
-      if (!tilesetPath) {
-        throw new Error(`Missing save path for tileset ${tileset.name}`);
+      if (options.embedTilesets) {
+        references.push({
+          firstGid,
+          name: tileset.name,
+          tileCount: getTilesetTileCount(tileset),
+          ...(tileset.kind === "image" && tileset.source?.imagePath !== undefined
+            ? { image: tileset.source.imagePath }
+            : {})
+        });
+      } else {
+        if (!tilesetPath) {
+          throw new Error(`Missing save path for tileset ${tileset.name}`);
+        }
+
+        references.push({
+          firstGid,
+          source: relativeProjectPath(mapPath, tilesetPath)
+        });
       }
 
-      references.push({
-        firstGid,
-        source: relativeProjectPath(mapPath, tilesetPath)
-      });
       firstGid += getTilesetTileCount(tileset);
     }
 
@@ -1045,17 +1160,31 @@ class InMemoryEditorController implements EditorController {
     switch (target.kind) {
       case "map": {
         const map = this.history.state.maps.find((entry) => entry.id === target.id);
+        const exportOptions = this.history.state.project.exportOptions;
 
         if (!map) {
           throw new Error(`Map ${target.id} not found`);
         }
 
         const extension = lowerCaseExtension(target.path);
-        const tilesetReferences = this.buildMapTilesetReferences(map, target.path, context);
+        const tilesetReferences = this.buildMapTilesetReferences(map, target.path, context, {
+          embedTilesets: exportOptions.embedTilesets
+        });
         const content =
           extension === ".tmj" || extension === ".json"
-            ? exportTmjMapDocumentAdapter({ map, tilesetReferences })
-            : exportTmxMapDocumentAdapter({ map, tilesetReferences });
+            ? exportTmjMapDocumentAdapter({
+                map,
+                tilesetReferences,
+                minimized: exportOptions.exportMinimized,
+                resolveObjectTypesAndProperties:
+                  exportOptions.resolveObjectTypesAndProperties
+              })
+            : exportTmxMapDocumentAdapter({
+                map,
+                tilesetReferences,
+                resolveObjectTypesAndProperties:
+                  exportOptions.resolveObjectTypesAndProperties
+              });
 
         return {
           id: target.id,
@@ -1071,6 +1200,7 @@ class InMemoryEditorController implements EditorController {
       }
       case "tileset": {
         const tileset = this.history.state.tilesets.find((entry) => entry.id === target.id);
+        const exportOptions = this.history.state.project.exportOptions;
 
         if (!tileset) {
           throw new Error(`Tileset ${target.id} not found`);
@@ -1079,8 +1209,17 @@ class InMemoryEditorController implements EditorController {
         const extension = lowerCaseExtension(target.path);
         const content =
           extension === ".tsj" || extension === ".json"
-            ? exportTsjTilesetDocumentAdapter({ tileset })
-            : exportTsxTilesetDocumentAdapter({ tileset });
+            ? exportTsjTilesetDocumentAdapter({
+                tileset,
+                minimized: exportOptions.exportMinimized,
+                resolveObjectTypesAndProperties:
+                  exportOptions.resolveObjectTypesAndProperties
+              })
+            : exportTsxTilesetDocumentAdapter({
+                tileset,
+                resolveObjectTypesAndProperties:
+                  exportOptions.resolveObjectTypesAndProperties
+              });
 
         return {
           id: target.id,
@@ -1096,6 +1235,7 @@ class InMemoryEditorController implements EditorController {
       }
       case "template": {
         const template = this.history.state.templates.find((entry) => entry.id === target.id);
+        const exportOptions = this.history.state.project.exportOptions;
 
         if (!template) {
           throw new Error(`Template ${target.id} not found`);
@@ -1119,6 +1259,8 @@ class InMemoryEditorController implements EditorController {
           path: target.path,
           content: exportTxTemplateDocumentAdapter({
             template,
+            resolveObjectTypesAndProperties:
+              exportOptions.resolveObjectTypesAndProperties,
             ...(tilesetSource !== undefined ? { tilesetSource } : {})
           }),
           contentType: "application/xml; charset=utf-8"
@@ -1126,6 +1268,7 @@ class InMemoryEditorController implements EditorController {
       }
       case "world": {
         const world = this.history.state.worlds.find((entry) => entry.id === target.id);
+        const exportOptions = this.history.state.project.exportOptions;
 
         if (!world) {
           throw new Error(`World ${target.id} not found`);
@@ -1138,7 +1281,10 @@ class InMemoryEditorController implements EditorController {
           path: target.path,
           content: exportTiledWorldDocumentAdapter({
             world,
-            documentPath: target.path
+            documentPath: target.path,
+            minimized: exportOptions.exportMinimized,
+            resolveObjectTypesAndProperties:
+              exportOptions.resolveObjectTypesAndProperties
           }),
           contentType: "application/json; charset=utf-8"
         };
@@ -1161,6 +1307,26 @@ class InMemoryEditorController implements EditorController {
       documentPath: target.path,
       severity: "error",
       code: "save.document.failed",
+      message,
+      path: target.path
+    };
+  }
+
+  private createExportIssueEntry(
+    target: NativeDocumentSaveTarget,
+    error: unknown
+  ): EditorIssueEntry {
+    const message =
+      error instanceof Error ? error.message : "Failed to export document.";
+
+    return {
+      id: `export:${target.id}:${target.path}`,
+      sourceId: `export:${target.id}`,
+      sourceKind: "validation",
+      documentName: target.name,
+      documentPath: target.path,
+      severity: "error",
+      code: "export.document.failed",
       message,
       path: target.path
     };
@@ -1189,6 +1355,33 @@ class InMemoryEditorController implements EditorController {
     } catch (error) {
       this.replaceIssueSourceEntries(`save:${target.id}`, [
         this.createSaveIssueEntry(target, error)
+      ]);
+      return false;
+    }
+  }
+
+  private async persistJsonExport(
+    target: NativeDocumentSaveTarget,
+    context: NativeDocumentSerializationContext
+  ): Promise<boolean> {
+    if (!this.documents && !this.exports) {
+      return false;
+    }
+
+    try {
+      const serializedDocument = this.serializeNativeDocument(target, context);
+
+      if (this.exports) {
+        await this.exports.queueDocumentExport(serializedDocument);
+      } else if (this.documents) {
+        await this.documents.saveDocument(serializedDocument);
+      }
+
+      this.replaceIssueSourceEntries(`export:${target.id}`, []);
+      return true;
+    } catch (error) {
+      this.replaceIssueSourceEntries(`export:${target.id}`, [
+        this.createExportIssueEntry(target, error)
       ]);
       return false;
     }
@@ -2577,6 +2770,92 @@ class InMemoryEditorController implements EditorController {
     return allSaved;
   }
 
+  async exportDocumentAsJson(documentId: string): Promise<boolean> {
+    if (!this.documents && !this.exports) {
+      return false;
+    }
+
+    const mapTarget = this.createJsonExportTarget("map", documentId);
+    const tilesetTarget = this.createJsonExportTarget("tileset", documentId);
+    const target = mapTarget ?? tilesetTarget;
+
+    if (!target) {
+      return false;
+    }
+
+    const result = await this.persistJsonExport(
+      target,
+      this.buildJsonExportSerializationContext([target])
+    );
+
+    this.emit();
+    return result;
+  }
+
+  async exportActiveDocumentAsJson(): Promise<boolean> {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return false;
+    }
+
+    return this.exportDocumentAsJson(activeMap.id);
+  }
+
+  async exportActiveTilesetAsJson(): Promise<boolean> {
+    const activeTileset = getActiveTileset(this.history.state);
+
+    if (!activeTileset) {
+      return false;
+    }
+
+    return this.exportDocumentAsJson(activeTileset.id);
+  }
+
+  async exportActiveMapImage(dataUrl: string): Promise<boolean> {
+    if (!this.documents && !this.exports) {
+      return false;
+    }
+
+    const target = this.createActiveMapImageExportTarget();
+
+    if (!target) {
+      return false;
+    }
+
+    try {
+      const exportedDocument: SavedEditorDocument = {
+        id: target.id,
+        kind: target.kind,
+        name: target.name,
+        path: target.path,
+        content: dataUrl,
+        contentType: "image/png"
+      };
+
+      if (this.exports) {
+        await this.exports.queueDocumentExport(exportedDocument);
+      } else if (this.documents) {
+        await this.documents.saveDocument(exportedDocument);
+      }
+
+      this.replaceIssueSourceEntries(`export:${target.id}:image`, []);
+      this.emit();
+      return true;
+    } catch (error) {
+      this.replaceIssueSourceEntries(`export:${target.id}:image`, [
+        {
+          ...this.createExportIssueEntry(target, error),
+          id: `export:${target.id}:image:${target.path}`,
+          sourceId: `export:${target.id}:image`,
+          code: "export.image.failed"
+        }
+      ]);
+      this.emit();
+      return false;
+    }
+  }
+
   setActiveMap(mapId: string): void {
     const state = this.history.state;
     const map = state.maps.find((entry) => entry.id === mapId);
@@ -3045,6 +3324,8 @@ class InMemoryEditorController implements EditorController {
 
     return exportTxTemplateDocumentAdapter({
       template,
+      resolveObjectTypesAndProperties:
+        this.history.state.project.exportOptions.resolveObjectTypesAndProperties,
       ...(tilesetSource !== undefined ? { tilesetSource } : {})
     });
   }

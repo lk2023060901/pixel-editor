@@ -1,6 +1,6 @@
 import { promises as fs } from "node:fs";
 
-import { resolveExampleAssetFilePath } from "../../../../../../lib/example-projects/load-example-project-seed";
+import { resolveExampleAssetFilePath } from "@pixel-editor/example-project-support";
 
 function guessContentType(fileName: string): string {
   if (fileName.endsWith(".svg")) {

@@ -42,12 +42,16 @@ export interface ExportTmjMapDocumentInput {
   tilesetReferences?: readonly ImportedTmjTilesetReference[];
   formatVersion?: string;
   tiledVersion?: string;
+  minimized?: boolean;
+  resolveObjectTypesAndProperties?: boolean;
 }
 
 export interface ExportTsjTilesetDocumentInput {
   tileset: TilesetDefinition;
   formatVersion?: string;
   tiledVersion?: string;
+  minimized?: boolean;
+  resolveObjectTypesAndProperties?: boolean;
 }
 
 export type TmjJsonPrimitive = string | number | boolean | null;

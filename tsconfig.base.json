@@ -21,6 +21,8 @@
     "paths": {
       "@pixel-editor/contracts": ["packages/contracts/src/index.ts"],
       "@pixel-editor/domain": ["packages/domain/src/index.ts"],
+      "@pixel-editor/example-project-support": ["packages/example-project-support/src/index.ts"],
+      "@pixel-editor/export-jobs": ["packages/export-jobs/src/index.ts"],
       "@pixel-editor/i18n": ["packages/i18n/src/index.ts"],
       "@pixel-editor/i18n/client": ["packages/i18n/src/client.tsx"],
       "@pixel-editor/command-engine": ["packages/command-engine/src/index.ts"],

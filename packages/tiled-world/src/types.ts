@@ -22,6 +22,8 @@ export interface ImportedTiledWorldDocument {
 export interface ExportTiledWorldDocumentInput {
   world: EditorWorld;
   documentPath?: string;
+  minimized?: boolean;
+  resolveObjectTypesAndProperties?: boolean;
 }
 
 export type TiledWorldJsonPrimitive = string | number | boolean | null;

@@ -785,7 +785,8 @@ function serializePropertyValue(
 
 function serializeProperties(
   properties: readonly PropertyDefinition[],
-  objectIds: ReadonlyMap<ObjectId, number>
+  objectIds: ReadonlyMap<ObjectId, number>,
+  options: Pick<ExportTsjTilesetDocumentInput, "resolveObjectTypesAndProperties">
 ): TmjJsonObject[] | undefined {
   if (properties.length === 0) {
     return undefined;
@@ -805,7 +806,8 @@ function serializeProperties(
         name: property.name,
         type,
         value: serializePropertyValue(property.value, objectIds),
-        ...(property.propertyTypeName !== undefined
+        ...(property.propertyTypeName !== undefined &&
+        !options.resolveObjectTypesAndProperties
           ? { propertytype: property.propertyTypeName }
           : {})
       };
@@ -834,14 +836,15 @@ function serializeTextData(object: MapObject): TmjJsonObject | undefined {
 
 function serializeMapObject(
   object: MapObject,
-  objectIds: ReadonlyMap<ObjectId, number>
+  objectIds: ReadonlyMap<ObjectId, number>,
+  options: Pick<ExportTsjTilesetDocumentInput, "resolveObjectTypesAndProperties">
 ): TmjJsonObject {
-  const properties = serializeProperties(object.properties, objectIds);
+  const properties = serializeProperties(object.properties, objectIds, options);
   const document: TmjJsonObject = {
     ...(properties ? { properties } : {}),
     id: objectIds.get(object.id) ?? 0,
     name: object.name,
-    type: object.className ?? "",
+    ...(!options.resolveObjectTypesAndProperties ? { type: object.className ?? "" } : {}),
     ...(object.tile?.gid !== undefined ? { gid: object.tile.gid } : {}),
     x: object.x,
     y: object.y,
@@ -873,8 +876,17 @@ function serializeMapObject(
 }
 
 function serializeObjectLayer(layer: ObjectLayer): TmjJsonObject {
+  return serializeObjectLayerWithOptions(layer, {
+    resolveObjectTypesAndProperties: false
+  });
+}
+
+function serializeObjectLayerWithOptions(
+  layer: ObjectLayer,
+  options: Pick<ExportTsjTilesetDocumentInput, "resolveObjectTypesAndProperties">
+): TmjJsonObject {
   const objectIds = collectObjectIds(layer.objects);
-  const properties = serializeProperties(layer.properties, objectIds);
+  const properties = serializeProperties(layer.properties, objectIds, options);
 
   return {
     type: "objectgroup",
@@ -893,14 +905,18 @@ function serializeObjectLayer(layer: ObjectLayer): TmjJsonObject {
     ...(layer.blendMode !== "normal" ? { mode: layer.blendMode } : {}),
     ...(properties ? { properties } : {}),
     draworder: layer.drawOrder,
-    objects: layer.objects.map((object) => serializeMapObject(object, objectIds))
+    objects: layer.objects.map((object) => serializeMapObject(object, objectIds, options))
   };
 }
 
-function shouldExportTile(tile: TileDefinition, kind: TilesetDefinition["kind"]): boolean {
+function shouldExportTile(
+  tile: TileDefinition,
+  kind: TilesetDefinition["kind"],
+  options: Pick<ExportTsjTilesetDocumentInput, "resolveObjectTypesAndProperties">
+): boolean {
   return (
     kind === "image-collection" ||
-    tile.className !== undefined ||
+    (tile.className !== undefined && !options.resolveObjectTypesAndProperties) ||
     tile.probability !== 1 ||
     tile.properties.length > 0 ||
     tile.animation.length > 0 ||
@@ -1092,19 +1108,29 @@ export function importTsjTilesetDocument(
 
 export function exportTsjTilesetDocument(input: ExportTsjTilesetDocumentInput): TmjJsonObject {
   const { tileset } = input;
-  const properties = serializeProperties(tileset.properties, new Map<ObjectId, number>());
+  const serializeOptions = {
+    resolveObjectTypesAndProperties: input.resolveObjectTypesAndProperties ?? false
+  };
+  const properties = serializeProperties(
+    tileset.properties,
+    new Map<ObjectId, number>(),
+    serializeOptions
+  );
   const tiles = tileset.tiles
-    .filter((tile) => shouldExportTile(tile, tileset.kind))
+    .filter((tile) => shouldExportTile(tile, tileset.kind, serializeOptions))
     .sort((left, right) => compareNumbers(left.localId, right.localId))
     .map((tile) => {
       const propertyValues = serializeProperties(
         tile.properties,
-        tile.collisionLayer ? collectObjectIds(tile.collisionLayer.objects) : new Map()
+        tile.collisionLayer ? collectObjectIds(tile.collisionLayer.objects) : new Map(),
+        serializeOptions
       );
 
       return {
         id: tile.localId,
-        ...(tile.className !== undefined ? { type: tile.className } : {}),
+        ...(tile.className !== undefined && !serializeOptions.resolveObjectTypesAndProperties
+          ? { type: tile.className }
+          : {}),
         ...(tile.probability !== 1 ? { probability: tile.probability } : {}),
         ...(propertyValues ? { properties: propertyValues } : {}),
         ...(tile.imageSource !== undefined ? { image: tile.imageSource } : {}),
@@ -1117,7 +1143,7 @@ export function exportTsjTilesetDocument(input: ExportTsjTilesetDocumentInput): 
             }
           : {}),
         ...(tile.collisionLayer && tile.collisionLayer.objects.length > 0
-          ? { objectgroup: serializeObjectLayer(tile.collisionLayer) }
+          ? { objectgroup: serializeObjectLayerWithOptions(tile.collisionLayer, serializeOptions) }
           : {})
       };
     });
@@ -1174,7 +1200,7 @@ export function exportTsjTilesetDocument(input: ExportTsjTilesetDocumentInput): 
 
 export function stringifyTsjTilesetDocument(
   input: ExportTsjTilesetDocumentInput,
-  space = 2
+  space = input.minimized ? 0 : 2
 ): string {
   return JSON.stringify(exportTsjTilesetDocument(input), null, space);
 }
