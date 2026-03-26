@@ -1,6 +1,6 @@
 # Development Plan
 
-Last updated: 2026-03-26
+Last updated: 2026-03-27
 
 ## Status Definitions
 
@@ -56,12 +56,12 @@ Last updated: 2026-03-26
 | IO-006 | 格式兼容 | TSX 读取与写入 | DOM-004, DOM-006 | 开发中 | 已在 `@pixel-editor/tiled-xml` 增加 `TSX` 读取/写出：当前覆盖 image / image-collection tileset、tile metadata、animation、collision objectgroup、基础 wang set、deterministic writer 与 controller 级导入测试；legacy terrain metadata、更完整 TSX fidelity 与保存链路待补 |
 | IO-007 | 格式兼容 | 资源路径解析与引用管理 | DOM-004, DOM-008 | 已完成 | 新增 asset-reference 包；TMJ/TMX/TSJ/TSX 导入支持相对路径解析、外部 tileset / image / template / file property 引用描述 |
 | IO-008 | 格式兼容 | 兼容性校验与问题报告 | IO-001, IO-004, IO-007 | 已完成 | TMJ/TSJ/TMX/TSX 导入已补齐未知字段 / 属性 / 元素、外部资源引用与不支持能力 issue，并通过 importer/controller 回归测试 |
-| REN-001 | 渲染 | Pixi 渲染器启动与宿主接口 | FND-004, DOM-002 | 开发中 | 已接入真实 Pixi application 与 renderer host |
+| REN-001 | 渲染 | Pixi 渲染器启动与宿主接口 | FND-004, DOM-002 | 开发中 | 已接入真实 Pixi application、renderer host 与持久 scene graph 基础 |
 | REN-002 | 渲染 | Camera 与 viewport 控制 | REN-001, SES-004 | 开发中 | 已接入 zoom 与 pan 基础命令流和视口状态联动 |
-| REN-003 | 渲染 | Orthogonal Tile Layer 渲染 | REN-001, DOM-003, DOM-004 | 开发中 | 已实现 orthogonal 网格内 tile cell 可视化与 active layer 高亮 |
+| REN-003 | 渲染 | Orthogonal Tile Layer 渲染 | REN-001, DOM-003, DOM-004 | 开发中 | 已接入基于 tileset 资源与 tile flip flags 的 orthogonal tile 渲染、active layer 高亮，以及 finite/infinite layer 的可见 tile 枚举优化 |
 | REN-004 | 渲染 | Grid 与 Selection Overlay | REN-002, SES-002 | 开发中 | 已实现 grid overlay 与 tile selection overlay |
 | REN-005 | 渲染 | Picking 与命中测试 | REN-002, DOM-003, DOM-005 | 开发中 | 已实现 canvas tile picking 并接入编辑动作分发 |
-| REN-006 | 渲染 | Infinite Map Chunk 增量渲染 | REN-003, DOM-007 | 未开始 | 支持 chunk dirty update |
+| REN-006 | 渲染 | Infinite Map Chunk 增量渲染 | REN-003, DOM-007 | 开发中 | 已具备 visible chunk/tile 分段枚举、layer/segment scene cache 与 section signature 跳过重绘基础，chunk dirty update 待补 |
 | REN-007 | 渲染 | Isometric 渲染与拾取 | REN-005, DOM-002 | 未开始 | 非正交支持第一项 |
 | REN-008 | 渲染 | Staggered 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 stagger axis/index |
 | REN-009 | 渲染 | Hexagonal 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 hex side length |

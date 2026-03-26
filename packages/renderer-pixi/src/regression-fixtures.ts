@@ -224,6 +224,7 @@ export function createRendererRegressionCases(): RendererRegressionCase[] {
       height: 320,
       snapshot: {
         map: finiteSelection.map,
+        tilesets: [],
         viewport: {
           zoom: 1,
           originX: 0,
@@ -249,6 +250,7 @@ export function createRendererRegressionCases(): RendererRegressionCase[] {
       height: 352,
       snapshot: {
         map: objectOverlay.map,
+        tilesets: [],
         viewport: {
           zoom: 1,
           originX: 0,
@@ -272,6 +274,7 @@ export function createRendererRegressionCases(): RendererRegressionCase[] {
       height: 288,
       snapshot: {
         map: infiniteChunk.map,
+        tilesets: [],
         viewport: {
           zoom: 1,
           originX: 0,

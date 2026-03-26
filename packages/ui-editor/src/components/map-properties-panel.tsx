@@ -261,6 +261,14 @@ function MapPropertiesPanelContent({
           </label>
         </div>
 
+        {draft.orientation !== "orthogonal" && (
+          <p className="rounded-xl border border-amber-500/30 bg-amber-500/10 px-3 py-3 text-sm text-amber-100">
+            Canvas rendering and picking currently support orthogonal maps only. Non-orthogonal
+            orientation settings are preserved in the domain model, but the editor canvas will stay
+            in explicit unsupported mode until `REN-007` to `REN-010`.
+          </p>
+        )}
+
         <div className="border-t border-slate-700 bg-slate-800 p-1">
           <button
             className="w-full border border-slate-600 bg-slate-900 px-2 py-1.5 text-xs text-slate-100 transition hover:bg-slate-800"

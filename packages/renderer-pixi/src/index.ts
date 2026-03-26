@@ -4,9 +4,21 @@ import {
   type LayerDefinition,
   type LayerId,
   type ObjectId,
+  type TilesetDefinition,
   type TileLayer
 } from "@pixel-editor/domain";
-import { Application, Container, Graphics, Text } from "pixi.js";
+import {
+  Application,
+  Assets,
+  Container,
+  Graphics,
+  Matrix,
+  Rectangle,
+  Sprite,
+  Text,
+  Texture,
+  type TextStyleFontWeight
+} from "pixi.js";
 
 import {
   createRendererLayoutMetrics,
@@ -21,6 +33,20 @@ import {
   pickProjectedObject
 } from "./object-layer";
 import { drawProjectedObjects } from "./object-layer-render";
+import { getRendererMode, type RendererMode } from "./renderer-mode";
+import {
+  createBoundsRenderSignature,
+  createGridRenderSignature,
+  createProjectedObjectsRenderSignature,
+  createTileLayerSegmentRenderSignature,
+  createTileLayersRenderSignature,
+  createTileOverlayRenderSignature,
+  type TileLayerRenderGroupToken
+} from "./renderer-signature";
+import { resolveTileTexture } from "./tile-texture";
+import { createTileTransformMatrix } from "./tile-transform";
+import { collectVisibleTileSegments } from "./tile-visibility";
+import type { ResolvedTileTexture } from "./tile-texture";
 
 export {
   createRendererLayoutMetrics,
@@ -49,6 +75,7 @@ export interface RendererViewportSnapshot {
 
 export interface RendererSnapshot {
   map?: EditorMap;
+  tilesets: TilesetDefinition[];
   viewport: RendererViewportSnapshot;
   highlightedLayerId?: LayerId;
   selectedObjectIds?: ObjectId[];
@@ -132,6 +159,69 @@ interface LocatedMapPoint {
   worldY: number;
   tileX: number;
   tileY: number;
+}
+
+interface ResolvedVisibleTileCell {
+  x: number;
+  y: number;
+  cell: {
+    gid: number;
+    flipHorizontally: boolean;
+    flipVertically: boolean;
+    flipDiagonally: boolean;
+  };
+  texture: ResolvedTileTexture | undefined;
+}
+
+interface ResolvedRenderableTileLayer {
+  layerId: LayerId;
+  opacity: number;
+  highlighted: boolean;
+  segments: ResolvedRenderableTileSegment[];
+}
+
+interface ResolvedRenderableTileSegment {
+  key: string;
+  originTileX: number;
+  originTileY: number;
+  cells: ResolvedVisibleTileCell[];
+}
+
+interface RendererSceneNodes {
+  root: Container;
+  background: Graphics;
+  titleText: Text;
+  subtitleText: Text;
+  emptyStateText: Text;
+  unsupportedText: Text;
+  grid: Graphics;
+  bounds: Graphics;
+  tileLayers: Container;
+  objectLayers: Container;
+  previewOverlay: Graphics;
+  selectionOverlay: Graphics;
+}
+
+interface RendererSectionCache {
+  mode: RendererMode | undefined;
+  tileLayersSignature: string | undefined;
+  objectLayersSignature: string | undefined;
+  previewSignature: string | undefined;
+  selectionSignature: string | undefined;
+  gridSignature: string | undefined;
+  boundsSignature: string | undefined;
+}
+
+interface TileSegmentSceneNodes {
+  root: Container;
+  graphics: Graphics;
+  sprites: Container;
+  signature: string | undefined;
+}
+
+interface TileLayerSceneNodes {
+  root: Container;
+  segments: Map<string, TileSegmentSceneNodes>;
 }
 
 function positiveModulo(value: number, divisor: number): number {
@@ -347,7 +437,54 @@ function locateMapPoint(
   };
 }
 
-function drawTileLayers(scene: Container, snapshot: RendererSnapshot, geometry: ViewportGeometry): void {
+function drawTilePlaceholder(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number,
+  gid: number,
+  alpha: number,
+  highlighted: boolean
+): void {
+  const inset = Math.max(1, Math.min(4, width * 0.08));
+  const radius = Math.min(width, height) * 0.18;
+
+  graphics.roundRect(
+    x + inset,
+    y + inset,
+    width - inset * 2,
+    height - inset * 2,
+    radius
+  );
+  graphics.fill({
+    color: colorForGid(gid),
+    alpha: Math.max(0.2, Math.min(0.85, alpha * 0.85))
+  });
+
+  if (!highlighted) {
+    return;
+  }
+
+  graphics.roundRect(
+    x + inset,
+    y + inset,
+    width - inset * 2,
+    height - inset * 2,
+    radius
+  );
+  graphics.stroke({
+    color: 0xf8fafc,
+    width: 1.25,
+    alpha: 0.95
+  });
+}
+
+function drawTileLayers(
+  scene: Container,
+  snapshot: RendererSnapshot,
+  geometry: ViewportGeometry
+): void {
   if (!snapshot.map) {
     return;
   }
@@ -375,37 +512,21 @@ function drawTileLayers(scene: Container, snapshot: RendererSnapshot, geometry: 
           continue;
         }
 
-        const screenX = geometry.gridOriginX + tileX * geometry.tileWidth - snapshot.viewport.originX;
-        const screenY = geometry.gridOriginY + tileY * geometry.tileHeight - snapshot.viewport.originY;
-        const inset = Math.max(1, Math.min(4, geometry.tileWidth * 0.08));
-        const radius = Math.min(geometry.tileWidth, geometry.tileHeight) * 0.18;
+        const screenX =
+          geometry.gridOriginX + tileX * geometry.tileWidth - snapshot.viewport.originX;
+        const screenY =
+          geometry.gridOriginY + tileY * geometry.tileHeight - snapshot.viewport.originY;
 
-        graphics.roundRect(
-          screenX + inset,
-          screenY + inset,
-          geometry.tileWidth - inset * 2,
-          geometry.tileHeight - inset * 2,
-          radius
+        drawTilePlaceholder(
+          graphics,
+          screenX,
+          screenY,
+          geometry.tileWidth,
+          geometry.tileHeight,
+          cell.gid,
+          entry.opacity,
+          entry.highlighted
         );
-        graphics.fill({
-          color: colorForGid(cell.gid),
-          alpha: Math.max(0.2, Math.min(0.85, entry.opacity * 0.85))
-        });
-
-        if (entry.highlighted) {
-          graphics.roundRect(
-            screenX + inset,
-            screenY + inset,
-            geometry.tileWidth - inset * 2,
-            geometry.tileHeight - inset * 2,
-            radius
-          );
-          graphics.stroke({
-            color: 0xf8fafc,
-            width: 1.25,
-            alpha: 0.95
-          });
-        }
       }
     }
 
@@ -413,16 +534,403 @@ function drawTileLayers(scene: Container, snapshot: RendererSnapshot, geometry: 
   }
 }
 
-function drawSelectionOverlay(
-  scene: Container,
-  snapshot: RendererSnapshot,
-  geometry: ViewportGeometry
+function createFrameTexture(
+  sourceTexture: Texture,
+  frame: { x: number; y: number; width: number; height: number }
+): Texture {
+  return new Texture({
+    source: sourceTexture.source,
+    frame: new Rectangle(frame.x, frame.y, frame.width, frame.height),
+    orig: new Rectangle(0, 0, frame.width, frame.height)
+  });
+}
+
+function createTileSpriteMatrix(
+  texture: Texture,
+  cell: {
+    flipHorizontally: boolean;
+    flipVertically: boolean;
+    flipDiagonally: boolean;
+  },
+  screenX: number,
+  screenY: number,
+  cellWidth: number,
+  cellHeight: number
+): Matrix {
+  return createTileTransformMatrix({
+    cell,
+    textureWidth: texture.orig.width,
+    textureHeight: texture.orig.height,
+    cellWidth,
+    cellHeight,
+    screenX,
+    screenY
+  });
+}
+
+function createSceneText(options: {
+  text: string;
+  fontSize: number;
+  fill: number;
+  fontWeight?: TextStyleFontWeight;
+  wordWrap?: boolean;
+  wordWrapWidth?: number;
+}): Text {
+  const style = {
+    fill: options.fill,
+    fontSize: options.fontSize,
+    fontFamily: "IBM Plex Sans, sans-serif",
+    ...(options.fontWeight !== undefined
+      ? { fontWeight: options.fontWeight }
+      : {}),
+    ...(options.wordWrap !== undefined ? { wordWrap: options.wordWrap } : {}),
+    ...(options.wordWrapWidth !== undefined
+      ? { wordWrapWidth: options.wordWrapWidth }
+      : {})
+  };
+
+  return new Text({
+    text: options.text,
+    style
+  });
+}
+
+function createRendererSceneNodes(labels?: {
+  noActiveMap?: string;
+}): RendererSceneNodes {
+  const root = new Container();
+  const background = new Graphics();
+  const titleText = createSceneText({
+    text: "",
+    fill: 0xf8fafc,
+    fontSize: 20,
+    fontWeight: "600"
+  });
+  const subtitleText = createSceneText({
+    text: "",
+    fill: 0x94a3b8,
+    fontSize: 13
+  });
+  const emptyStateText = createSceneText({
+    text: labels?.noActiveMap ?? "No active map",
+    fill: 0xe2e8f0,
+    fontSize: 18
+  });
+  const unsupportedText = createSceneText({
+    text: "Canvas rendering and picking currently support orthogonal maps only.",
+    fill: 0xfbbf24,
+    fontSize: 14,
+    wordWrap: true,
+    wordWrapWidth: 240
+  });
+  const grid = new Graphics();
+  const bounds = new Graphics();
+  const tileLayers = new Container();
+  const objectLayers = new Container();
+  const previewOverlay = new Graphics();
+  const selectionOverlay = new Graphics();
+
+  root.addChild(background);
+  root.addChild(titleText);
+  root.addChild(subtitleText);
+  root.addChild(emptyStateText);
+  root.addChild(unsupportedText);
+  root.addChild(grid);
+  root.addChild(bounds);
+  root.addChild(tileLayers);
+  root.addChild(objectLayers);
+  root.addChild(previewOverlay);
+  root.addChild(selectionOverlay);
+
+  return {
+    root,
+    background,
+    titleText,
+    subtitleText,
+    emptyStateText,
+    unsupportedText,
+    grid,
+    bounds,
+    tileLayers,
+    objectLayers,
+    previewOverlay,
+    selectionOverlay
+  };
+}
+
+function clearContainerChildren(container: Container): void {
+  for (const child of container.removeChildren()) {
+    child.destroy({ children: true });
+  }
+}
+
+function syncContainerChildren(
+  container: Container,
+  nextChildren: readonly Container[]
 ): void {
-  if (!snapshot.selectedTiles?.length) {
+  if (
+    container.children.length === nextChildren.length &&
+    nextChildren.every((child, index) => container.children[index] === child)
+  ) {
     return;
   }
 
-  const overlay = new Graphics();
+  container.removeChildren();
+
+  for (const child of nextChildren) {
+    container.addChild(child);
+  }
+}
+
+function setRendererModeVisibility(
+  scene: RendererSceneNodes,
+  mode: RendererMode
+): void {
+  scene.titleText.visible = mode !== "empty";
+  scene.subtitleText.visible = mode !== "empty";
+  scene.emptyStateText.visible = mode === "empty";
+  scene.unsupportedText.visible = mode === "unsupported";
+  scene.grid.visible = mode === "ready";
+  scene.bounds.visible = mode === "ready";
+  scene.tileLayers.visible = mode === "ready";
+  scene.objectLayers.visible = mode === "ready";
+  scene.previewOverlay.visible = mode === "ready";
+  scene.selectionOverlay.visible = mode === "ready";
+}
+
+function createTileSegmentSceneNodes(): TileSegmentSceneNodes {
+  const root = new Container();
+  const sprites = new Container();
+  const graphics = new Graphics();
+
+  root.addChild(sprites);
+  root.addChild(graphics);
+
+  return {
+    root,
+    graphics,
+    sprites,
+    signature: undefined
+  };
+}
+
+function destroyTileSegmentSceneNodes(segment: TileSegmentSceneNodes): void {
+  segment.root.destroy({ children: true });
+}
+
+function createTileLayerSceneNodes(): TileLayerSceneNodes {
+  return {
+    root: new Container(),
+    segments: new Map()
+  };
+}
+
+function destroyTileLayerSceneNodes(layer: TileLayerSceneNodes): void {
+  layer.root.destroy({ children: true });
+}
+
+function clearTileLayerSceneCache(
+  scene: Container,
+  cache: Map<LayerId, TileLayerSceneNodes>
+): void {
+  clearContainerChildren(scene);
+  cache.clear();
+}
+
+function drawHighlightedTileStroke(
+  graphics: Graphics,
+  x: number,
+  y: number,
+  width: number,
+  height: number
+): void {
+  const radius = Math.min(width, height) * 0.18;
+
+  graphics.roundRect(x, y, width, height, radius);
+  graphics.stroke({
+    color: 0xf8fafc,
+    width: 1.25,
+    alpha: 0.95
+  });
+}
+
+function drawTileSegmentContent(
+  scene: TileSegmentSceneNodes,
+  segment: ResolvedRenderableTileSegment,
+  layer: Pick<ResolvedRenderableTileLayer, "opacity" | "highlighted">,
+  geometry: ViewportGeometry,
+  options: {
+    getSourceTexture: (imagePath: string) => Texture | undefined;
+    getFrameTexture: (
+      imagePath: string,
+      frame: { x: number; y: number; width: number; height: number }
+    ) => Texture | undefined;
+  }
+): void {
+  scene.graphics.clear();
+  clearContainerChildren(scene.sprites);
+
+  for (const { x: tileX, y: tileY, cell, texture: tileTexture } of segment.cells) {
+    const localX = (tileX - segment.originTileX) * geometry.tileWidth;
+    const localY = (tileY - segment.originTileY) * geometry.tileHeight;
+    const sourceTexture = tileTexture
+      ? options.getSourceTexture(tileTexture.imagePath)
+      : undefined;
+    const texture =
+      sourceTexture && tileTexture?.frame
+        ? options.getFrameTexture(tileTexture.imagePath, tileTexture.frame)
+        : sourceTexture;
+
+    if (!texture) {
+      drawTilePlaceholder(
+        scene.graphics,
+        localX,
+        localY,
+        geometry.tileWidth,
+        geometry.tileHeight,
+        cell.gid,
+        layer.opacity,
+        layer.highlighted
+      );
+      continue;
+    }
+
+    const sprite = new Sprite({
+      texture,
+      roundPixels: true
+    });
+    sprite.setFromMatrix(
+      createTileSpriteMatrix(
+        texture,
+        cell,
+        localX,
+        localY,
+        geometry.tileWidth,
+        geometry.tileHeight
+      )
+    );
+    sprite.alpha = layer.opacity;
+    scene.sprites.addChild(sprite);
+
+    if (layer.highlighted) {
+      drawHighlightedTileStroke(
+        scene.graphics,
+        localX,
+        localY,
+        geometry.tileWidth,
+        geometry.tileHeight
+      );
+    }
+  }
+}
+
+function updateTileLayerScenes(
+  scene: Container,
+  cache: Map<LayerId, TileLayerSceneNodes>,
+  layers: ResolvedRenderableTileLayer[],
+  viewport: RendererViewportSnapshot,
+  geometry: ViewportGeometry,
+  options: {
+    getSourceTexture: (imagePath: string) => Texture | undefined;
+    getFrameTexture: (
+      imagePath: string,
+      frame: { x: number; y: number; width: number; height: number }
+    ) => Texture | undefined;
+    assetVersion: number;
+  }
+): void {
+  const nextLayerIds = new Set(layers.map((layer) => layer.layerId));
+
+  for (const [layerId, layerScene] of cache) {
+    if (nextLayerIds.has(layerId)) {
+      continue;
+    }
+
+    scene.removeChild(layerScene.root);
+    destroyTileLayerSceneNodes(layerScene);
+    cache.delete(layerId);
+  }
+
+  const orderedLayerRoots: Container[] = [];
+  const baseX = geometry.gridOriginX - viewport.originX;
+  const baseY = geometry.gridOriginY - viewport.originY;
+
+  for (const layer of layers) {
+    let layerScene = cache.get(layer.layerId);
+
+    if (!layerScene) {
+      layerScene = createTileLayerSceneNodes();
+      cache.set(layer.layerId, layerScene);
+    }
+
+    const nextSegmentKeys = new Set(layer.segments.map((segment) => segment.key));
+
+    for (const [segmentKey, segmentScene] of layerScene.segments) {
+      if (nextSegmentKeys.has(segmentKey)) {
+        continue;
+      }
+
+      layerScene.root.removeChild(segmentScene.root);
+      destroyTileSegmentSceneNodes(segmentScene);
+      layerScene.segments.delete(segmentKey);
+    }
+
+    const orderedSegmentRoots: Container[] = [];
+
+    for (const segment of layer.segments) {
+      let segmentScene = layerScene.segments.get(segment.key);
+
+      if (!segmentScene) {
+        segmentScene = createTileSegmentSceneNodes();
+        layerScene.segments.set(segment.key, segmentScene);
+      }
+
+      segmentScene.root.position.set(
+        baseX + segment.originTileX * geometry.tileWidth,
+        baseY + segment.originTileY * geometry.tileHeight
+      );
+      orderedSegmentRoots.push(segmentScene.root);
+
+      const signature = createTileLayerSegmentRenderSignature({
+        opacity: layer.opacity,
+        highlighted: layer.highlighted,
+        tileWidth: geometry.tileWidth,
+        tileHeight: geometry.tileHeight,
+        assetVersion: options.assetVersion,
+        cells: segment.cells.map((cell) => ({
+          x: cell.x,
+          y: cell.y,
+          gid: cell.cell.gid,
+          flipHorizontally: cell.cell.flipHorizontally,
+          flipVertically: cell.cell.flipVertically,
+          flipDiagonally: cell.cell.flipDiagonally,
+          texture: cell.texture
+        }))
+      });
+
+      if (segmentScene.signature !== signature) {
+        segmentScene.signature = signature;
+        drawTileSegmentContent(segmentScene, segment, layer, geometry, options);
+      }
+    }
+
+    syncContainerChildren(layerScene.root, orderedSegmentRoots);
+    orderedLayerRoots.push(layerScene.root);
+  }
+
+  syncContainerChildren(scene, orderedLayerRoots);
+}
+
+function drawSelectionOverlay(
+  scene: Graphics,
+  snapshot: RendererSnapshot,
+  geometry: ViewportGeometry
+): void {
+  scene.clear();
+
+  if (!snapshot.selectedTiles?.length) {
+    return;
+  }
 
   for (const coordinate of snapshot.selectedTiles) {
     const screenX =
@@ -431,51 +939,31 @@ function drawSelectionOverlay(
       geometry.gridOriginY + coordinate.y * geometry.tileHeight - snapshot.viewport.originY;
     const radius = Math.min(geometry.tileWidth, geometry.tileHeight) * 0.18;
 
-    overlay.roundRect(screenX, screenY, geometry.tileWidth, geometry.tileHeight, radius);
-    overlay.fill({ color: 0x10b981, alpha: 0.2 });
-    overlay.stroke({ color: 0x34d399, width: 1.5, alpha: 1 });
+    scene.roundRect(screenX, screenY, geometry.tileWidth, geometry.tileHeight, radius);
+    scene.fill({ color: 0x10b981, alpha: 0.2 });
+    scene.stroke({ color: 0x34d399, width: 1.5, alpha: 1 });
   }
-
-  scene.addChild(overlay);
 }
 
 function drawObjectLayers(
   scene: Container,
-  snapshot: RendererSnapshot,
+  objects: readonly ProjectedMapObject[],
   geometry: ViewportGeometry
 ): void {
-  if (!snapshot.map) {
-    return;
-  }
-
-  const projectedObjects = collectProjectedMapObjects({
-    map: snapshot.map,
-    geometry,
-    viewport: snapshot.viewport,
-    ...(snapshot.highlightedLayerId !== undefined
-      ? { highlightedLayerId: snapshot.highlightedLayerId }
-      : {}),
-    ...(snapshot.selectedObjectIds !== undefined
-      ? { selectedObjectIds: snapshot.selectedObjectIds }
-      : {}),
-    ...(snapshot.objectTransformPreview !== undefined
-      ? { objectTransformPreview: snapshot.objectTransformPreview }
-      : {})
-  });
-
-  drawProjectedObjects(scene, projectedObjects, geometry);
+  clearContainerChildren(scene);
+  drawProjectedObjects(scene, objects, geometry);
 }
 
 function drawPreviewOverlay(
-  scene: Container,
+  scene: Graphics,
   snapshot: RendererSnapshot,
   geometry: ViewportGeometry
 ): void {
+  scene.clear();
+
   if (!snapshot.previewTiles?.length) {
     return;
   }
-
-  const overlay = new Graphics();
 
   for (const coordinate of snapshot.previewTiles) {
     const screenX =
@@ -484,12 +972,10 @@ function drawPreviewOverlay(
       geometry.gridOriginY + coordinate.y * geometry.tileHeight - snapshot.viewport.originY;
     const radius = Math.min(geometry.tileWidth, geometry.tileHeight) * 0.18;
 
-    overlay.roundRect(screenX, screenY, geometry.tileWidth, geometry.tileHeight, radius);
-    overlay.fill({ color: 0xf59e0b, alpha: 0.16 });
-    overlay.stroke({ color: 0xfbbf24, width: 1.25, alpha: 0.95 });
+    scene.roundRect(screenX, screenY, geometry.tileWidth, geometry.tileHeight, radius);
+    scene.fill({ color: 0xf59e0b, alpha: 0.16 });
+    scene.stroke({ color: 0xfbbf24, width: 1.25, alpha: 0.95 });
   }
-
-  scene.addChild(overlay);
 }
 
 function drawGridOverlay(
@@ -580,9 +1066,32 @@ function buildScene(
 
   drawTileLayers(scene, snapshot, geometry);
   drawGridOverlay(scene, snapshot, geometry);
-  drawObjectLayers(scene, snapshot, geometry);
-  drawPreviewOverlay(scene, snapshot, geometry);
-  drawSelectionOverlay(scene, snapshot, geometry);
+  const objectLayerScene = new Container();
+  scene.addChild(objectLayerScene);
+  drawObjectLayers(
+    objectLayerScene,
+    collectProjectedMapObjects({
+      map: snapshot.map,
+      geometry,
+      viewport: snapshot.viewport,
+      ...(snapshot.highlightedLayerId !== undefined
+        ? { highlightedLayerId: snapshot.highlightedLayerId }
+        : {}),
+      ...(snapshot.selectedObjectIds !== undefined
+        ? { selectedObjectIds: snapshot.selectedObjectIds }
+        : {}),
+      ...(snapshot.objectTransformPreview !== undefined
+        ? { objectTransformPreview: snapshot.objectTransformPreview }
+        : {})
+    }),
+    geometry
+  );
+  const previewOverlay = new Graphics();
+  scene.addChild(previewOverlay);
+  drawPreviewOverlay(previewOverlay, snapshot, geometry);
+  const selectionOverlay = new Graphics();
+  scene.addChild(selectionOverlay);
+  drawSelectionOverlay(selectionOverlay, snapshot, geometry);
 }
 
 async function waitForAnimationFrames(frameCount: number): Promise<void> {
@@ -652,26 +1161,360 @@ export function createPixiEditorRenderer(options: {
   let mountedHost: HTMLElement | undefined;
   let lastSnapshot: RendererSnapshot | undefined;
   let mountGeneration = 0;
+  let sceneNodes: RendererSceneNodes | undefined;
   const layout = createRendererLayoutMetrics(options.layout);
+  const sectionCache: RendererSectionCache = {
+    mode: undefined,
+    tileLayersSignature: undefined,
+    objectLayersSignature: undefined,
+    previewSignature: undefined,
+    selectionSignature: undefined,
+    gridSignature: undefined,
+    boundsSignature: undefined
+  };
+  const sourceTextureCache = new Map<string, Texture>();
+  const frameTextureCache = new Map<string, Texture>();
+  const pendingTextureLoads = new Map<string, Promise<Texture>>();
+  const failedTextureLoads = new Set<string>();
+  const tileLayerSceneCache = new Map<LayerId, TileLayerSceneNodes>();
+  let assetVersion = 0;
+
+  function requestRender(): void {
+    if (!lastSnapshot || !mountedHost || !app) {
+      return;
+    }
+
+    renderSnapshot(lastSnapshot);
+  }
+
+  function ensureSourceTexture(imagePath: string): Texture | undefined {
+    const cachedTexture = sourceTextureCache.get(imagePath);
+
+    if (cachedTexture) {
+      return cachedTexture;
+    }
+
+    if (!pendingTextureLoads.has(imagePath) && !failedTextureLoads.has(imagePath)) {
+      const loadPromise = Assets.load<Texture>(imagePath)
+        .then((texture) => {
+          sourceTextureCache.set(imagePath, texture);
+          pendingTextureLoads.delete(imagePath);
+          assetVersion += 1;
+          requestRender();
+          return texture;
+        })
+        .catch((error) => {
+          pendingTextureLoads.delete(imagePath);
+          failedTextureLoads.add(imagePath);
+          assetVersion += 1;
+          console.error(`Failed to load tile texture: ${imagePath}`, error);
+          requestRender();
+          throw error;
+        });
+
+      pendingTextureLoads.set(imagePath, loadPromise);
+    }
+
+    return undefined;
+  }
+
+  function getFrameTexture(
+    imagePath: string,
+    frame: { x: number; y: number; width: number; height: number }
+  ): Texture | undefined {
+    const sourceTexture = ensureSourceTexture(imagePath);
+
+    if (!sourceTexture) {
+      return undefined;
+    }
+
+    const key = `${imagePath}:${frame.x}:${frame.y}:${frame.width}:${frame.height}`;
+    const cachedTexture = frameTextureCache.get(key);
+
+    if (cachedTexture) {
+      return cachedTexture;
+    }
+
+    const nextTexture = createFrameTexture(sourceTexture, frame);
+    frameTextureCache.set(key, nextTexture);
+    return nextTexture;
+  }
 
   function renderSnapshot(snapshot: RendererSnapshot): void {
-    if (!mountedHost || !app) {
+    if (!mountedHost || !app || !sceneNodes) {
       return;
     }
 
     mountedHost.dataset.activeMap = snapshot.map?.id ?? "";
     mountedHost.dataset.zoom = String(snapshot.viewport.zoom);
 
-    for (const child of app.stage.removeChildren()) {
-      child.destroy({ children: true });
-    }
-
-    const scene = new Container();
-    app.stage.addChild(scene);
-
     const width = app.renderer.width;
     const height = app.renderer.height;
-    buildScene(scene, snapshot, width, height, layout, options.labels);
+    const frameWidth = Math.max(
+      layout.minFrameWidth,
+      width - layout.framePadding * 2
+    );
+    const frameHeight = Math.max(
+      layout.minFrameHeight,
+      height - layout.framePadding * 2
+    );
+
+    sceneNodes.background.clear();
+    sceneNodes.background.roundRect(
+      layout.framePadding,
+      layout.framePadding,
+      frameWidth,
+      frameHeight,
+      layout.frameRadius
+    );
+    sceneNodes.background.fill({ color: 0x020617, alpha: 0.92 });
+    sceneNodes.background.stroke({ color: 0x334155, width: 1.5, alpha: 0.95 });
+
+    const mode = getRendererMode(snapshot.map);
+    setRendererModeVisibility(sceneNodes, mode);
+    sectionCache.mode = mode;
+
+    sceneNodes.emptyStateText.position.set(
+      layout.framePadding + layout.emptyStateOffsetX,
+      layout.framePadding + layout.emptyStateOffsetY
+    );
+
+    if (mode === "empty") {
+      clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
+      clearContainerChildren(sceneNodes.objectLayers);
+      sceneNodes.grid.clear();
+      sceneNodes.bounds.clear();
+      sceneNodes.previewOverlay.clear();
+      sceneNodes.selectionOverlay.clear();
+      sectionCache.tileLayersSignature = undefined;
+      sectionCache.objectLayersSignature = undefined;
+      sectionCache.previewSignature = undefined;
+      sectionCache.selectionSignature = undefined;
+      sectionCache.gridSignature = undefined;
+      sectionCache.boundsSignature = undefined;
+      return;
+    }
+
+    const map = snapshot.map;
+
+    if (!map) {
+      return;
+    }
+
+    const zoom = snapshot.viewport.zoom;
+    const geometry = buildViewportGeometry(
+      map,
+      snapshot.viewport,
+      width,
+      height,
+      layout
+    );
+
+    sceneNodes.titleText.text = `${map.name} · ${map.settings.orientation}`;
+    sceneNodes.titleText.position.set(
+      layout.framePadding + layout.titleOffsetX,
+      layout.framePadding + layout.titleOffsetY
+    );
+    sceneNodes.subtitleText.text =
+      `Layers ${map.layers.length} · Tiles ${map.settings.tileWidth}×${map.settings.tileHeight} · Zoom ${zoom.toFixed(2)}x`;
+    sceneNodes.subtitleText.position.set(
+      layout.framePadding + layout.titleOffsetX,
+      layout.framePadding + layout.subtitleOffsetY
+    );
+
+    sceneNodes.unsupportedText.style.wordWrapWidth = Math.max(
+      frameWidth - layout.titleOffsetX * 2,
+      240
+    );
+    sceneNodes.unsupportedText.position.set(
+      layout.framePadding + layout.titleOffsetX,
+      layout.framePadding + layout.subtitleOffsetY + 28
+    );
+
+    if (mode === "unsupported") {
+      clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
+      clearContainerChildren(sceneNodes.objectLayers);
+      sceneNodes.grid.clear();
+      sceneNodes.bounds.clear();
+      sceneNodes.previewOverlay.clear();
+      sceneNodes.selectionOverlay.clear();
+      sectionCache.tileLayersSignature = undefined;
+      sectionCache.objectLayersSignature = undefined;
+      sectionCache.previewSignature = undefined;
+      sectionCache.selectionSignature = undefined;
+      sectionCache.gridSignature = undefined;
+      sectionCache.boundsSignature = undefined;
+      return;
+    }
+
+    const gridSignature = createGridRenderSignature({
+      showGrid: snapshot.viewport.showGrid,
+      gridOriginX: geometry.gridOriginX,
+      gridOriginY: geometry.gridOriginY,
+      canvasWidth: geometry.canvasWidth,
+      canvasHeight: geometry.canvasHeight,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight,
+      startTileX: geometry.startTileX,
+      startTileY: geometry.startTileY,
+      endTileX: geometry.endTileX,
+      endTileY: geometry.endTileY
+    });
+
+    if (sectionCache.gridSignature !== gridSignature) {
+      sectionCache.gridSignature = gridSignature;
+      sceneNodes.grid.clear();
+
+      if (snapshot.viewport.showGrid) {
+        for (let column = 0; column <= geometry.endTileX - geometry.startTileX; column += 1) {
+          const x = geometry.gridOriginX + column * geometry.tileWidth;
+          sceneNodes.grid.moveTo(x, geometry.gridOriginY);
+          sceneNodes.grid.lineTo(x, geometry.gridOriginY + geometry.canvasHeight);
+        }
+
+        for (let row = 0; row <= geometry.endTileY - geometry.startTileY; row += 1) {
+          const y = geometry.gridOriginY + row * geometry.tileHeight;
+          sceneNodes.grid.moveTo(geometry.gridOriginX, y);
+          sceneNodes.grid.lineTo(geometry.gridOriginX + geometry.canvasWidth, y);
+        }
+
+        sceneNodes.grid.stroke({ color: 0x1e293b, width: 1, alpha: 0.9 });
+      }
+    }
+
+    const boundsSignature = createBoundsRenderSignature({
+      infinite: map.settings.infinite,
+      gridOriginX: geometry.gridOriginX,
+      gridOriginY: geometry.gridOriginY,
+      originX: snapshot.viewport.originX,
+      originY: snapshot.viewport.originY,
+      width: map.settings.width,
+      height: map.settings.height,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight
+    });
+
+    if (sectionCache.boundsSignature !== boundsSignature) {
+      sectionCache.boundsSignature = boundsSignature;
+      sceneNodes.bounds.clear();
+
+      if (!map.settings.infinite) {
+        sceneNodes.bounds.roundRect(
+          geometry.gridOriginX - snapshot.viewport.originX,
+          geometry.gridOriginY - snapshot.viewport.originY,
+          map.settings.width * geometry.tileWidth,
+          map.settings.height * geometry.tileHeight,
+          14
+        );
+        sceneNodes.bounds.stroke({ color: 0x475569, width: 1.5, alpha: 0.8 });
+      }
+    }
+
+    const resolvedTileLayers: ResolvedRenderableTileLayer[] = collectRenderableTileLayers(
+      map.layers,
+      snapshot.highlightedLayerId
+    ).map((entry) => ({
+      layerId: entry.layer.id,
+      opacity: entry.opacity,
+      highlighted: entry.highlighted,
+      segments: collectVisibleTileSegments(entry.layer, {
+        startTileX: geometry.startTileX,
+        startTileY: geometry.startTileY,
+        endTileX: geometry.endTileX,
+        endTileY: geometry.endTileY
+      }).map((segment) => ({
+        key: segment.key,
+        originTileX: segment.originTileX,
+        originTileY: segment.originTileY,
+        cells: segment.cells.map(({ x, y, cell }) => ({
+          x,
+          y,
+          cell,
+          texture: resolveTileTexture(map, snapshot.tilesets, cell.gid)
+        }))
+      }))
+    }));
+    const tileLayersSignature = createTileLayersRenderSignature({
+      zoom: snapshot.viewport.zoom,
+      originX: snapshot.viewport.originX,
+      originY: snapshot.viewport.originY,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight,
+      assetVersion,
+      layers: resolvedTileLayers.map<TileLayerRenderGroupToken>((layer) => ({
+        layerId: layer.layerId,
+        opacity: layer.opacity,
+        highlighted: layer.highlighted,
+        segments: layer.segments.map((segment) => ({
+          key: segment.key,
+          cells: segment.cells.map((cell) => ({
+            x: cell.x,
+            y: cell.y,
+            gid: cell.cell.gid,
+            flipHorizontally: cell.cell.flipHorizontally,
+            flipVertically: cell.cell.flipVertically,
+            flipDiagonally: cell.cell.flipDiagonally,
+            texture: cell.texture
+          }))
+        }))
+      }))
+    });
+
+    if (sectionCache.tileLayersSignature !== tileLayersSignature) {
+      sectionCache.tileLayersSignature = tileLayersSignature;
+      updateTileLayerScenes(sceneNodes.tileLayers, tileLayerSceneCache, resolvedTileLayers, snapshot.viewport, geometry, {
+        getSourceTexture: ensureSourceTexture,
+        getFrameTexture,
+        assetVersion
+      });
+    }
+
+    const projectedObjects = collectProjectedMapObjects({
+      map,
+      geometry,
+      viewport: snapshot.viewport,
+      ...(snapshot.highlightedLayerId !== undefined
+        ? { highlightedLayerId: snapshot.highlightedLayerId }
+        : {}),
+      ...(snapshot.selectedObjectIds !== undefined
+        ? { selectedObjectIds: snapshot.selectedObjectIds }
+        : {}),
+      ...(snapshot.objectTransformPreview !== undefined
+        ? { objectTransformPreview: snapshot.objectTransformPreview }
+        : {})
+    });
+    const objectLayersSignature = createProjectedObjectsRenderSignature(projectedObjects);
+
+    if (sectionCache.objectLayersSignature !== objectLayersSignature) {
+      sectionCache.objectLayersSignature = objectLayersSignature;
+      drawObjectLayers(sceneNodes.objectLayers, projectedObjects, geometry);
+    }
+
+    const previewSignature = createTileOverlayRenderSignature({
+      coordinates: snapshot.previewTiles,
+      gridOriginX: geometry.gridOriginX,
+      gridOriginY: geometry.gridOriginY,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight
+    });
+
+    if (sectionCache.previewSignature !== previewSignature) {
+      sectionCache.previewSignature = previewSignature;
+      drawPreviewOverlay(sceneNodes.previewOverlay, snapshot, geometry);
+    }
+
+    const selectionSignature = createTileOverlayRenderSignature({
+      coordinates: snapshot.selectedTiles,
+      gridOriginX: geometry.gridOriginX,
+      gridOriginY: geometry.gridOriginY,
+      tileWidth: geometry.tileWidth,
+      tileHeight: geometry.tileHeight
+    });
+
+    if (sectionCache.selectionSignature !== selectionSignature) {
+      sectionCache.selectionSignature = selectionSignature;
+      drawSelectionOverlay(sceneNodes.selectionOverlay, snapshot, geometry);
+    }
   }
 
   return {
@@ -685,7 +1528,6 @@ export function createPixiEditorRenderer(options: {
         antialias: true,
         backgroundAlpha: 0
       });
-
       if (mountGeneration !== currentGeneration || mountedHost !== host) {
         nextApp.destroy(true, {
           children: true
@@ -694,6 +1536,8 @@ export function createPixiEditorRenderer(options: {
       }
 
       app = nextApp;
+      sceneNodes = createRendererSceneNodes(options.labels);
+      app.stage.addChild(sceneNodes.root);
       mountedHost.dataset.renderer = "pixi-shell";
       mountedHost.replaceChildren(app.canvas);
 
@@ -707,6 +1551,10 @@ export function createPixiEditorRenderer(options: {
     },
     pick(clientX, clientY, options = {}) {
       if (!mountedHost || !lastSnapshot?.map) {
+        return { kind: "none" };
+      }
+
+      if (getRendererMode(lastSnapshot.map) !== "ready") {
         return { kind: "none" };
       }
 
@@ -796,6 +1644,11 @@ export function createPixiEditorRenderer(options: {
     destroy() {
       mountGeneration += 1;
 
+      if (sceneNodes) {
+        clearTileLayerSceneCache(sceneNodes.tileLayers, tileLayerSceneCache);
+        clearContainerChildren(sceneNodes.objectLayers);
+      }
+
       if (app) {
         app.destroy(true, {
           children: true
@@ -812,6 +1665,19 @@ export function createPixiEditorRenderer(options: {
       app = undefined;
       mountedHost = undefined;
       lastSnapshot = undefined;
+      sceneNodes = undefined;
+      sectionCache.mode = undefined;
+      sectionCache.tileLayersSignature = undefined;
+      sectionCache.objectLayersSignature = undefined;
+      sectionCache.previewSignature = undefined;
+      sectionCache.selectionSignature = undefined;
+      sectionCache.gridSignature = undefined;
+      sectionCache.boundsSignature = undefined;
+      sourceTextureCache.clear();
+      frameTextureCache.clear();
+      pendingTextureLoads.clear();
+      failedTextureLoads.clear();
+      tileLayerSceneCache.clear();
     }
   };
 }

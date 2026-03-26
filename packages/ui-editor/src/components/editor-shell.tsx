@@ -378,6 +378,7 @@ export function EditorShell({ store }: EditorShellProps) {
       const dataUrl = await exportRendererSnapshotImageDataUrl({
         snapshot: {
           map: activeMap,
+          tilesets: snapshot.workspace.tilesets,
           viewport: {
             zoom: 1,
             originX: 0,

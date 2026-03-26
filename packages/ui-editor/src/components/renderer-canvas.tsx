@@ -140,6 +140,7 @@ export function RendererCanvas({
 
   useEffect(() => {
     rendererRef.current.update({
+      tilesets: deferredSnapshot.workspace.tilesets,
       viewport: deferredSnapshot.bootstrap.viewport,
       ...(deferredSnapshot.activeMap ? { map: deferredSnapshot.activeMap } : {}),
       ...(deferredSnapshot.workspace.session.activeLayerId
