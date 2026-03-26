@@ -1,4 +1,9 @@
 import {
+  createAssetReference,
+  type AssetReferenceDescriptor,
+  type AssetReferenceResolveOptions
+} from "@pixel-editor/asset-reference";
+import {
   createMapObject,
   createObjectLayer,
   createProperty,
@@ -27,10 +32,15 @@ import {
 import type {
   ExportTsjTilesetDocumentInput,
   ImportedTsjTilesetDocument,
+  TiledJsonImportOptions,
   TmjJsonObject,
   TmjJsonValue,
   TsjImportIssue
 } from "./types";
+import {
+  appendExternalAssetReferenceIssues,
+  collectUnknownTsjFieldIssues
+} from "./validation";
 
 type JsonRecord = Record<string, unknown>;
 
@@ -268,6 +278,124 @@ function parseProperties(
     const parsed = parsePropertyDefinition(property, issues, `${path}.properties[${index}]`);
     return parsed ? [parsed] : [];
   });
+}
+
+function collectFilePropertyReferences(
+  record: JsonRecord,
+  path: string,
+  options: AssetReferenceResolveOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  const rawProperties = record.properties;
+
+  if (!Array.isArray(rawProperties)) {
+    return;
+  }
+
+  rawProperties.forEach((property, index) => {
+    if (!isRecord(property) || optionalString(property, "type") !== "file") {
+      return;
+    }
+
+    const rawValue = optionalString(property, "value")?.trim();
+
+    if (!rawValue) {
+      return;
+    }
+
+    assetReferences.push(
+      createAssetReference(
+        "property-file",
+        `${path}.properties[${index}].value`,
+        rawValue,
+        options
+      )
+    );
+  });
+}
+
+function collectCollisionObjectAssetReferences(
+  record: JsonRecord,
+  issues: TsjImportIssue[],
+  path: string,
+  options: AssetReferenceResolveOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  const templatePath = optionalString(record, "template")?.trim();
+
+  if (templatePath) {
+    assetReferences.push(
+      createAssetReference("template", `${path}.template`, templatePath, options)
+    );
+    appendIssue(
+      issues,
+      path,
+      "tsj.object.templateUnsupported",
+      `Template-backed object \`${optionalString(record, "name") ?? ""}\` keeps only inline attributes during TSJ import.`
+    );
+  }
+
+  collectFilePropertyReferences(record, path, options, assetReferences);
+}
+
+function collectTsjAssetReferences(
+  document: JsonRecord,
+  issues: TsjImportIssue[],
+  options: AssetReferenceResolveOptions
+): AssetReferenceDescriptor[] {
+  const assetReferences: AssetReferenceDescriptor[] = [];
+
+  collectFilePropertyReferences(document, "tsj", options, assetReferences);
+
+  const imagePath = optionalString(document, "image")?.trim();
+
+  if (imagePath) {
+    assetReferences.push(
+      createAssetReference("image", "tsj.image", imagePath, options)
+    );
+  }
+
+  const rawTiles = Array.isArray(document.tiles) ? document.tiles : [];
+
+  rawTiles.forEach((entry, index) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+
+    const tileImagePath = optionalString(entry, "image")?.trim();
+
+    if (tileImagePath) {
+      assetReferences.push(
+        createAssetReference(
+          "image",
+          `tsj.tiles[${index}].image`,
+          tileImagePath,
+          options
+        )
+      );
+    }
+
+    collectFilePropertyReferences(entry, `tsj.tiles[${index}]`, options, assetReferences);
+
+    const objectGroup = isRecord(entry.objectgroup) ? entry.objectgroup : undefined;
+    const rawObjects = objectGroup && Array.isArray(objectGroup.objects) ? objectGroup.objects : [];
+
+    rawObjects.forEach((objectEntry, objectIndex) => {
+      if (!isRecord(objectEntry)) {
+        return;
+      }
+
+      collectCollisionObjectAssetReferences(
+        objectEntry,
+        issues,
+        `tsj.tiles[${index}].objectgroup.objects[${objectIndex}]`,
+        options,
+        assetReferences
+      );
+    });
+  });
+
+  return assetReferences;
 }
 
 function parseTextObjectData(value: unknown, path: string): NonNullable<MapObject["text"]> {
@@ -806,7 +934,10 @@ function computeExportColumns(tileset: TilesetDefinition): number {
   );
 }
 
-export function importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument {
+export function importTsjTilesetDocument(
+  input: string | unknown,
+  options: TiledJsonImportOptions = {}
+): ImportedTsjTilesetDocument {
   const source = typeof input === "string" ? JSON.parse(input) : input;
   const document = requireRecord(source, "tsj");
   const issues: TsjImportIssue[] = [];
@@ -861,6 +992,7 @@ export function importTsjTilesetDocument(input: string | unknown): ImportedTsjTi
   const fillMode = optionalString(document, "fillmode");
   const tileOffset = isRecord(document.tileoffset) ? document.tileoffset : undefined;
   const wangSets = Array.isArray(document.wangsets) ? document.wangsets : [];
+  const assetReferences = collectTsjAssetReferences(document, issues, options);
 
   if (optionalString(document, "class") !== undefined) {
     appendIssue(
@@ -948,8 +1080,12 @@ export function importTsjTilesetDocument(input: string | unknown): ImportedTsjTi
     })
   };
 
+  collectUnknownTsjFieldIssues(document, issues);
+  appendExternalAssetReferenceIssues("tsj", assetReferences, issues);
+
   return {
     tileset: nextTileset,
+    assetReferences,
     issues
   };
 }

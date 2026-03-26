@@ -54,8 +54,8 @@ Last updated: 2026-03-26
 | IO-004 | 格式兼容 | TMX 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 开发中 | 已新增 `@pixel-editor/tiled-xml` 适配包并接入 controller 级 `TMX` 导入：当前覆盖 map settings、CSV/XML tile data、tile/object/image/group layers、基础 XML properties、外部/嵌入式 tileset references，并复用 `TMJ` 归一化链路；base64/compression、更完整 TMX 兼容字段与 TSX 深度联动待补 |
 | IO-005 | 格式兼容 | TMX 写入 | IO-004 | 开发中 | 已在 `@pixel-editor/tiled-xml` 增加 deterministic `TMX` serializer：当前覆盖 map settings、外部/嵌入式 tileset references、finite/infinite tile layers、object/image/group layers、基础 XML properties 与 round-trip 测试；更完整的 embedded tileset fidelity、base64/compression 与保存链路待补 |
 | IO-006 | 格式兼容 | TSX 读取与写入 | DOM-004, DOM-006 | 开发中 | 已在 `@pixel-editor/tiled-xml` 增加 `TSX` 读取/写出：当前覆盖 image / image-collection tileset、tile metadata、animation、collision objectgroup、基础 wang set、deterministic writer 与 controller 级导入测试；legacy terrain metadata、更完整 TSX fidelity 与保存链路待补 |
-| IO-007 | 格式兼容 | 资源路径解析与引用管理 | DOM-004, DOM-008 | 未开始 | 处理相对路径、外部 tileset、模板引用 |
-| IO-008 | 格式兼容 | 兼容性校验与问题报告 | IO-001, IO-004, IO-007 | 未开始 | 对未知字段和不支持能力给出 issue |
+| IO-007 | 格式兼容 | 资源路径解析与引用管理 | DOM-004, DOM-008 | 已完成 | 新增 asset-reference 包；TMJ/TMX/TSJ/TSX 导入支持相对路径解析、外部 tileset / image / template / file property 引用描述 |
+| IO-008 | 格式兼容 | 兼容性校验与问题报告 | IO-001, IO-004, IO-007 | 已完成 | TMJ/TSJ/TMX/TSX 导入已补齐未知字段 / 属性 / 元素、外部资源引用与不支持能力 issue，并通过 importer/controller 回归测试 |
 | REN-001 | 渲染 | Pixi 渲染器启动与宿主接口 | FND-004, DOM-002 | 开发中 | 已接入真实 Pixi application 与 renderer host |
 | REN-002 | 渲染 | Camera 与 viewport 控制 | REN-001, SES-004 | 开发中 | 已接入 zoom 与 pan 基础命令流和视口状态联动 |
 | REN-003 | 渲染 | Orthogonal Tile Layer 渲染 | REN-001, DOM-003, DOM-004 | 开发中 | 已实现 orthogonal 网格内 tile cell 可视化与 active layer 高亮 |

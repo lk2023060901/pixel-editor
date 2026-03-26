@@ -44,7 +44,10 @@ describe("TSX tileset adapters", () => {
       <wangtile tileid="0" wangid="0x01020304"/>
     </wangset>
   </wangsets>
-</tileset>`);
+</tileset>`, {
+      documentPath: "tilesets/terrain.tsx",
+      assetRoots: ["maps", "tilesets", "templates"]
+    });
 
     expect(imported.tileset).toMatchObject({
       kind: "image",
@@ -99,6 +102,18 @@ describe("TSX tileset adapters", () => {
       name: "Terrain",
       type: "corner"
     });
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "image",
+        ownerPath: "tsx.image",
+        originalPath: "../tilesets/terrain.png",
+        resolvedPath: "tilesets/terrain.png",
+        pathKind: "relative",
+        assetRoot: "tilesets",
+        externalToProject: false,
+        documentPath: "tilesets/terrain.tsx"
+      }
+    ]);
     expect(imported.issues).toEqual([
       {
         severity: "warning",
@@ -206,6 +221,32 @@ describe("TSX tileset adapters", () => {
         code: "tsx.terrainTypesUnsupported",
         message: "Legacy terrain types are not represented by the current domain model and were skipped.",
         path: "tsx.terraintypes"
+      }
+    ]);
+  });
+
+  it("reports unknown attributes and external TSX references", () => {
+    const imported = importTsxTilesetDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<tileset version="1.11" tiledversion="1.11.2" name="Warnings" tilewidth="32" tileheight="32" mystery="1">
+  <image source="https://example.com/terrain.png" width="32" height="32"/>
+</tileset>`, {
+      documentPath: "tilesets/warnings.tsx",
+      assetRoots: ["maps", "tilesets", "templates"]
+    });
+
+    expect(imported.issues).toEqual([
+      {
+        severity: "warning",
+        code: "tsx.attribute.unknown",
+        message: "Unknown TSX attribute `mystery` was ignored during import.",
+        path: "tsx.@mystery"
+      },
+      {
+        severity: "warning",
+        code: "tsx.asset.externalReference",
+        message:
+          "External TSX image reference `https://example.com/terrain.png` is outside known project asset roots.",
+        path: "tsx.image"
       }
     ]);
   });

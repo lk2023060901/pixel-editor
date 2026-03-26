@@ -9,8 +9,13 @@ import {
 import type {
   ExportTsxTilesetDocumentInput,
   ImportedTsxTilesetDocument,
+  TiledXmlImportOptions,
   TsxImportIssue
 } from "./types";
+import {
+  appendExternalAssetReferenceIssues,
+  collectUnknownTsxIssues
+} from "./validation";
 
 type XmlRecord = Record<string, unknown>;
 type XmlAttributes = Record<string, string | number | undefined>;
@@ -798,6 +803,10 @@ function toImportedTsxTilesetDocument(
 ): ImportedTsxTilesetDocument {
   return {
     tileset: result.tileset,
+    assetReferences: result.assetReferences.map((reference) => ({
+      ...reference,
+      ownerPath: reference.ownerPath.replace(/^tsj(?=\.|$)/, "tsx")
+    })),
     issues: result.issues.map((issue) => ({
       severity: issue.severity,
       code: issue.code,
@@ -807,7 +816,10 @@ function toImportedTsxTilesetDocument(
   };
 }
 
-export function importTsxTilesetDocument(input: string): ImportedTsxTilesetDocument {
+export function importTsxTilesetDocument(
+  input: string,
+  options: TiledXmlImportOptions = {}
+): ImportedTsxTilesetDocument {
   const document = parseXmlDocument(input);
   const root = document.documentElement;
 
@@ -968,11 +980,17 @@ export function importTsxTilesetDocument(input: string): ImportedTsxTilesetDocum
     );
   }
 
-  const imported = toImportedTsxTilesetDocument(importTsjTilesetDocument(tsjLikeDocument));
+  const imported = toImportedTsxTilesetDocument(importTsjTilesetDocument(tsjLikeDocument, options));
+  const importedIssues = imported.issues.filter(
+    (issue) => issue.code !== "tsj.asset.externalReference"
+  );
+
+  collectUnknownTsxIssues(root, issues);
+  appendExternalAssetReferenceIssues("tsx", imported.assetReferences, issues);
 
   return {
     ...imported,
-    issues: [...issues, ...imported.issues]
+    issues: [...issues, ...importedIssues]
   };
 }
 

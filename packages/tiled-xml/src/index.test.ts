@@ -22,7 +22,10 @@ describe("importTmxMapDocument", () => {
       <point/>
     </object>
   </objectgroup>
-</map>`);
+</map>`, {
+      documentPath: "maps/demo.tmx",
+      assetRoots: ["maps", "tilesets", "templates"]
+    });
 
     expect(imported.map.name).toBe("xml-demo");
     expect(imported.map.settings.backgroundColor).toBe("#112233");
@@ -52,6 +55,18 @@ describe("importTmxMapDocument", () => {
         type: "enum",
         propertyTypeName: "Biome",
         value: "forest"
+      }
+    ]);
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "tileset",
+        ownerPath: "tmx.tilesets[0].source",
+        originalPath: "../tilesets/terrain.tsx",
+        resolvedPath: "tilesets/terrain.tsx",
+        pathKind: "relative",
+        assetRoot: "tilesets",
+        externalToProject: false,
+        documentPath: "maps/demo.tmx"
       }
     ]);
     expect(imported.issues).toEqual([]);
@@ -124,8 +139,23 @@ describe("importTmxMapDocument", () => {
       </properties>
     </object>
   </objectgroup>
-</map>`);
+</map>`, {
+      documentPath: "maps/demo.tmx",
+      assetRoots: ["maps", "tilesets", "templates"]
+    });
 
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "template",
+        ownerPath: "tmx.layers[1].objects[0].template",
+        originalPath: "../templates/ref.tx",
+        resolvedPath: "templates/ref.tx",
+        pathKind: "relative",
+        assetRoot: "templates",
+        externalToProject: false,
+        documentPath: "maps/demo.tmx"
+      }
+    ]);
     expect(imported.issues).toEqual([
       {
         severity: "warning",
@@ -144,6 +174,39 @@ describe("importTmxMapDocument", () => {
         code: "tmj.property.objectReferenceUnsupported",
         message: "Object property `target` uses unresolved TMJ object ids and is currently imported as null.",
         path: "tmj.layers[1].objects[0].properties[0]"
+      }
+    ]);
+  });
+
+  it("reports unknown attributes, unknown elements and external TMX references", () => {
+    const imported = importTmxMapDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.11" tiledversion="1.11.2" name="warnings" orientation="orthogonal" width="1" height="1" tilewidth="32" tileheight="32" mystery="1">
+  <tileset firstgid="1" source="https://example.com/terrain.tsx"/>
+  <unknown-node />
+</map>`, {
+      documentPath: "maps/demo.tmx",
+      assetRoots: ["maps", "tilesets", "templates"]
+    });
+
+    expect(imported.issues).toEqual([
+      {
+        severity: "warning",
+        code: "tmx.attribute.unknown",
+        message: "Unknown TMX attribute `mystery` was ignored during import.",
+        path: "tmx.@mystery"
+      },
+      {
+        severity: "warning",
+        code: "tmx.element.unknown",
+        message: "Unknown TMX element <unknown-node> was ignored during import.",
+        path: "tmx.unknown-node[0]"
+      },
+      {
+        severity: "warning",
+        code: "tmx.asset.externalReference",
+        message:
+          "External TMX tileset reference `https://example.com/terrain.tsx` is outside known project asset roots.",
+        path: "tmx.tilesets[0].source"
       }
     ]);
   });

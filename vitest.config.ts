@@ -14,6 +14,7 @@ export default defineConfig({
       "@pixel-editor/i18n": fromRepositoryRoot("./packages/i18n/src/index.ts"),
       "@pixel-editor/i18n/client": fromRepositoryRoot("./packages/i18n/src/client.tsx"),
       "@pixel-editor/command-engine": fromRepositoryRoot("./packages/command-engine/src/index.ts"),
+      "@pixel-editor/asset-reference": fromRepositoryRoot("./packages/asset-reference/src/index.ts"),
       "@pixel-editor/editor-state": fromRepositoryRoot("./packages/editor-state/src/index.ts"),
       "@pixel-editor/app-services": fromRepositoryRoot("./packages/app-services/src/index.ts"),
       "@pixel-editor/map": fromRepositoryRoot("./packages/map/src/index.ts"),

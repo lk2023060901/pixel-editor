@@ -56,29 +56,34 @@ describe("editor controller", () => {
     const store = createTestEditorStore("demo");
     const initialMapCount = store.getState().maps.length;
 
-    const imported = store.importTmjMapDocument({
-      name: "imported-map",
-      orientation: "orthogonal",
-      width: 2,
-      height: 2,
-      tilewidth: 32,
-      tileheight: 32,
-      layers: [
-        {
-          type: "tilelayer",
-          name: "Ground",
-          width: 2,
-          height: 2,
-          data: [1, 0, 2, 0]
-        }
-      ],
-      tilesets: [
-        {
-          firstgid: 1,
-          source: "../tilesets/terrain.tsj"
-        }
-      ]
-    });
+    const imported = store.importTmjMapDocument(
+      {
+        name: "imported-map",
+        orientation: "orthogonal",
+        width: 2,
+        height: 2,
+        tilewidth: 32,
+        tileheight: 32,
+        layers: [
+          {
+            type: "tilelayer",
+            name: "Ground",
+            width: 2,
+            height: 2,
+            data: [1, 0, 2, 0]
+          }
+        ],
+        tilesets: [
+          {
+            firstgid: 1,
+            source: "../tilesets/terrain.tsj"
+          }
+        ]
+      },
+      {
+        documentPath: "maps/imported-map.tmj"
+      }
+    );
 
     expect(store.getState().maps).toHaveLength(initialMapCount + 1);
     expect(store.getSnapshot().activeMap?.name).toBe("imported-map");
@@ -87,6 +92,16 @@ describe("editor controller", () => {
         firstGid: 1,
         source: "../tilesets/terrain.tsj"
       }
+    ]);
+    expect(imported.assetReferences).toEqual([
+      expect.objectContaining({
+        kind: "tileset",
+        ownerPath: "tmj.tilesets[0].source",
+        resolvedPath: "tilesets/terrain.tsj",
+        assetRoot: "tilesets",
+        externalToProject: false,
+        documentPath: "maps/imported-map.tmj"
+      })
     ]);
     expect(imported.issues).toEqual([]);
   });

@@ -15,62 +15,68 @@ import { exportTmjMapDocument, importTmjMapDocument, stringifyTmjMapDocument } f
 
 describe("importTmjMapDocument", () => {
   it("imports a finite orthogonal TMJ map into normalized domain entities", () => {
-    const imported = importTmjMapDocument({
-      name: "demo",
-      orientation: "orthogonal",
-      width: 2,
-      height: 2,
-      tilewidth: 32,
-      tileheight: 32,
-      renderorder: "right-down",
-      compressionlevel: -1,
-      backgroundcolor: "#112233",
-      layers: [
-        {
-          type: "tilelayer",
-          name: "Ground",
-          width: 2,
-          height: 2,
-          data: [1, 0, 2147483650, 3]
-        },
-        {
-          type: "objectgroup",
-          name: "Objects",
-          draworder: "index",
-          objects: [
-            {
-              id: 7,
-              name: "Spawn",
-              x: 32,
-              y: 48,
-              width: 16,
-              height: 16
-            },
-            {
-              id: 8,
-              name: "Marker",
-              point: true,
-              x: 8,
-              y: 12
-            }
-          ]
-        }
-      ],
-      tilesets: [
-        {
-          firstgid: 1,
-          source: "../tilesets/terrain.tsj"
-        }
-      ],
-      properties: [
-        {
-          name: "biome",
-          type: "string",
-          propertytype: "Biome",
-          value: "forest"
-        }
-      ]
-    });
+    const imported = importTmjMapDocument(
+      {
+        name: "demo",
+        orientation: "orthogonal",
+        width: 2,
+        height: 2,
+        tilewidth: 32,
+        tileheight: 32,
+        renderorder: "right-down",
+        compressionlevel: -1,
+        backgroundcolor: "#112233",
+        layers: [
+          {
+            type: "tilelayer",
+            name: "Ground",
+            width: 2,
+            height: 2,
+            data: [1, 0, 2147483650, 3]
+          },
+          {
+            type: "objectgroup",
+            name: "Objects",
+            draworder: "index",
+            objects: [
+              {
+                id: 7,
+                name: "Spawn",
+                x: 32,
+                y: 48,
+                width: 16,
+                height: 16
+              },
+              {
+                id: 8,
+                name: "Marker",
+                point: true,
+                x: 8,
+                y: 12
+              }
+            ]
+          }
+        ],
+        tilesets: [
+          {
+            firstgid: 1,
+            source: "../tilesets/terrain.tsj"
+          }
+        ],
+        properties: [
+          {
+            name: "biome",
+            type: "string",
+            propertytype: "Biome",
+            value: "forest"
+          }
+        ]
+      },
+      {
+        documentPath: "maps/demo.tmj",
+        assetRoots: ["maps", "tilesets", "templates"]
+      }
+    );
 
     expect(imported.map.name).toBe("demo");
     expect(imported.map.settings.backgroundColor).toBe("#112233");
@@ -106,7 +112,86 @@ describe("importTmjMapDocument", () => {
         value: "forest"
       }
     ]);
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "tileset",
+        ownerPath: "tmj.tilesets[0].source",
+        originalPath: "../tilesets/terrain.tsj",
+        resolvedPath: "tilesets/terrain.tsj",
+        pathKind: "relative",
+        assetRoot: "tilesets",
+        externalToProject: false,
+        documentPath: "maps/demo.tmj"
+      }
+    ]);
     expect(imported.issues).toEqual([]);
+  });
+
+  it("collects template and image references while importing TMJ maps", () => {
+    const imported = importTmjMapDocument(
+      {
+        name: "refs",
+        orientation: "orthogonal",
+        width: 1,
+        height: 1,
+        tilewidth: 32,
+        tileheight: 32,
+        layers: [
+          {
+            type: "imagelayer",
+            name: "Backdrop",
+            image: "../images/backdrop.png"
+          },
+          {
+            type: "objectgroup",
+            name: "Objects",
+            objects: [
+              {
+                id: 3,
+                name: "Enemy Spawn",
+                template: "../templates/enemy.tx"
+              }
+            ]
+          }
+        ]
+      },
+      {
+        documentPath: "maps/demo.tmj",
+        assetRoots: ["maps", "images", "templates"]
+      }
+    );
+
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "image",
+        ownerPath: "tmj.layers[0].image",
+        originalPath: "../images/backdrop.png",
+        resolvedPath: "images/backdrop.png",
+        pathKind: "relative",
+        assetRoot: "images",
+        externalToProject: false,
+        documentPath: "maps/demo.tmj"
+      },
+      {
+        kind: "template",
+        ownerPath: "tmj.layers[1].objects[0].template",
+        originalPath: "../templates/enemy.tx",
+        resolvedPath: "templates/enemy.tx",
+        pathKind: "relative",
+        assetRoot: "templates",
+        externalToProject: false,
+        documentPath: "maps/demo.tmj"
+      }
+    ]);
+    expect(imported.issues).toEqual([
+      {
+        severity: "warning",
+        code: "tmj.object.templateUnsupported",
+        message:
+          "Template-backed object `Enemy Spawn` keeps only inline attributes during TMJ import.",
+        path: "tmj.layers[1].objects[0]"
+      }
+    ]);
   });
 
   it("imports infinite tile chunks and nested group layers", () => {
@@ -228,6 +313,53 @@ describe("importTmjMapDocument", () => {
         name: "target",
         type: "object",
         value: null
+      }
+    ]);
+  });
+
+  it("reports unknown fields and external TMJ references", () => {
+    const imported = importTmjMapDocument(
+      {
+        name: "unknowns",
+        orientation: "orthogonal",
+        width: 1,
+        height: 1,
+        tilewidth: 32,
+        tileheight: 32,
+        mysteryfield: true,
+        tilesets: [
+          {
+            firstgid: 1,
+            source: "https://example.com/terrain.tsj",
+            mystery: "ignored"
+          }
+        ]
+      },
+      {
+        documentPath: "maps/demo.tmj",
+        assetRoots: ["maps", "tilesets", "templates"]
+      }
+    );
+
+    expect(imported.issues).toEqual([
+      {
+        severity: "warning",
+        code: "tmj.field.unknown",
+        message: "Unknown TMJ field `mysteryfield` was ignored during import.",
+        path: "tmj.mysteryfield"
+      },
+      {
+        severity: "warning",
+        code: "tmj.field.unknown",
+        message: "Unknown TMJ field `mystery` was ignored during import.",
+        path: "tmj.tilesets[0].mystery"
+      },
+      {
+        severity: "warning",
+        code: "tmj.asset.externalReference",
+        message:
+          "External TMJ tileset reference `https://example.com/terrain.tsj` is outside known project asset roots.",
+        path: "tmj.tilesets[0].source"
       }
     ]);
   });

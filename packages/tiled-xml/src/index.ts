@@ -1,7 +1,20 @@
 import { DOMParser } from "@xmldom/xmldom";
+import {
+  createAssetReference,
+  type AssetReferenceDescriptor
+} from "@pixel-editor/asset-reference";
 import { importTmjMapDocument } from "@pixel-editor/tiled-json";
 
-import type { ImportedTmxMapDocument, ImportedTmxTilesetReference, TmxImportIssue } from "./types";
+import type {
+  ImportedTmxMapDocument,
+  ImportedTmxTilesetReference,
+  TiledXmlImportOptions,
+  TmxImportIssue
+} from "./types";
+import {
+  appendExternalAssetReferenceIssues,
+  collectUnknownTmxIssues
+} from "./validation";
 
 export * from "./types";
 export { exportTmxMapDocument, stringifyTmxMapDocument } from "./export";
@@ -345,17 +358,6 @@ function parseObjectElement(
     };
   }
 
-  const template = getAttribute(node, "template");
-
-  if (template !== undefined) {
-    appendIssue(
-      issues,
-      path,
-      "tmx.object.templateUnsupported",
-      `Template-backed object \`${record.name}\` keeps only inline attributes during TMX import.`
-    );
-  }
-
   const properties = parsePropertiesContainer(node, issues, path);
 
   if (properties.length > 0) {
@@ -519,6 +521,87 @@ function parseLayerElement(node: Element, issues: TmxImportIssue[], path: string
   };
 }
 
+function collectTmxTemplateReferencesFromLayer(
+  node: Element,
+  issues: TmxImportIssue[],
+  path: string,
+  options: TiledXmlImportOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  if (node.tagName === "objectgroup") {
+    getElementChildrenByTag(node, "object").forEach((object, index) => {
+      const templatePath = getAttribute(object, "template")?.trim();
+
+      if (!templatePath) {
+        return;
+      }
+
+      assetReferences.push(
+        createAssetReference(
+          "template",
+          `${path}.objects[${index}].template`,
+          templatePath,
+          options
+        )
+      );
+      appendIssue(
+        issues,
+        `${path}.objects[${index}]`,
+        "tmx.object.templateUnsupported",
+        `Template-backed object \`${getAttribute(object, "name") ?? ""}\` keeps only inline attributes during TMX import.`
+      );
+    });
+
+    return;
+  }
+
+  if (node.tagName === "group") {
+    getElementChildren(node)
+      .filter((child) =>
+        child.tagName === "layer" ||
+        child.tagName === "objectgroup" ||
+        child.tagName === "imagelayer" ||
+        child.tagName === "group"
+      )
+      .forEach((child, index) => {
+        collectTmxTemplateReferencesFromLayer(
+          child,
+          issues,
+          `${path}.layers[${index}]`,
+          options,
+          assetReferences
+        );
+      });
+  }
+}
+
+function collectTmxTemplateReferences(
+  root: Element,
+  issues: TmxImportIssue[],
+  options: TiledXmlImportOptions
+): AssetReferenceDescriptor[] {
+  const assetReferences: AssetReferenceDescriptor[] = [];
+
+  getElementChildren(root)
+    .filter((child) =>
+      child.tagName === "layer" ||
+      child.tagName === "objectgroup" ||
+      child.tagName === "imagelayer" ||
+      child.tagName === "group"
+    )
+    .forEach((layer, index) => {
+      collectTmxTemplateReferencesFromLayer(
+        layer,
+        issues,
+        `tmx.layers[${index}]`,
+        options,
+        assetReferences
+      );
+    });
+
+  return assetReferences;
+}
+
 function toImportedTmxMapDocument(result: ReturnType<typeof importTmjMapDocument>): ImportedTmxMapDocument {
   return {
     map: result.map,
@@ -529,6 +612,10 @@ function toImportedTmxMapDocument(result: ReturnType<typeof importTmjMapDocument
       ...(reference.tileCount !== undefined ? { tileCount: reference.tileCount } : {}),
       ...(reference.image !== undefined ? { image: reference.image } : {})
     })),
+    assetReferences: result.assetReferences.map((reference) => ({
+      ...reference,
+      ownerPath: reference.ownerPath.replace(/^tmj(?=\.|$)/, "tmx")
+    })),
     issues: result.issues.map((issue) => ({
       severity: issue.severity,
       code: issue.code,
@@ -538,7 +625,10 @@ function toImportedTmxMapDocument(result: ReturnType<typeof importTmjMapDocument
   };
 }
 
-export function importTmxMapDocument(input: string): ImportedTmxMapDocument {
+export function importTmxMapDocument(
+  input: string,
+  options: TiledXmlImportOptions = {}
+): ImportedTmxMapDocument {
   const document = parseXmlDocument(input);
   const root = document.documentElement;
 
@@ -607,10 +697,19 @@ export function importTmxMapDocument(input: string): ImportedTmxMapDocument {
     tmjLikeDocument.layers = layers;
   }
 
-  const imported = toImportedTmxMapDocument(importTmjMapDocument(tmjLikeDocument));
+  const templateAssetReferences = collectTmxTemplateReferences(root, issues, options);
+  const imported = toImportedTmxMapDocument(importTmjMapDocument(tmjLikeDocument, options));
+  const assetReferences = [...imported.assetReferences, ...templateAssetReferences];
+  const importedIssues = imported.issues.filter(
+    (issue) => issue.code !== "tmj.asset.externalReference"
+  );
+
+  collectUnknownTmxIssues(root, issues);
+  appendExternalAssetReferenceIssues("tmx", assetReferences, issues);
 
   return {
     ...imported,
-    issues: [...issues, ...imported.issues]
+    assetReferences,
+    issues: [...issues, ...importedIssues]
   };
 }

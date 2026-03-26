@@ -1,3 +1,7 @@
+import type {
+  AssetReferenceDescriptor,
+  AssetReferenceResolveOptions
+} from "@pixel-editor/asset-reference";
 import type { EditorMap, TilesetDefinition } from "@pixel-editor/domain";
 import type { ImportedTmjTilesetReference } from "@pixel-editor/tiled-json";
 
@@ -11,6 +15,8 @@ export interface TiledXmlImportIssue {
 export type TmxImportIssue = TiledXmlImportIssue;
 export type TsxImportIssue = TiledXmlImportIssue;
 
+export interface TiledXmlImportOptions extends AssetReferenceResolveOptions {}
+
 export interface ImportedTmxTilesetReference {
   firstGid: number;
   source?: string;
@@ -22,11 +28,13 @@ export interface ImportedTmxTilesetReference {
 export interface ImportedTmxMapDocument {
   map: EditorMap;
   tilesetReferences: ImportedTmxTilesetReference[];
+  assetReferences: AssetReferenceDescriptor[];
   issues: TmxImportIssue[];
 }
 
 export interface ImportedTsxTilesetDocument {
   tileset: TilesetDefinition;
+  assetReferences: AssetReferenceDescriptor[];
   issues: TsxImportIssue[];
 }
 

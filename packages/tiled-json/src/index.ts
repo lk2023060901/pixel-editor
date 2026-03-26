@@ -1,4 +1,9 @@
 import {
+  createAssetReference,
+  type AssetReferenceDescriptor,
+  type AssetReferenceResolveOptions
+} from "@pixel-editor/asset-reference";
+import {
   createGroupLayer,
   createImageLayer,
   createMap,
@@ -22,8 +27,13 @@ import {
 import type {
   ImportedTmjMapDocument,
   ImportedTmjTilesetReference,
+  TiledJsonImportOptions,
   TmjImportIssue
 } from "./types";
+import {
+  appendExternalAssetReferenceIssues,
+  collectUnknownTmjFieldIssues
+} from "./validation";
 
 export * from "./types";
 export { exportTmjMapDocument, stringifyTmjMapDocument } from "./export";
@@ -269,6 +279,194 @@ function parseProperties(
     const parsed = parsePropertyDefinition(property, issues, `${path}.properties[${index}]`);
     return parsed ? [parsed] : [];
   });
+}
+
+function collectFilePropertyReferences(
+  record: JsonRecord,
+  path: string,
+  options: AssetReferenceResolveOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  const rawProperties = record.properties;
+
+  if (!Array.isArray(rawProperties)) {
+    return;
+  }
+
+  rawProperties.forEach((property, index) => {
+    if (!isRecord(property) || optionalString(property, "type") !== "file") {
+      return;
+    }
+
+    const rawValue = optionalString(property, "value")?.trim();
+
+    if (!rawValue) {
+      return;
+    }
+
+    assetReferences.push(
+      createAssetReference(
+        "property-file",
+        `${path}.properties[${index}].value`,
+        rawValue,
+        options
+      )
+    );
+  });
+}
+
+function collectObjectAssetReferences(
+  record: JsonRecord,
+  issues: TmjImportIssue[],
+  path: string,
+  options: AssetReferenceResolveOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  const templatePath = optionalString(record, "template")?.trim();
+
+  if (templatePath) {
+    assetReferences.push(
+      createAssetReference("template", `${path}.template`, templatePath, options)
+    );
+    appendIssue(
+      issues,
+      path,
+      "tmj.object.templateUnsupported",
+      `Template-backed object \`${optionalString(record, "name") ?? ""}\` keeps only inline attributes during TMJ import.`
+    );
+  }
+
+  collectFilePropertyReferences(record, path, options, assetReferences);
+}
+
+function collectLayerAssetReferences(
+  record: JsonRecord,
+  issues: TmjImportIssue[],
+  path: string,
+  options: AssetReferenceResolveOptions,
+  assetReferences: AssetReferenceDescriptor[]
+): void {
+  collectFilePropertyReferences(record, path, options, assetReferences);
+
+  const type = optionalString(record, "type");
+
+  if (type === "imagelayer") {
+    const imagePath = optionalString(record, "image")?.trim();
+
+    if (imagePath) {
+      assetReferences.push(
+        createAssetReference("image", `${path}.image`, imagePath, options)
+      );
+    }
+
+    return;
+  }
+
+  if (type === "objectgroup") {
+    const rawObjects = Array.isArray(record.objects) ? record.objects : [];
+
+    rawObjects.forEach((entry, index) => {
+      if (!isRecord(entry)) {
+        return;
+      }
+
+      collectObjectAssetReferences(
+        entry,
+        issues,
+        `${path}.objects[${index}]`,
+        options,
+        assetReferences
+      );
+    });
+
+    return;
+  }
+
+  if (type === "group") {
+    const rawLayers = Array.isArray(record.layers) ? record.layers : [];
+
+    rawLayers.forEach((entry, index) => {
+      if (!isRecord(entry)) {
+        return;
+      }
+
+      collectLayerAssetReferences(
+        entry,
+        issues,
+        `${path}.layers[${index}]`,
+        options,
+        assetReferences
+      );
+    });
+  }
+}
+
+function collectTmjAssetReferences(
+  document: JsonRecord,
+  issues: TmjImportIssue[],
+  options: AssetReferenceResolveOptions
+): AssetReferenceDescriptor[] {
+  const assetReferences: AssetReferenceDescriptor[] = [];
+
+  collectFilePropertyReferences(document, "tmj", options, assetReferences);
+
+  const rawTilesets = Array.isArray(document.tilesets) ? document.tilesets : [];
+
+  rawTilesets.forEach((entry, index) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+
+    const sourcePath = optionalString(entry, "source")?.trim();
+    const imagePath = optionalString(entry, "image")?.trim();
+
+    if (sourcePath) {
+      assetReferences.push(
+        createAssetReference(
+          "tileset",
+          `tmj.tilesets[${index}].source`,
+          sourcePath,
+          options
+        )
+      );
+    }
+
+    if (imagePath) {
+      assetReferences.push(
+        createAssetReference(
+          "image",
+          `tmj.tilesets[${index}].image`,
+          imagePath,
+          options
+        )
+      );
+    }
+
+    collectFilePropertyReferences(
+      entry,
+      `tmj.tilesets[${index}]`,
+      options,
+      assetReferences
+    );
+  });
+
+  const rawLayers = Array.isArray(document.layers) ? document.layers : [];
+
+  rawLayers.forEach((entry, index) => {
+    if (!isRecord(entry)) {
+      return;
+    }
+
+    collectLayerAssetReferences(
+      entry,
+      issues,
+      `tmj.layers[${index}]`,
+      options,
+      assetReferences
+    );
+  });
+
+  return assetReferences;
 }
 
 function buildBaseLayerInput(
@@ -600,7 +798,10 @@ function parseTilesetReference(value: unknown, path: string): ImportedTmjTileset
   };
 }
 
-export function importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument {
+export function importTmjMapDocument(
+  input: string | unknown,
+  options: TiledJsonImportOptions = {}
+): ImportedTmjMapDocument {
   const source = typeof input === "string" ? JSON.parse(input) : input;
   const document = requireRecord(source, "tmj");
   const issues: TmjImportIssue[] = [];
@@ -653,6 +854,7 @@ export function importTmjMapDocument(input: string | unknown): ImportedTmjMapDoc
         parseTilesetReference(tileset, `tmj.tilesets[${index}]`)
       )
     : [];
+  const assetReferences = collectTmjAssetReferences(document, issues, options);
   const maxObjectId = parsedLayers.reduce((maxId, entry) => Math.max(maxId, entry.maxObjectId), 0);
 
   if (orientation === "oblique") {
@@ -664,12 +866,16 @@ export function importTmjMapDocument(input: string | unknown): ImportedTmjMapDoc
     );
   }
 
+  collectUnknownTmjFieldIssues(document, issues);
+  appendExternalAssetReferenceIssues("tmj", assetReferences, issues);
+
   return {
     map: {
       ...map,
       nextObjectId: Math.max(map.nextObjectId, maxObjectId + 1)
     },
     tilesetReferences,
+    assetReferences,
     issues
   };
 }

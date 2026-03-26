@@ -18,89 +18,95 @@ import {
 
 describe("TSJ tileset adapters", () => {
   it("imports a TSJ image tileset into normalized domain entities", () => {
-    const imported = importTsjTilesetDocument({
-      type: "tileset",
-      version: "1.11",
-      tiledversion: "1.11.2",
-      name: "Terrain",
-      tilewidth: 32,
-      tileheight: 32,
-      margin: 1,
-      spacing: 2,
-      tilecount: 6,
-      columns: 3,
-      image: "../tilesets/terrain.png",
-      imagewidth: 100,
-      imageheight: 70,
-      objectalignment: "center",
-      tilerendersize: "grid",
-      fillmode: "preserve-aspect-fit",
-      tileoffset: {
-        x: 4,
-        y: 8
-      },
-      properties: [
-        {
-          name: "biome",
-          type: "string",
-          propertytype: "Biome",
-          value: "forest"
-        }
-      ],
-      tiles: [
-        {
-          id: 0,
-          type: "Grass",
-          probability: 0.5,
-          properties: [
-            {
-              name: "walkable",
-              type: "bool",
-              value: true
-            }
-          ],
-          animation: [
-            {
-              tileid: 1,
-              duration: 150
-            }
-          ],
-          objectgroup: {
-            type: "objectgroup",
-            draworder: "index",
-            objects: [
+    const imported = importTsjTilesetDocument(
+      {
+        type: "tileset",
+        version: "1.11",
+        tiledversion: "1.11.2",
+        name: "Terrain",
+        tilewidth: 32,
+        tileheight: 32,
+        margin: 1,
+        spacing: 2,
+        tilecount: 6,
+        columns: 3,
+        image: "../tilesets/terrain.png",
+        imagewidth: 100,
+        imageheight: 70,
+        objectalignment: "center",
+        tilerendersize: "grid",
+        fillmode: "preserve-aspect-fit",
+        tileoffset: {
+          x: 4,
+          y: 8
+        },
+        properties: [
+          {
+            name: "biome",
+            type: "string",
+            propertytype: "Biome",
+            value: "forest"
+          }
+        ],
+        tiles: [
+          {
+            id: 0,
+            type: "Grass",
+            probability: 0.5,
+            properties: [
               {
-                id: 9,
-                name: "Hit",
-                ellipse: true,
-                x: 1,
-                y: 2,
-                width: 3,
-                height: 4
+                name: "walkable",
+                type: "bool",
+                value: true
+              }
+            ],
+            animation: [
+              {
+                tileid: 1,
+                duration: 150
+              }
+            ],
+            objectgroup: {
+              type: "objectgroup",
+              draworder: "index",
+              objects: [
+                {
+                  id: 9,
+                  name: "Hit",
+                  ellipse: true,
+                  x: 1,
+                  y: 2,
+                  width: 3,
+                  height: 4
+                }
+              ]
+            }
+          }
+        ],
+        wangsets: [
+          {
+            name: "Terrain",
+            type: "mixed",
+            colors: [
+              {
+                name: "Grass",
+                color: "#00ff00"
+              }
+            ],
+            wangtiles: [
+              {
+                tileid: 0,
+                wangid: [1, 0, 0, 0, 0, 0, 0, 0]
               }
             ]
           }
-        }
-      ],
-      wangsets: [
-        {
-          name: "Terrain",
-          type: "mixed",
-          colors: [
-            {
-              name: "Grass",
-              color: "#00ff00"
-            }
-          ],
-          wangtiles: [
-            {
-              tileid: 0,
-              wangid: [1, 0, 0, 0, 0, 0, 0, 0]
-            }
-          ]
-        }
-      ]
-    });
+        ]
+      },
+      {
+        documentPath: "tilesets/terrain.tsj",
+        assetRoots: ["maps", "tilesets", "templates"]
+      }
+    );
 
     expect(imported.tileset).toMatchObject({
       kind: "image",
@@ -157,6 +163,18 @@ describe("TSJ tileset adapters", () => {
       name: "Terrain",
       type: "mixed"
     });
+    expect(imported.assetReferences).toEqual([
+      {
+        kind: "image",
+        ownerPath: "tsj.image",
+        originalPath: "../tilesets/terrain.png",
+        resolvedPath: "tilesets/terrain.png",
+        pathKind: "relative",
+        assetRoot: "tilesets",
+        externalToProject: false,
+        documentPath: "tilesets/terrain.tsj"
+      }
+    ]);
     expect(imported.issues).toEqual([
       {
         severity: "warning",
@@ -317,5 +335,51 @@ describe("TSJ tileset adapters", () => {
       ]
     });
     expect(stringifyTsjTilesetDocument({ tileset })).toBe(stringifyTsjTilesetDocument({ tileset }));
+    });
   });
-});
+
+  it("reports unknown fields and external TSJ references", () => {
+    const imported = importTsjTilesetDocument(
+      {
+        type: "tileset",
+        name: "External",
+        tilewidth: 32,
+        tileheight: 32,
+        image: "https://example.com/terrain.png",
+        mysteryfield: true,
+        tiles: [
+          {
+            id: 0,
+            image: "../tilesets/a.png",
+            mystery: "ignored"
+          }
+        ]
+      },
+      {
+        documentPath: "tilesets/external.tsj",
+        assetRoots: ["maps", "tilesets", "templates"]
+      }
+    );
+
+    expect(imported.issues).toEqual([
+      {
+        severity: "warning",
+        code: "tsj.field.unknown",
+        message: "Unknown TSJ field `mysteryfield` was ignored during import.",
+        path: "tsj.mysteryfield"
+      },
+      {
+        severity: "warning",
+        code: "tsj.field.unknown",
+        message: "Unknown TSJ field `mystery` was ignored during import.",
+        path: "tsj.tiles[0].mystery"
+      },
+      {
+        severity: "warning",
+        code: "tsj.asset.externalReference",
+        message:
+          "External TSJ image reference `https://example.com/terrain.png` is outside known project asset roots.",
+        path: "tsj.image"
+      }
+    ]);
+  });

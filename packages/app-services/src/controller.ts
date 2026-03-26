@@ -179,6 +179,11 @@ export interface EditorControllerOptions {
   naming?: EditorNamingConfig;
 }
 
+export interface ExternalDocumentImportOptions {
+  documentPath?: string;
+  assetRoots?: readonly string[];
+}
+
 export interface EditorRuntimeSnapshot {
   bootstrap: EditorBootstrapContract;
   workspace: EditorWorkspaceState;
@@ -194,10 +199,19 @@ export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
   createMapDocument(input: CreateMapInput): string;
-  importTmxMapDocument(input: string): ImportedTmxMapDocument;
-  importTsxTilesetDocument(input: string): ImportedTsxTilesetDocument;
-  importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument;
-  importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument;
+  importTmxMapDocument(input: string, options?: ExternalDocumentImportOptions): ImportedTmxMapDocument;
+  importTsxTilesetDocument(
+    input: string,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTsxTilesetDocument;
+  importTmjMapDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTmjMapDocument;
+  importTsjTilesetDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTsjTilesetDocument;
   createQuickMapDocument(name?: string): string;
   setActiveMap(mapId: string): void;
   setActiveLayer(layerId: string): void;
@@ -391,6 +405,26 @@ class InMemoryEditorController implements EditorController {
     };
 
     return this.cachedSnapshot;
+  }
+
+  private resolveImportOptions(
+    options: ExternalDocumentImportOptions | undefined
+  ): ExternalDocumentImportOptions {
+    if (!options) {
+      return {};
+    }
+
+    return {
+      ...(options?.documentPath !== undefined
+        ? { documentPath: options.documentPath }
+        : {}),
+      ...((options.documentPath !== undefined || options.assetRoots !== undefined)
+        ? {
+            assetRoots:
+              options.assetRoots ?? this.history.state.project.assetRoots
+          }
+        : {})
+    };
   }
 
   subscribe(listener: () => void): () => void {
@@ -825,16 +859,28 @@ class InMemoryEditorController implements EditorController {
     return projectedMap?.id ?? "";
   }
 
-  importTmxMapDocument(input: string): ImportedTmxMapDocument {
-    const imported = importTmxMapDocumentAdapter(input);
+  importTmxMapDocument(
+    input: string,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTmxMapDocument {
+    const imported = importTmxMapDocumentAdapter(
+      input,
+      this.resolveImportOptions(options)
+    );
 
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
   }
 
-  importTsxTilesetDocument(input: string): ImportedTsxTilesetDocument {
-    const imported = importTsxTilesetDocumentAdapter(input);
+  importTsxTilesetDocument(
+    input: string,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTsxTilesetDocument {
+    const imported = importTsxTilesetDocumentAdapter(
+      input,
+      this.resolveImportOptions(options)
+    );
     const activeMap = getActiveMap(this.history.state);
 
     this.commit(
@@ -847,16 +893,28 @@ class InMemoryEditorController implements EditorController {
     return imported;
   }
 
-  importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument {
-    const imported = importTmjMapDocumentAdapter(input);
+  importTmjMapDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTmjMapDocument {
+    const imported = importTmjMapDocumentAdapter(
+      input,
+      this.resolveImportOptions(options)
+    );
 
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
   }
 
-  importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument {
-    const imported = importTsjTilesetDocumentAdapter(input);
+  importTsjTilesetDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTsjTilesetDocument {
+    const imported = importTsjTilesetDocumentAdapter(
+      input,
+      this.resolveImportOptions(options)
+    );
     const activeMap = getActiveMap(this.history.state);
 
     this.commit(

@@ -24,6 +24,7 @@ export {
   type EditorControllerOptions,
   type EditorInfrastructure,
   type EditorRuntimeSnapshot,
+  type ExternalDocumentImportOptions,
   type ExportJobGateway,
   type ValidationGateway
 } from "./controller";
