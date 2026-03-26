@@ -33,3 +33,9 @@ export type {
   ObjectMoveGestureModifiers,
   TileStamp
 } from "@pixel-editor/editor-state";
+export type {
+  ImportedTmjMapDocument,
+  ImportedTsjTilesetDocument,
+  TmjImportIssue,
+  TsjImportIssue
+} from "@pixel-editor/tiled-json";

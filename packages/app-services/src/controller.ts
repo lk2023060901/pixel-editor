@@ -1,6 +1,12 @@
 import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  importTmjMapDocument as importTmjMapDocumentAdapter,
+  importTsjTilesetDocument as importTsjTilesetDocumentAdapter,
+  type ImportedTmjMapDocument,
+  type ImportedTsjTilesetDocument
+} from "@pixel-editor/tiled-json";
+import {
   createWangSetDefinition,
   createMapObject,
   getLayerById,
@@ -63,6 +69,7 @@ import {
   type ShapeFillMode
 } from "@pixel-editor/editor-state";
 import {
+  addImportedMapDocumentCommand,
   addLayerCommand,
   captureTileSelectionStampCommand,
   clearTileSelectionCommand,
@@ -108,6 +115,7 @@ import {
   updateObjectDetailsCommand
 } from "@pixel-editor/objects";
 import {
+  addImportedTilesetCommand,
   createTilesetWangSetCommand,
   createImageCollectionTilesetCommand,
   createImageTilesetCommand,
@@ -180,6 +188,8 @@ export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
   createMapDocument(input: CreateMapInput): string;
+  importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument;
+  importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument;
   createQuickMapDocument(name?: string): string;
   setActiveMap(mapId: string): void;
   setActiveLayer(layerId: string): void;
@@ -805,6 +815,28 @@ class InMemoryEditorController implements EditorController {
     this.commit(command);
 
     return projectedMap?.id ?? "";
+  }
+
+  importTmjMapDocument(input: string | unknown): ImportedTmjMapDocument {
+    const imported = importTmjMapDocumentAdapter(input);
+
+    this.commit(addImportedMapDocumentCommand(imported.map));
+
+    return imported;
+  }
+
+  importTsjTilesetDocument(input: string | unknown): ImportedTsjTilesetDocument {
+    const imported = importTsjTilesetDocumentAdapter(input);
+    const activeMap = getActiveMap(this.history.state);
+
+    this.commit(
+      addImportedTilesetCommand({
+        tileset: imported.tileset,
+        ...(activeMap ? { mapId: activeMap.id } : {})
+      })
+    );
+
+    return imported;
   }
 
   createQuickMapDocument(name?: string): string {

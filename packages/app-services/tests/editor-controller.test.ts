@@ -52,6 +52,87 @@ describe("editor controller", () => {
     });
   });
 
+  it("imports a TMJ document into the workspace through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const initialMapCount = store.getState().maps.length;
+
+    const imported = store.importTmjMapDocument({
+      name: "imported-map",
+      orientation: "orthogonal",
+      width: 2,
+      height: 2,
+      tilewidth: 32,
+      tileheight: 32,
+      layers: [
+        {
+          type: "tilelayer",
+          name: "Ground",
+          width: 2,
+          height: 2,
+          data: [1, 0, 2, 0]
+        }
+      ],
+      tilesets: [
+        {
+          firstgid: 1,
+          source: "../tilesets/terrain.tsj"
+        }
+      ]
+    });
+
+    expect(store.getState().maps).toHaveLength(initialMapCount + 1);
+    expect(store.getSnapshot().activeMap?.name).toBe("imported-map");
+    expect(imported.tilesetReferences).toEqual([
+      {
+        firstGid: 1,
+        source: "../tilesets/terrain.tsj"
+      }
+    ]);
+    expect(imported.issues).toEqual([]);
+  });
+
+  it("imports a TSJ tileset into the workspace through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const initialTilesetCount = store.getState().tilesets.length;
+    const activeMap = store.getSnapshot().activeMap;
+
+    const imported = store.importTsjTilesetDocument({
+      type: "tileset",
+      version: "1.11",
+      tiledversion: "1.11.2",
+      name: "Imported Props",
+      tilewidth: 32,
+      tileheight: 32,
+      tilecount: 2,
+      columns: 0,
+      tiles: [
+        {
+          id: 0,
+          image: "../tilesets/prop-a.png"
+        },
+        {
+          id: 1,
+          image: "../tilesets/prop-b.png",
+          type: "Decoration"
+        }
+      ]
+    });
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.tilesets).toHaveLength(initialTilesetCount + 1);
+    expect(snapshot.activeTileset?.name).toBe("Imported Props");
+    expect(imported.tileset.kind).toBe("image-collection");
+    expect(imported.tileset.tiles[1]).toMatchObject({
+      localId: 1,
+      className: "Decoration",
+      imageSource: "../tilesets/prop-b.png"
+    });
+    expect(imported.issues).toEqual([]);
+    expect(activeMap?.tilesetIds).not.toContain(imported.tileset.id);
+    expect(snapshot.activeMap?.tilesetIds).toContain(imported.tileset.id);
+  });
+
   it("applies localized naming config to generated maps, layers and objects", () => {
     const store = createEditorStore(
       createEditorWorkspaceState({

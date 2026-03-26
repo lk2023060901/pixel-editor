@@ -1,6 +1,6 @@
 # Development Plan
 
-Last updated: 2026-03-25
+Last updated: 2026-03-26
 
 ## Status Definitions
 
@@ -48,9 +48,9 @@ Last updated: 2026-03-25
 | SES-002 | 编辑器状态 | Selection 状态 | SES-001 | 开发中 | 已实现 selection 基础类型 |
 | SES-003 | 编辑器状态 | Tool 状态 | SES-001 | 开发中 | 已实现 active tool 基础状态 |
 | SES-004 | 编辑器状态 | Viewport 状态 | SES-001 | 开发中 | 已实现 viewport 基础状态 |
-| IO-001 | 格式兼容 | TMJ 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 未开始 | JSON map 读取 |
-| IO-002 | 格式兼容 | TMJ 写入 | IO-001 | 未开始 | 必须保证 deterministic output |
-| IO-003 | 格式兼容 | TSJ 读取与写入 | DOM-004, DOM-006 | 未开始 | JSON tileset 读写 |
+| IO-001 | 格式兼容 | TMJ 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 开发中 | 已新增 `@pixel-editor/tiled-json` 适配包，支持将 TMJ JSON 读取为 normalized import result：覆盖 map settings、tile/object/image/group layers、tile flips、基础 properties 与 tileset references；并已接入 `app-services` / workspace 导入 API 与控制器测试，剩余更完整兼容性待补 |
+| IO-002 | 格式兼容 | TMJ 写入 | IO-001 | 开发中 | 已在 `@pixel-editor/tiled-json` 增加 deterministic TMJ serializer：覆盖 finite/infinite tile layers、object/image/group layers、tile flip flags、object reference property 映射与 round-trip 测试；workspace 保存/export integration 待补 |
+| IO-003 | 格式兼容 | TSJ 读取与写入 | DOM-004, DOM-006 | 开发中 | 已在 `@pixel-editor/tiled-json` 增加 TSJ 读取/写出：覆盖 image / image-collection tileset、tile metadata、animation、collision objectgroup、基础 wang set 与 deterministic writer，并已接入 controller 级 tileset import API 与回归测试；更完整的 TSJ 兼容字段与保存链路待补 |
 | IO-004 | 格式兼容 | TMX 读取 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 未开始 | XML map 读取 |
 | IO-005 | 格式兼容 | TMX 写入 | IO-004 | 未开始 | 保留兼容关键元数据 |
 | IO-006 | 格式兼容 | TSX 读取与写入 | DOM-004, DOM-006 | 未开始 | XML tileset 读写 |

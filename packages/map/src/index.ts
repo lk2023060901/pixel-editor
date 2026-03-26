@@ -162,12 +162,9 @@ export function buildDefaultMapDocument(
   });
 }
 
-export function createMapDocumentCommand(
-  input: CreateMapInput,
-  layerNames: DefaultMapLayerNames = defaultMapLayerNames
+export function addImportedMapDocumentCommand(
+  map: EditorMap
 ): HistoryCommand<EditorWorkspaceState> {
-  const map = buildDefaultMapDocument(input, layerNames);
-
   const addMapCommand = createHistoryCommand<EditorWorkspaceState>({
     id: "map.add",
     description: `Add map ${map.name}`,
@@ -193,10 +190,24 @@ export function createMapDocumentCommand(
   });
 
   return createMacroCommand(
-    `Create map ${map.name}`,
+    `Import map ${map.name}`,
     [addMapCommand, activateMapCommand, activateToolCommand, markDirtyCommand],
-    "map.create"
+    "map.import"
   );
+}
+
+export function createMapDocumentCommand(
+  input: CreateMapInput,
+  layerNames: DefaultMapLayerNames = defaultMapLayerNames
+): HistoryCommand<EditorWorkspaceState> {
+  const map = buildDefaultMapDocument(input, layerNames);
+  const command = addImportedMapDocumentCommand(map);
+
+  return createHistoryCommand({
+    id: "map.create",
+    description: `Create map ${map.name}`,
+    run: (state) => command.run(state)
+  });
 }
 
 export function setActiveMapCommand(

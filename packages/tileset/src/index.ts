@@ -183,6 +183,17 @@ function addTilesetToWorkspace(
   };
 }
 
+export function addImportedTilesetCommand(input: {
+  mapId?: MapId;
+  tileset: TilesetDefinition;
+}): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "tileset.import",
+    description: `Import tileset ${input.tileset.name}`,
+    run: (state) => addTilesetToWorkspace(state, input.tileset, input.mapId)
+  });
+}
+
 export function createImageTilesetCommand(input: {
   mapId?: MapId;
   tileset: CreateImageTilesetInput;

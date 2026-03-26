@@ -13,6 +13,7 @@
     "@pixel-editor/editor-state": "0.1.0",
     "@pixel-editor/map": "0.1.0",
     "@pixel-editor/objects": "0.1.0",
+    "@pixel-editor/tiled-json": "0.1.0",
     "@pixel-editor/tileset": "0.1.0"
   }
 }
