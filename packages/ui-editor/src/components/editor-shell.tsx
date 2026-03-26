@@ -2,6 +2,7 @@
 
 import type { EditorController } from "@pixel-editor/app-services";
 import { getObjectById } from "@pixel-editor/domain";
+import { summarizeEditorIssues } from "@pixel-editor/editor-state";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
@@ -14,6 +15,7 @@ import { PropertiesInspector } from "./properties-inspector";
 import { ProjectDock } from "./project-dock";
 import { RendererCanvas } from "./renderer-canvas";
 import { EditorStatusBar } from "./editor-status-bar";
+import { IssuesPanel } from "./issues-panel";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
 import {
   getTiledMainMenus,
@@ -285,10 +287,7 @@ export function EditorShell({ store }: EditorShellProps) {
   ];
   const newAction = mainToolbarActions[0];
   const remainingMainActions = mainToolbarActions.slice(1);
-  const issueSummary = {
-    errorCount: 0,
-    warningCount: 0
-  };
+  const issueSummary = summarizeEditorIssues(snapshot.runtime.issues);
   const menuSpecs = getTiledMainMenus(
     {
       activeDocumentKind: activeDocument?.kind,
@@ -727,6 +726,22 @@ export function EditorShell({ store }: EditorShellProps) {
           </aside>
         </div>
 
+        {snapshot.runtime.issues.panelOpen ? (
+          <IssuesPanel
+            issues={snapshot.runtime.issues.entries}
+            onClear={() => {
+              startTransition(() => {
+                store.clearIssues();
+              });
+            }}
+            onClose={() => {
+              startTransition(() => {
+                store.closeIssuesPanel();
+              });
+            }}
+          />
+        ) : null}
+
         <EditorStatusBar
           activeLayerId={snapshot.workspace.session.activeLayerId}
           activeLayerKind={activeLayer?.kind}
@@ -735,6 +750,11 @@ export function EditorShell({ store }: EditorShellProps) {
           statusInfo={statusInfo}
           warningCount={issueSummary.warningCount}
           zoom={snapshot.bootstrap.viewport.zoom}
+          onToggleIssues={() => {
+            startTransition(() => {
+              store.toggleIssuesPanel();
+            });
+          }}
           onLayerChange={(layerId) => {
             startTransition(() => {
               store.setActiveLayer(layerId);

@@ -8,10 +8,20 @@ import {
   createEditorInteractionState,
   type EditorInteractionState
 } from "./interactions";
+import {
+  clearEditorIssueEntries,
+  createEditorIssueState,
+  replaceEditorIssueSourceEntries,
+  setEditorIssuePanelOpen,
+  toggleEditorIssuePanel,
+  type EditorIssueEntry,
+  type EditorIssueState
+} from "./issues";
 
 export interface EditorRuntimeState {
   clipboard: ClipboardState;
   interactions: EditorInteractionState;
+  issues: EditorIssueState;
 }
 
 export function createEditorRuntimeState(
@@ -19,7 +29,8 @@ export function createEditorRuntimeState(
 ): EditorRuntimeState {
   return {
     clipboard: overrides.clipboard ?? createEmptyClipboardState(),
-    interactions: createEditorInteractionState(overrides.interactions)
+    interactions: createEditorInteractionState(overrides.interactions),
+    issues: createEditorIssueState(overrides.issues)
   };
 }
 
@@ -46,5 +57,62 @@ export function setEditorRuntimeClipboard(
   return {
     ...state,
     clipboard
+  };
+}
+
+export function replaceEditorRuntimeIssueSourceEntries(
+  state: EditorRuntimeState,
+  sourceId: string,
+  entries: readonly EditorIssueEntry[]
+): EditorRuntimeState {
+  const issues = replaceEditorIssueSourceEntries(state.issues, sourceId, entries);
+
+  if (issues === state.issues) {
+    return state;
+  }
+
+  return {
+    ...state,
+    issues
+  };
+}
+
+export function clearEditorRuntimeIssueEntries(
+  state: EditorRuntimeState
+): EditorRuntimeState {
+  const issues = clearEditorIssueEntries(state.issues);
+
+  if (issues === state.issues) {
+    return state;
+  }
+
+  return {
+    ...state,
+    issues
+  };
+}
+
+export function setEditorRuntimeIssuePanelOpen(
+  state: EditorRuntimeState,
+  panelOpen: boolean
+): EditorRuntimeState {
+  const issues = setEditorIssuePanelOpen(state.issues, panelOpen);
+
+  if (issues === state.issues) {
+    return state;
+  }
+
+  return {
+    ...state,
+    issues
+  };
+}
+
+export function toggleEditorRuntimeIssuePanel(
+  state: EditorRuntimeState
+): EditorRuntimeState {
+  return {
+    ...state,
+    issues: toggleEditorIssuePanel(state.issues)
   };
 }

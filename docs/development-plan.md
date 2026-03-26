@@ -78,7 +78,7 @@ Last updated: 2026-03-26
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
 | UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动；检索与属性面板待补 |
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
-| UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 未开始 | 展示兼容与校验问题 |
+| UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 已完成 | 已接入 runtime issue slice、状态栏问题计数按钮与底部 Issues Panel，支持展示导入兼容/校验问题并清空/关闭 |
 | MAP-001 | 地图编辑 | New Map 流程 | UI-001, DOM-002, CMD-001 | 开发中 | 已接入 quick create map 与默认图层初始化 |
 | MAP-002 | 地图编辑 | Map Properties 编辑 | MAP-001, DOM-002 | 已完成 | 已支持 name、orientation、render order、尺寸、infinite 与 background color 编辑 |
 | MAP-003 | 地图编辑 | Tile Layer 新增/删除/重排 | MAP-001, DOM-003, CMD-001 | 开发中 | 已支持顶层 tile/object layer 管理，group 内部层级调整待实现 |
@@ -118,7 +118,7 @@ Last updated: 2026-03-26
 | ADV-002 | 高级绘制 | Random Mode | ADV-001, TSET-005 | 未开始 | 依赖 tile probability |
 | ADV-003 | 高级绘制 | Terrain / Wang Brush | TSET-009, ADV-001 | 未开始 | 自动匹配边/角地形 |
 | ADV-004 | 高级绘制 | Select Same Tile / Magic Wand | MAP-008, REN-005 | 未开始 | 选择增强工具 |
-| PROJ-001 | 项目 | Project 文件读写 | DOM-008, IO-007 | 未开始 | 项目元数据落盘 |
+| PROJ-001 | 项目 | Project 文件读写 | DOM-008, IO-007 | 已完成 | 已补齐 `.tiled-project` 读写适配、路径引用解析、controller 导入入口与 project metadata 替换命令，并通过 adapter/controller 回归测试 |
 | PROJ-002 | 项目 | 资源树与项目视图 | PROJ-001, UI-001 | 未开始 | 浏览项目资产 |
 | PROJ-003 | 项目 | Custom Property Types Editor | DOM-006, PROJ-001, UI-005 | 未开始 | enum/class 类型定义 |
 | PROJ-004 | 项目 | 兼容版本与导出选项 | PROJ-001 | 未开始 | 保存兼容目标与导出偏好 |

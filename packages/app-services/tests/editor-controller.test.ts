@@ -199,6 +199,104 @@ describe("editor controller", () => {
     expect(snapshot.activeMap?.tilesetIds).toContain(imported.tileset.id);
   });
 
+  it("records import issues in runtime state and exposes issues panel controls", () => {
+    const store = createTestEditorStore("demo");
+
+    store.importTmxMapDocument(`<?xml version="1.0" encoding="UTF-8"?>
+<map version="1.11" tiledversion="1.11.2" name="xml-import" orientation="orthogonal" width="1" height="1" tilewidth="32" tileheight="32" mystery="1">
+  <tileset firstgid="1" source="https://example.com/terrain.tsx"/>
+</map>`, {
+      documentPath: "maps/xml-import.tmx"
+    });
+
+    let snapshot = store.getSnapshot();
+
+    expect(snapshot.runtime.issues.panelOpen).toBe(true);
+    expect(snapshot.runtime.issues.entries).toEqual([
+      expect.objectContaining({
+        documentName: "xml-import",
+        sourceKind: "tmx",
+        code: "tmx.attribute.unknown",
+        path: "tmx.@mystery"
+      }),
+      expect.objectContaining({
+        documentName: "xml-import",
+        sourceKind: "tmx",
+        code: "tmx.asset.externalReference",
+        path: "tmx.tilesets[0].source"
+      })
+    ]);
+
+    store.toggleIssuesPanel();
+    snapshot = store.getSnapshot();
+    expect(snapshot.runtime.issues.panelOpen).toBe(false);
+
+    store.clearIssues();
+    snapshot = store.getSnapshot();
+    expect(snapshot.runtime.issues.entries).toEqual([]);
+    expect(snapshot.runtime.issues.panelOpen).toBe(false);
+  });
+
+  it("imports tiled project metadata into the current workspace", () => {
+    const store = createTestEditorStore("demo");
+
+    const imported = store.importTiledProjectDocument(
+      {
+        folders: ["maps", "tilesets", "templates"],
+        extensionsPath: "extensions",
+        automappingRulesFile: "rules.txt",
+        compatibilityVersion: 1120,
+        propertyTypes: [
+          {
+            id: 1,
+            type: "enum",
+            name: "Biome",
+            storageType: "string",
+            values: ["forest", "desert"],
+            valuesAsFlags: false
+          }
+        ],
+        commands: [{ name: "Build" }]
+      },
+      {
+        documentPath: "projects/demo.tiled-project"
+      }
+    );
+
+    expect(imported.project).toMatchObject({
+      name: "demo",
+      assetRoots: ["maps", "tilesets", "templates"],
+      compatibilityVersion: "1.12",
+      extensionsDirectory: "extensions",
+      automappingRulesFile: "rules.txt"
+    });
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.project).toMatchObject({
+      name: "demo",
+      assetRoots: ["maps", "tilesets", "templates"],
+      compatibilityVersion: "1.12",
+      extensionsDirectory: "extensions",
+      automappingRulesFile: "rules.txt"
+    });
+    expect(snapshot.workspace.project.propertyTypes).toEqual([
+      expect.objectContaining({
+        kind: "enum",
+        name: "Biome"
+      })
+    ]);
+    expect(snapshot.runtime.issues.entries).toEqual([
+      expect.objectContaining({
+        documentName: "demo",
+        sourceKind: "project",
+        code: "project.commands.unsupported",
+        path: "project.commands"
+      })
+    ]);
+    expect(snapshot.workspace.session.hasUnsavedChanges).toBe(true);
+  });
+
   it("applies localized naming config to generated maps, layers and objects", () => {
     const store = createEditorStore(
       createEditorWorkspaceState({

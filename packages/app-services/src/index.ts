@@ -30,6 +30,10 @@ export {
 } from "./controller";
 export type { EditorNamingConfig } from "./config";
 export type {
+  ImportedTiledProjectDocument,
+  TiledProjectImportIssue
+} from "@pixel-editor/tiled-project";
+export type {
   CanvasGestureModifiers,
   ObjectMoveGestureModifiers,
   TileStamp

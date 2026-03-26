@@ -8,6 +8,8 @@ Allowed dependency direction:
 
 `ui-editor -> app-services -> tileset -> editor-state -> domain`
 
+`ui-editor -> app-services -> project -> editor-state -> domain`
+
 `app-services -> command-engine`
 
 `app-services -> contracts`
@@ -206,6 +208,27 @@ Public API rules:
 - expose tileset-specific commands and helpers only
 - depend on shared domain and command primitives instead of duplicating them
 - keep tileset behavior reusable by both UI and future automation flows
+
+## `packages/project`
+
+Owns:
+
+- project-focused command composition
+- project metadata replacement helpers
+- reusable project document mutation workflows
+
+Must not own:
+
+- transport DTOs
+- React components
+- renderer internals
+- generic persistence adapters
+
+Public API rules:
+
+- expose project-specific commands and helpers only
+- depend on shared domain and command primitives instead of duplicating them
+- keep project behavior reusable by both UI and future automation flows
 
 ## `packages/renderer-pixi`
 

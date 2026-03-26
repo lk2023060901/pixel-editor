@@ -1,6 +1,10 @@
 import type { EditorBootstrapContract } from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
+  importTiledProjectDocument as importTiledProjectDocumentAdapter,
+  type ImportedTiledProjectDocument
+} from "@pixel-editor/tiled-project";
+import {
   importTmxMapDocument as importTmxMapDocumentAdapter,
   importTsxTilesetDocument as importTsxTilesetDocumentAdapter,
   type ImportedTmxMapDocument,
@@ -44,6 +48,7 @@ import {
   type WangSetType
 } from "@pixel-editor/domain";
 import {
+  clearEditorRuntimeIssueEntries,
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
   createObjectMovePreview,
@@ -61,7 +66,11 @@ import {
   isObjectSelectionState,
   isTileSelectionState,
   materializeTileStampCells,
+  replaceEditorRuntimeIssueSourceEntries,
   setEditorRuntimeClipboard,
+  setEditorRuntimeIssuePanelOpen,
+  type EditorIssueEntry,
+  type EditorIssueSourceKind,
   updateObjectMovePreview,
   updateShapeFillCanvasPreview,
   updateTileSelectionCanvasPreview,
@@ -120,6 +129,7 @@ import {
   upsertObjectPropertyCommand,
   updateObjectDetailsCommand
 } from "@pixel-editor/objects";
+import { replaceProjectCommand } from "@pixel-editor/project";
 import {
   addImportedTilesetCommand,
   createTilesetWangSetCommand,
@@ -199,6 +209,10 @@ export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
   createMapDocument(input: CreateMapInput): string;
+  importTiledProjectDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTiledProjectDocument;
   importTmxMapDocument(input: string, options?: ExternalDocumentImportOptions): ImportedTmxMapDocument;
   importTsxTilesetDocument(
     input: string,
@@ -295,6 +309,9 @@ export interface EditorController {
   toggleGrid(): void;
   undo(): void;
   redo(): void;
+  toggleIssuesPanel(): void;
+  closeIssuesPanel(): void;
+  clearIssues(): void;
   subscribe(listener: () => void): () => void;
 }
 
@@ -363,6 +380,22 @@ function snapDeltaToGrid(
   return snappedPosition - referencePosition;
 }
 
+function deriveIssueSourceKind(code: string): EditorIssueSourceKind {
+  const prefix = code.split(".", 1)[0];
+
+  if (
+    prefix === "project" ||
+    prefix === "tmj" ||
+    prefix === "tsj" ||
+    prefix === "tmx" ||
+    prefix === "tsx"
+  ) {
+    return prefix;
+  }
+
+  return "validation";
+}
+
 class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly naming: EditorNamingConfig;
@@ -425,6 +458,48 @@ class InMemoryEditorController implements EditorController {
           }
         : {})
     };
+  }
+
+  private resolveProjectImportOptions(
+    options: ExternalDocumentImportOptions | undefined
+  ): { documentPath?: string } {
+    if (!options || options.documentPath === undefined) {
+      return {};
+    }
+
+    return {
+      documentPath: options.documentPath
+    };
+  }
+
+  private recordImportIssues(
+    sourceId: string,
+    documentName: string,
+    documentPath: string | undefined,
+    issues: ReadonlyArray<{
+      severity: "warning";
+      code: string;
+      message: string;
+      path: string;
+    }>
+  ): void {
+    const entries: EditorIssueEntry[] = issues.map((issue) => ({
+      id: `${sourceId}:${issue.code}:${issue.path}`,
+      sourceId,
+      sourceKind: deriveIssueSourceKind(issue.code),
+      documentName,
+      severity: issue.severity,
+      code: issue.code,
+      message: issue.message,
+      path: issue.path,
+      ...(documentPath !== undefined ? { documentPath } : {})
+    }));
+
+    this.runtime = replaceEditorRuntimeIssueSourceEntries(this.runtime, sourceId, entries);
+
+    if (entries.length > 0) {
+      this.runtime = setEditorRuntimeIssuePanelOpen(this.runtime, true);
+    }
   }
 
   subscribe(listener: () => void): () => void {
@@ -859,15 +934,40 @@ class InMemoryEditorController implements EditorController {
     return projectedMap?.id ?? "";
   }
 
+  importTiledProjectDocument(
+    input: string | unknown,
+    options?: ExternalDocumentImportOptions
+  ): ImportedTiledProjectDocument {
+    const resolvedOptions = this.resolveProjectImportOptions(options);
+    const imported = importTiledProjectDocumentAdapter(input, resolvedOptions);
+
+    this.recordImportIssues(
+      imported.project.id,
+      imported.project.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
+    this.commit(replaceProjectCommand(imported.project));
+
+    return imported;
+  }
+
   importTmxMapDocument(
     input: string,
     options?: ExternalDocumentImportOptions
   ): ImportedTmxMapDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
     const imported = importTmxMapDocumentAdapter(
       input,
-      this.resolveImportOptions(options)
+      resolvedOptions
     );
 
+    this.recordImportIssues(
+      imported.map.id,
+      imported.map.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
@@ -877,12 +977,19 @@ class InMemoryEditorController implements EditorController {
     input: string,
     options?: ExternalDocumentImportOptions
   ): ImportedTsxTilesetDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
     const imported = importTsxTilesetDocumentAdapter(
       input,
-      this.resolveImportOptions(options)
+      resolvedOptions
     );
     const activeMap = getActiveMap(this.history.state);
 
+    this.recordImportIssues(
+      imported.tileset.id,
+      imported.tileset.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
     this.commit(
       addImportedTilesetCommand({
         tileset: imported.tileset,
@@ -897,11 +1004,18 @@ class InMemoryEditorController implements EditorController {
     input: string | unknown,
     options?: ExternalDocumentImportOptions
   ): ImportedTmjMapDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
     const imported = importTmjMapDocumentAdapter(
       input,
-      this.resolveImportOptions(options)
+      resolvedOptions
     );
 
+    this.recordImportIssues(
+      imported.map.id,
+      imported.map.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
     this.commit(addImportedMapDocumentCommand(imported.map));
 
     return imported;
@@ -911,12 +1025,19 @@ class InMemoryEditorController implements EditorController {
     input: string | unknown,
     options?: ExternalDocumentImportOptions
   ): ImportedTsjTilesetDocument {
+    const resolvedOptions = this.resolveImportOptions(options);
     const imported = importTsjTilesetDocumentAdapter(
       input,
-      this.resolveImportOptions(options)
+      resolvedOptions
     );
     const activeMap = getActiveMap(this.history.state);
 
+    this.recordImportIssues(
+      imported.tileset.id,
+      imported.tileset.name,
+      resolvedOptions.documentPath,
+      imported.issues
+    );
     this.commit(
       addImportedTilesetCommand({
         tileset: imported.tileset,
@@ -2019,6 +2140,22 @@ class InMemoryEditorController implements EditorController {
   redo(): void {
     this.clearTransientInteractions();
     this.history.redo();
+    this.emit();
+  }
+
+  toggleIssuesPanel(): void {
+    this.runtime = setEditorRuntimeIssuePanelOpen(this.runtime, !this.runtime.issues.panelOpen);
+    this.emit();
+  }
+
+  closeIssuesPanel(): void {
+    this.runtime = setEditorRuntimeIssuePanelOpen(this.runtime, false);
+    this.emit();
+  }
+
+  clearIssues(): void {
+    this.runtime = clearEditorRuntimeIssueEntries(this.runtime);
+    this.runtime = setEditorRuntimeIssuePanelOpen(this.runtime, false);
     this.emit();
   }
 }

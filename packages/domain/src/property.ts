@@ -57,14 +57,19 @@ export interface ClassPropertyTypeDefinition {
   name: string;
   useAs: PropertyTypeUseAs[];
   fields: ClassPropertyFieldDefinition[];
+  color?: string;
+  drawFill?: boolean;
 }
 
 export type PropertyTypeUseAs =
+  | "property"
   | "map"
   | "layer"
   | "object"
   | "tile"
   | "tileset"
+  | "wangcolor"
+  | "wangset"
   | "project"
   | "world"
   | "template";

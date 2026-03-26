@@ -161,10 +161,24 @@ export {
 } from "./clipboard";
 export type { EditorRuntimeState } from "./runtime";
 export {
+  clearEditorRuntimeIssueEntries,
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
-  setEditorRuntimeClipboard
+  replaceEditorRuntimeIssueSourceEntries,
+  setEditorRuntimeClipboard,
+  setEditorRuntimeIssuePanelOpen,
+  toggleEditorRuntimeIssuePanel
 } from "./runtime";
+export type {
+  EditorIssueEntry,
+  EditorIssueSeverity,
+  EditorIssueSourceKind,
+  EditorIssueState
+} from "./issues";
+export {
+  createEditorIssueState,
+  summarizeEditorIssues
+} from "./issues";
 export type {
   CanvasGestureModifiers,
   CanvasPreviewState,

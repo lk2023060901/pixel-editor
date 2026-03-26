@@ -27,15 +27,20 @@ export type ExamplePropertyTypeDescriptor =
       kind: "class";
       name: string;
       useAs: Array<
+        | "property"
         | "map"
         | "layer"
         | "object"
         | "tile"
         | "tileset"
+        | "wangcolor"
+        | "wangset"
         | "project"
         | "world"
         | "template"
       >;
+      color?: string;
+      drawFill?: boolean;
       fields: Array<
         Omit<ClassPropertyFieldDefinition, "defaultValue"> & {
           defaultValue?: PropertyValue;

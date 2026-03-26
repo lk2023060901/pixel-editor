@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import type { LayerId, MapId, ObjectId } from "@pixel-editor/domain";
 import {
+  clearEditorRuntimeIssueEntries,
   clearEditorRuntimeInteractions,
   createEditorRuntimeState,
   createObjectMovePreview,
   createShapeFillCanvasPreview,
   createTileClipboardState,
-  setEditorRuntimeClipboard
+  replaceEditorRuntimeIssueSourceEntries,
+  setEditorRuntimeClipboard,
+  setEditorRuntimeIssuePanelOpen
 } from "@pixel-editor/editor-state";
 
 const mapId = "map-1" as MapId;
@@ -89,5 +92,71 @@ describe("editor runtime state", () => {
 
     expect(nextRuntime.clipboard).toEqual(clipboard);
     expect(nextRuntime.interactions).toEqual(runtime.interactions);
+  });
+
+  it("replaces issue entries for a source and preserves clipboard state", () => {
+    const clipboard = createTileClipboardState({
+      stamp: {
+        kind: "single",
+        gid: 9
+      },
+      sourceBounds: {
+        x: 1,
+        y: 1,
+        width: 1,
+        height: 1
+      }
+    });
+    const runtime = createEditorRuntimeState({ clipboard });
+
+    const nextRuntime = replaceEditorRuntimeIssueSourceEntries(runtime, "map:1", [
+      {
+        id: "map:1:warning",
+        sourceId: "map:1",
+        sourceKind: "tmx",
+        documentName: "demo",
+        severity: "warning",
+        code: "tmx.element.unknown",
+        message: "Unknown element.",
+        path: "tmx.unknown[0]"
+      }
+    ]);
+
+    expect(nextRuntime.clipboard).toEqual(clipboard);
+    expect(nextRuntime.issues.entries).toEqual([
+      {
+        id: "map:1:warning",
+        sourceId: "map:1",
+        sourceKind: "tmx",
+        documentName: "demo",
+        severity: "warning",
+        code: "tmx.element.unknown",
+        message: "Unknown element.",
+        path: "tmx.unknown[0]"
+      }
+    ]);
+  });
+
+  it("opens and clears the issue panel without mutating interactions", () => {
+    const runtime = createEditorRuntimeState({
+      interactions: {
+        canvasPreview: createShapeFillCanvasPreview({
+          mapId,
+          layerId,
+          mode: "ellipse",
+          originX: 7,
+          originY: 9,
+          gid: 31
+        }),
+        objectTransformPreview: { kind: "none" }
+      }
+    });
+
+    const openedRuntime = setEditorRuntimeIssuePanelOpen(runtime, true);
+    const clearedRuntime = clearEditorRuntimeIssueEntries(openedRuntime);
+
+    expect(openedRuntime.issues.panelOpen).toBe(true);
+    expect(clearedRuntime.issues.entries).toEqual([]);
+    expect(clearedRuntime.interactions).toEqual(runtime.interactions);
   });
 });

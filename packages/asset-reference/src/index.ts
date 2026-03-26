@@ -2,7 +2,10 @@ export type AssetReferenceKind =
   | "tileset"
   | "image"
   | "template"
-  | "property-file";
+  | "property-file"
+  | "project-folder"
+  | "extensions"
+  | "automapping-rules";
 
 export type AssetPathKind =
   | "project-relative"
