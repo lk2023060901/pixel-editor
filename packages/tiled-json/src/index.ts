@@ -856,6 +856,7 @@ export function importTmjMapDocument(
     : [];
   const assetReferences = collectTmjAssetReferences(document, issues, options);
   const maxObjectId = parsedLayers.reduce((maxId, entry) => Math.max(maxId, entry.maxObjectId), 0);
+  const requestedNextObjectId = optionalNumber(document, "nextobjectid") ?? 1;
 
   if (orientation === "oblique") {
     appendIssue(
@@ -872,7 +873,7 @@ export function importTmjMapDocument(
   return {
     map: {
       ...map,
-      nextObjectId: Math.max(map.nextObjectId, maxObjectId + 1)
+      nextObjectId: Math.max(map.nextObjectId, maxObjectId + 1, requestedNextObjectId)
     },
     tilesetReferences,
     assetReferences,

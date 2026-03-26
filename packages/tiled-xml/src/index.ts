@@ -655,6 +655,12 @@ export function importTmxMapDocument(
     ...(getNumberAttribute(root, "compressionlevel") !== undefined
       ? { compressionlevel: getNumberAttribute(root, "compressionlevel") }
       : {}),
+    ...(getNumberAttribute(root, "nextlayerid") !== undefined
+      ? { nextlayerid: getNumberAttribute(root, "nextlayerid") }
+      : {}),
+    ...(getNumberAttribute(root, "nextobjectid") !== undefined
+      ? { nextobjectid: getNumberAttribute(root, "nextobjectid") }
+      : {}),
     ...(getBooleanAttribute(root, "infinite") !== undefined
       ? { infinite: getBooleanAttribute(root, "infinite") }
       : {}),

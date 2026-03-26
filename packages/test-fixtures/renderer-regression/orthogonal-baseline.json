@@ -1,0 +1,23 @@
+{
+  "suite": "orthogonal",
+  "cases": [
+    {
+      "id": "orthogonal-tile-selection",
+      "width": 512,
+      "height": 320,
+      "sha256": "c3d70a288ea0963113a0c73f90b58af2290a4774f397606b1c34926b08951f49"
+    },
+    {
+      "id": "orthogonal-object-overlay",
+      "width": 512,
+      "height": 352,
+      "sha256": "faf45753137cdb9d0ec0042effbe40dd1a7c6b728d8d26a810759e577840196f"
+    },
+    {
+      "id": "orthogonal-infinite-grid",
+      "width": 448,
+      "height": 288,
+      "sha256": "5151c12099c3010610630c0e0ffe07a18cb120818f720ccb97ed2545b2d97ab2"
+    }
+  ]
+}

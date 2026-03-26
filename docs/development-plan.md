@@ -138,8 +138,8 @@ Last updated: 2026-03-26
 | EXP-005 | 导出 | Export Job Pipeline | FND-005, EXP-001 | 已完成 | 已新增 `@pixel-editor/export-jobs` 文件队列与 `queued/running/completed/failed` 生命周期，controller 级导出现在可通过 `ExportJobGateway` 入队；web example 的 `/export-jobs` API 改为写入 `.tmp/export-jobs`，`apps/worker` 会轮询并消费队列后调用共享 example project persistence helper 落盘；已通过 `npm run typecheck`、`npm test`、`npm run lint`、`npm run build --workspace @pixel-editor/web` 以及 `PIXEL_EDITOR_WORKER_RUN_ONCE=1 npm run dev --workspace @pixel-editor/worker` 验证 |
 | QA-001 | 质量保障 | Domain 单元测试基线 | DOM-002, DOM-003, DOM-004, DOM-005, DOM-006 | 开发中 | 已接入 Vitest，并覆盖 map 基础不变量 |
 | QA-002 | 质量保障 | Command 单元测试基线 | CMD-001, CMD-002 | 开发中 | 已覆盖 execute/undo/redo/merge 及 tile stroke 聚合基础行为 |
-| QA-003 | 质量保障 | 格式 Round-trip Fixture 测试 | IO-001, IO-002, IO-004, IO-005 | 未开始 | 对照 Tiled fixtures |
-| QA-004 | 质量保障 | 渲染截图回归测试 | REN-003, REN-007, REN-008, REN-009, REN-010 | 未开始 | 各 orientation 回归 |
+| QA-003 | 质量保障 | 格式 Round-trip Fixture 测试 | IO-001, IO-002, IO-004, IO-005 | 开发中 | 已 vendored Tiled 官方 `forest` 与 `relative_paths` fixture，并新增 `TMX -> TMJ -> TMX` 规范化 round-trip 回归；同时修正了 `TMJ/TMX` 导入未保留显式 `nextobjectid` 的问题，避免对象 id 重新编号后破坏格式闭环；已通过 fixture 定向回归验证，压缩/base64 与更多 orientation 覆盖仍待继续补齐 |
+| QA-004 | 质量保障 | 渲染截图回归测试 | REN-003, REN-007, REN-008, REN-009, REN-010 | 开发中 | 已新增 headless Chrome 驱动的 renderer screenshot baseline：通过内部 `/renderer-regression` 页面、`@pixel-editor/renderer-pixi` 固定 orthogonal fixture 与 committed 像素 hash 基线，对 tile selection / object overlay / infinite grid 三个场景做截图回归；当前先覆盖已实现的 orthogonal renderer，isometric / staggered / hex / oblique 仍待对应渲染能力完成后补齐 |
 | QA-005 | 质量保障 | Web E2E 测试 | UI-001, MAP-004, OBJ-002, EXP-001 | 未开始 | 基础操作链路验证 |
 | EXT-001 | 扩展体系 | 扩展宿主接口 | FND-005, PROJ-001 | 未开始 | 二期能力 |
 | EXT-002 | 扩展体系 | 自定义导出格式扩展点 | EXT-001, EXP-005 | 未开始 | 对齐 Tiled script/export 思路 |

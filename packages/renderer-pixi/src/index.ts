@@ -35,6 +35,10 @@ export {
   type ObjectTransformPreview,
   type ProjectedMapObject
 } from "./object-layer";
+export {
+  createRendererRegressionCases,
+  type RendererRegressionCase
+} from "./regression-fixtures";
 
 export interface RendererViewportSnapshot {
   zoom: number;
@@ -581,6 +585,14 @@ function buildScene(
   drawSelectionOverlay(scene, snapshot, geometry);
 }
 
+async function waitForAnimationFrames(frameCount: number): Promise<void> {
+  for (let index = 0; index < frameCount; index += 1) {
+    await new Promise<void>((resolve) => {
+      requestAnimationFrame(() => resolve());
+    });
+  }
+}
+
 export async function exportRendererSnapshotImageDataUrl(input: {
   snapshot: RendererSnapshot;
   width: number;
@@ -589,6 +601,7 @@ export async function exportRendererSnapshotImageDataUrl(input: {
   labels?: {
     noActiveMap?: string;
   };
+  antialias?: boolean;
   mimeType?: "image/png" | "image/jpeg" | "image/webp";
 }): Promise<string> {
   const app = new Application();
@@ -597,7 +610,7 @@ export async function exportRendererSnapshotImageDataUrl(input: {
   await app.init({
     width: input.width,
     height: input.height,
-    antialias: true,
+    antialias: input.antialias ?? true,
     backgroundAlpha: 0
   });
 
@@ -617,9 +630,9 @@ export async function exportRendererSnapshotImageDataUrl(input: {
       input.labels
     );
 
-    await new Promise<void>((resolve) => {
-      requestAnimationFrame(() => resolve());
-    });
+    app.render();
+    await waitForAnimationFrames(2);
+    app.render();
 
     return app.canvas.toDataURL(input.mimeType ?? "image/png");
   } finally {
