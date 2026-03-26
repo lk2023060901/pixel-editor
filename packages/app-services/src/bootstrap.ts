@@ -2,6 +2,7 @@ import type {
   DocumentSummary,
   EditorBootstrapContract,
   HealthResponse,
+  ProjectAssetSummary,
   ProjectSummary
 } from "@pixel-editor/contracts";
 import type { EditorWorkspaceState } from "@pixel-editor/editor-state";
@@ -56,12 +57,14 @@ function toDocumentSummaries(state: EditorWorkspaceState): DocumentSummary[] {
 }
 
 export function toEditorBootstrap(
-  state: EditorWorkspaceState
+  state: EditorWorkspaceState,
+  projectAssets: readonly ProjectAssetSummary[] = []
 ): EditorBootstrapContract {
   const activeMap = getActiveMap(state);
 
   return {
     project: toProjectSummary(state),
+    projectAssets: [...projectAssets],
     documents: toDocumentSummaries(state),
     activeTool: state.session.activeTool,
     viewport: state.session.viewport,

@@ -1,9 +1,14 @@
-import type { DocumentSummary, FeatureStatusValue } from "@pixel-editor/contracts";
+import type {
+  DocumentSummary,
+  FeatureStatusValue,
+  ProjectAssetKind
+} from "@pixel-editor/contracts";
 import type {
   EditorMap,
   LayerDefinition,
   ObjectShape,
   PropertyDefinition,
+  PropertyTypeUseAs,
   TilesetDefinition,
   TilesetFillMode,
   TilesetObjectAlignment,
@@ -17,6 +22,21 @@ export function getDocumentKindLabel(
   t: TranslationFn
 ): string {
   return t(`documentKind.${kind}` as I18nMessageKey);
+}
+
+export function getProjectAssetKindLabel(
+  kind: ProjectAssetKind,
+  t: TranslationFn
+): string {
+  switch (kind) {
+    case "map":
+    case "template":
+    case "tileset":
+    case "world":
+      return getDocumentKindLabel(kind, t);
+    default:
+      return t(`project.assetKind.${kind}` as I18nMessageKey);
+  }
 }
 
 export function getLayerKindLabel(
@@ -94,6 +114,13 @@ export function getPropertyTypeLabel(
   t: TranslationFn
 ): string {
   return t(`propertyType.${value}` as I18nMessageKey);
+}
+
+export function getPropertyTypeUseAsLabel(
+  value: PropertyTypeUseAs,
+  t: TranslationFn
+): string {
+  return t(`propertyTypeUseAs.${value}` as I18nMessageKey);
 }
 
 export function getFeatureStatusLabel(

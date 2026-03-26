@@ -58,6 +58,7 @@
       "key": "terrain-core",
       "kind": "image",
       "name": "Terrain Core",
+      "path": "tilesets/terrain-core.tsj",
       "tileWidth": 32,
       "tileHeight": 32,
       "imagePath": "assets/terrain-core.svg",
@@ -93,6 +94,7 @@
       "key": "props-collection",
       "kind": "image-collection",
       "name": "Props Collection",
+      "path": "tilesets/props-collection.tsj",
       "tileWidth": 32,
       "tileHeight": 32,
       "imageSources": [
@@ -108,6 +110,7 @@
   "maps": [
     {
       "name": "starter-map",
+      "path": "maps/starter-map.tmj",
       "orientation": "orthogonal",
       "width": 64,
       "height": 64,

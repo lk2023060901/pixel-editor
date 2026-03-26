@@ -1,4 +1,7 @@
-import type { EditorBootstrapContract } from "@pixel-editor/contracts";
+import type {
+  EditorBootstrapContract,
+  ProjectAssetSummary
+} from "@pixel-editor/contracts";
 import { CommandHistory } from "@pixel-editor/command-engine";
 import {
   importTiledProjectDocument as importTiledProjectDocumentAdapter,
@@ -37,6 +40,7 @@ import {
   type ObjectLayer,
   type ObjectShape,
   type PropertyDefinition,
+  type PropertyTypeDefinition,
   type TileAnimationFrame,
   type TilesetDefinition,
   type UpdateMapObjectDetailsInput,
@@ -129,7 +133,10 @@ import {
   upsertObjectPropertyCommand,
   updateObjectDetailsCommand
 } from "@pixel-editor/objects";
-import { replaceProjectCommand } from "@pixel-editor/project";
+import {
+  replaceProjectCommand,
+  replaceProjectPropertyTypesCommand
+} from "@pixel-editor/project";
 import {
   addImportedTilesetCommand,
   createTilesetWangSetCommand,
@@ -187,6 +194,7 @@ export interface EditorInfrastructure {
 
 export interface EditorControllerOptions {
   naming?: EditorNamingConfig;
+  projectAssets?: readonly ProjectAssetSummary[];
 }
 
 export interface ExternalDocumentImportOptions {
@@ -208,6 +216,8 @@ export interface EditorRuntimeSnapshot {
 export interface EditorController {
   getState(): EditorWorkspaceState;
   getSnapshot(): EditorRuntimeSnapshot;
+  replaceProjectAssets(projectAssets: ProjectAssetSummary[]): void;
+  replaceProjectPropertyTypes(propertyTypes: PropertyTypeDefinition[]): void;
   createMapDocument(input: CreateMapInput): string;
   importTiledProjectDocument(
     input: string | unknown,
@@ -400,6 +410,7 @@ class InMemoryEditorController implements EditorController {
   private readonly history: CommandHistory<EditorWorkspaceState>;
   private readonly naming: EditorNamingConfig;
   private readonly listeners = new Set<() => void>();
+  private projectAssets: ProjectAssetSummary[];
   private canvasStroke: CanvasStrokeState | undefined;
   private runtime = createEditorRuntimeState();
   private cachedSnapshot: EditorRuntimeSnapshot | undefined;
@@ -410,6 +421,7 @@ class InMemoryEditorController implements EditorController {
   ) {
     this.history = new CommandHistory(initialState);
     this.naming = options.naming ?? defaultEditorNamingConfig;
+    this.projectAssets = [...(options.projectAssets ?? [])];
   }
 
   getState(): EditorWorkspaceState {
@@ -427,7 +439,7 @@ class InMemoryEditorController implements EditorController {
     const activeTileset = getActiveTileset(workspace);
 
     this.cachedSnapshot = {
-      bootstrap: toEditorBootstrap(workspace),
+      bootstrap: toEditorBootstrap(workspace, this.projectAssets),
       workspace,
       runtime: this.runtime,
       canUndo: this.history.canUndo,
@@ -438,6 +450,15 @@ class InMemoryEditorController implements EditorController {
     };
 
     return this.cachedSnapshot;
+  }
+
+  replaceProjectAssets(projectAssets: ProjectAssetSummary[]): void {
+    this.projectAssets = [...projectAssets];
+    this.emit();
+  }
+
+  replaceProjectPropertyTypes(propertyTypes: PropertyTypeDefinition[]): void {
+    this.commit(replaceProjectPropertyTypesCommand(propertyTypes));
   }
 
   private resolveImportOptions(

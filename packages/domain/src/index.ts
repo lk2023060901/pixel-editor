@@ -14,8 +14,12 @@ export {
 } from "./id";
 export {
   clonePropertyDefinition,
+  clonePropertyTypeDefinition,
   clonePropertyValue,
+  cloneClassPropertyFieldDefinition,
+  createClassPropertyTypeDefinition,
   createDefaultPropertyValue,
+  createEnumPropertyTypeDefinition,
   createProperty,
   createSuggestedPropertiesForClassType,
   getClassPropertyTypeDefinitionByName,

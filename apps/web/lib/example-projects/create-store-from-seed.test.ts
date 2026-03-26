@@ -4,6 +4,100 @@ import type { ExampleProjectSeed } from "./schema";
 import { createEditorStoreFromExampleSeed } from "./create-store-from-seed";
 
 describe("createEditorStoreFromExampleSeed", () => {
+  it("materializes project assets with attached document ids", () => {
+    const seed: ExampleProjectSeed = {
+      projectId: "demo-project",
+      project: {
+        name: "Example Terrain Project",
+        assetRoots: ["maps", "tilesets", "templates"]
+      },
+      projectAssets: [
+        {
+          id: "project:project.json",
+          kind: "project",
+          name: "project.json",
+          path: "project.json"
+        },
+        {
+          id: "map:maps/starter-map.tmj",
+          kind: "map",
+          name: "starter-map.tmj",
+          path: "maps/starter-map.tmj"
+        },
+        {
+          id: "tileset:tilesets/terrain-core.tsj",
+          kind: "tileset",
+          name: "terrain-core.tsj",
+          path: "tilesets/terrain-core.tsj"
+        },
+        {
+          id: "image:assets/terrain-core.svg",
+          kind: "image",
+          name: "terrain-core.svg",
+          path: "assets/terrain-core.svg"
+        }
+      ],
+      tilesets: [
+        {
+          key: "terrain-core",
+          kind: "image",
+          name: "Terrain Core",
+          path: "tilesets/terrain-core.tsj",
+          tileWidth: 32,
+          tileHeight: 32,
+          imagePath: "/terrain-core.svg",
+          imageWidth: 64,
+          imageHeight: 32,
+          columns: 2
+        }
+      ],
+      maps: [
+        {
+          name: "starter-map",
+          path: "maps/starter-map.tmj",
+          orientation: "orthogonal",
+          width: 64,
+          height: 64,
+          tileWidth: 32,
+          tileHeight: 32,
+          tilesetKeys: ["terrain-core"]
+        }
+      ]
+    };
+
+    const store = createEditorStoreFromExampleSeed(seed);
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.bootstrap.projectAssets).toEqual([
+      {
+        id: "project:project.json",
+        kind: "project",
+        name: "project.json",
+        path: "project.json"
+      },
+      {
+        id: "map:maps/starter-map.tmj",
+        kind: "map",
+        name: "starter-map.tmj",
+        path: "maps/starter-map.tmj",
+        documentId: snapshot.activeMap?.id
+      },
+      {
+        id: "tileset:tilesets/terrain-core.tsj",
+        kind: "tileset",
+        name: "terrain-core.tsj",
+        path: "tilesets/terrain-core.tsj",
+        documentId: snapshot.workspace.tilesets[0]?.id
+      },
+      {
+        id: "image:assets/terrain-core.svg",
+        kind: "image",
+        name: "terrain-core.svg",
+        path: "assets/terrain-core.svg"
+      }
+    ]);
+  });
+
   it("preserves project property types and map typed properties", () => {
     const seed: ExampleProjectSeed = {
       projectId: "demo-project",

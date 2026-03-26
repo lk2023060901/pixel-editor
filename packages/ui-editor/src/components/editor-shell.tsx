@@ -12,6 +12,7 @@ import { MiniMapPanel } from "./mini-map-panel";
 import { DockStack, type DockStackTab } from "./dock-stack";
 import { ObjectsPanel } from "./objects-panel";
 import { PropertiesInspector } from "./properties-inspector";
+import { ProjectPropertyTypesEditorDialog } from "./project-property-types-editor-dialog";
 import { ProjectDock } from "./project-dock";
 import { RendererCanvas } from "./renderer-canvas";
 import { EditorStatusBar } from "./editor-status-bar";
@@ -238,6 +239,7 @@ export function EditorShell({ store }: EditorShellProps) {
   const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [newMenuOpen, setNewMenuOpen] = useState(false);
+  const [customTypesEditorOpen, setCustomTypesEditorOpen] = useState(false);
   const [tileAnimationEditorOpen, setTileAnimationEditorOpen] = useState(false);
   const [tileCollisionEditorOpen, setTileCollisionEditorOpen] = useState(false);
   const [statusInfo, setStatusInfo] = useState("");
@@ -263,6 +265,12 @@ export function EditorShell({ store }: EditorShellProps) {
     snapshot.bootstrap.documents.find(
       (document) => document.id === snapshot.bootstrap.activeDocumentId
     ) ?? snapshot.bootstrap.documents[0];
+  const activeProjectDocumentIds = [
+    ...(activeMap ? [activeMap.id] : []),
+    ...(snapshot.workspace.session.activeTilesetId !== undefined
+      ? [snapshot.workspace.session.activeTilesetId]
+      : [])
+  ];
   const activeLayerIndex =
     activeMap?.layers.findIndex((layer) => layer.id === snapshot.workspace.session.activeLayerId) ?? -1;
   const activeTool = snapshot.workspace.session.activeTool;
@@ -294,6 +302,7 @@ export function EditorShell({ store }: EditorShellProps) {
       canUndo: snapshot.canUndo,
       canRedo: snapshot.canRedo,
       showGrid: snapshot.bootstrap.viewport.showGrid,
+      hasProject: true,
       hasActiveMap: Boolean(activeMap),
       hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
       canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
@@ -301,7 +310,8 @@ export function EditorShell({ store }: EditorShellProps) {
         activeMap &&
           activeLayerIndex >= 0 &&
           activeLayerIndex < activeMap.layers.length - 1
-      )
+      ),
+      customTypesEditorOpen
     },
     t
   );
@@ -401,6 +411,9 @@ export function EditorShell({ store }: EditorShellProps) {
         startTransition(() => {
           store.toggleGrid();
         });
+        return;
+      case "custom-types-editor":
+        setCustomTypesEditorOpen((current) => !current);
         return;
       case "zoom-in":
         startTransition(() => {
@@ -637,20 +650,19 @@ export function EditorShell({ store }: EditorShellProps) {
 
         <div className="grid min-h-0 flex-1 grid-cols-[250px_280px_minmax(0,1fr)_360px] gap-px bg-slate-700">
           <ProjectDock
-            activeDocumentId={snapshot.bootstrap.activeDocumentId}
-            documents={snapshot.bootstrap.documents.map((document) => ({
-              id: document.id,
-              kind: document.kind,
-              name: document.name
-            }))}
-            onDocumentActivate={(documentId) => {
-              const document = snapshot.bootstrap.documents.find((item) => item.id === documentId);
-
-              if (document?.kind !== "map") {
+            activeDocumentIds={activeProjectDocumentIds}
+            assetRoots={snapshot.bootstrap.project.assetRoots}
+            assets={snapshot.bootstrap.projectAssets}
+            onAssetActivate={(asset) => {
+              if (asset.kind === "map" && asset.documentId !== undefined) {
+                store.setActiveMap(asset.documentId);
                 return;
               }
 
-              store.setActiveMap(document.id);
+              if (asset.kind === "tileset" && asset.documentId !== undefined) {
+                setLowerRightDockTab("tilesets");
+                store.setActiveTileset(asset.documentId);
+              }
             }}
           />
 
@@ -773,6 +785,15 @@ export function EditorShell({ store }: EditorShellProps) {
             tileset={snapshot.activeTileset}
             onClose={() => {
               setTileAnimationEditorOpen(false);
+            }}
+          />
+        ) : null}
+        {customTypesEditorOpen ? (
+          <ProjectPropertyTypesEditorDialog
+            propertyTypes={snapshot.workspace.project.propertyTypes}
+            store={store}
+            onClose={() => {
+              setCustomTypesEditorOpen(false);
             }}
           />
         ) : null}

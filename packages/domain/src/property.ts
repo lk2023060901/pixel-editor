@@ -1,4 +1,5 @@
 import type { ObjectId, PropertyTypeId } from "./id";
+import { createEntityId } from "./id";
 
 export type PrimitivePropertyType =
   | "bool"
@@ -78,6 +79,40 @@ export type PropertyTypeDefinition =
   | EnumPropertyTypeDefinition
   | ClassPropertyTypeDefinition;
 
+export function createEnumPropertyTypeDefinition(input?: {
+  name?: string;
+  storageType?: EnumPropertyTypeDefinition["storageType"];
+  values?: string[];
+  valuesAsFlags?: boolean;
+}): EnumPropertyTypeDefinition {
+  return {
+    id: createEntityId("propertyType"),
+    kind: "enum",
+    name: input?.name?.trim() || "Enum",
+    storageType: input?.storageType ?? "string",
+    values: [...(input?.values ?? [])],
+    valuesAsFlags: input?.valuesAsFlags ?? false
+  };
+}
+
+export function createClassPropertyTypeDefinition(input?: {
+  name?: string;
+  useAs?: PropertyTypeUseAs[];
+  fields?: ClassPropertyFieldDefinition[];
+  color?: string;
+  drawFill?: boolean;
+}): ClassPropertyTypeDefinition {
+  return {
+    id: createEntityId("propertyType"),
+    kind: "class",
+    name: input?.name?.trim() || "Class",
+    useAs: [...(input?.useAs ?? [])],
+    fields: (input?.fields ?? []).map((field) => cloneClassPropertyFieldDefinition(field)),
+    ...(input?.color !== undefined ? { color: input.color } : {}),
+    ...(input?.drawFill !== undefined ? { drawFill: input.drawFill } : {})
+  };
+}
+
 export function createProperty(
   name: string,
   type: PropertyTypeName,
@@ -130,6 +165,48 @@ export function clonePropertyDefinition(
     value: clonePropertyValue(property.value),
     ...(property.propertyTypeName !== undefined
       ? { propertyTypeName: property.propertyTypeName }
+      : {})
+  };
+}
+
+export function cloneClassPropertyFieldDefinition(
+  field: ClassPropertyFieldDefinition
+): ClassPropertyFieldDefinition {
+  return {
+    name: field.name,
+    valueType: field.valueType,
+    ...(field.propertyTypeName !== undefined
+      ? { propertyTypeName: field.propertyTypeName }
+      : {}),
+    ...(field.defaultValue !== undefined
+      ? { defaultValue: clonePropertyValue(field.defaultValue) }
+      : {})
+  };
+}
+
+export function clonePropertyTypeDefinition(
+  propertyType: PropertyTypeDefinition
+): PropertyTypeDefinition {
+  if (propertyType.kind === "enum") {
+    return {
+      id: propertyType.id,
+      kind: "enum",
+      name: propertyType.name,
+      storageType: propertyType.storageType,
+      values: [...propertyType.values],
+      valuesAsFlags: propertyType.valuesAsFlags
+    };
+  }
+
+  return {
+    id: propertyType.id,
+    kind: "class",
+    name: propertyType.name,
+    useAs: [...propertyType.useAs],
+    fields: propertyType.fields.map((field) => cloneClassPropertyFieldDefinition(field)),
+    ...(propertyType.color !== undefined ? { color: propertyType.color } : {}),
+    ...(propertyType.drawFill !== undefined
+      ? { drawFill: propertyType.drawFill }
       : {})
   };
 }

@@ -1,8 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createClassPropertyTypeDefinition,
   createProject,
   createProperty,
+  createMap,
+  createObjectLayer,
+  createMapObject,
+  createTileDefinition,
+  createTileset,
+  createWorld,
+  createObjectTemplate,
+  createEnumPropertyTypeDefinition,
   getMapGlobalTileGid,
   getTileLayerCell,
   type TileAnimationFrame
@@ -50,6 +59,137 @@ describe("editor controller", () => {
       tileWidth: 32,
       tileHeight: 32
     });
+  });
+
+  it("replaces project property types and migrates renamed references", () => {
+    const biomeType = createEnumPropertyTypeDefinition({
+      name: "Biome",
+      values: ["forest", "desert"]
+    });
+    const encounterType = createClassPropertyTypeDefinition({
+      name: "EncounterConfig",
+      useAs: ["object", "tile"],
+      fields: [
+        {
+          name: "biome",
+          valueType: "enum",
+          propertyTypeName: "Biome",
+          defaultValue: "forest"
+        }
+      ]
+    });
+    const store = createEditorStore(
+      createEditorWorkspaceState({
+        project: createProject({
+          name: "demo",
+          assetRoots: ["maps"],
+          propertyTypes: [biomeType, encounterType]
+        }),
+        maps: [
+          createMap({
+            name: "starter-map",
+            orientation: "orthogonal",
+            width: 8,
+            height: 8,
+            tileWidth: 32,
+            tileHeight: 32,
+            properties: [createProperty("biome", "enum", "forest", "Biome")],
+            layers: [
+              createObjectLayer({
+                name: "Objects",
+                objects: [
+                  createMapObject({
+                    name: "spawn",
+                    className: "EncounterConfig",
+                    shape: "rectangle",
+                    properties: [
+                      createProperty("encounter", "class", { members: { biome: "forest" } }, "EncounterConfig")
+                    ]
+                  })
+                ]
+              })
+            ]
+          })
+        ],
+        tilesets: [
+          {
+            ...createTileset({
+              name: "terrain",
+              kind: "image",
+              tileWidth: 32,
+              tileHeight: 32
+            }),
+            tiles: [
+              {
+                ...createTileDefinition(0),
+                className: "EncounterConfig",
+                properties: [createProperty("biome", "enum", "forest", "Biome")]
+              }
+            ]
+          }
+        ],
+        templates: [
+          createObjectTemplate(
+            "spawn-template",
+            createMapObject({
+              name: "spawn-template-object",
+              className: "EncounterConfig",
+              shape: "rectangle"
+            })
+          )
+        ],
+        worlds: [createWorld("world", [], [createProperty("biome", "enum", "forest", "Biome")])]
+      })
+    );
+
+    store.replaceProjectPropertyTypes([
+      {
+        ...biomeType,
+        name: "BiomeType"
+      },
+      {
+        ...encounterType,
+        name: "Encounter"
+      }
+    ]);
+
+    const snapshot = store.getSnapshot();
+
+    expect(snapshot.workspace.project.propertyTypes).toMatchObject([
+      {
+        id: biomeType.id,
+        name: "BiomeType"
+      },
+      {
+        id: encounterType.id,
+        name: "Encounter",
+        fields: [
+          {
+            name: "biome",
+            propertyTypeName: "BiomeType"
+          }
+        ]
+      }
+    ]);
+    expect(snapshot.workspace.maps[0]?.properties).toContainEqual(
+      expect.objectContaining({ propertyTypeName: "BiomeType" })
+    );
+    expect(snapshot.workspace.maps[0]?.layers[0]).toMatchObject({
+      objects: [
+        expect.objectContaining({
+          className: "Encounter",
+          properties: [expect.objectContaining({ propertyTypeName: "Encounter" })]
+        })
+      ]
+    });
+    expect(snapshot.workspace.tilesets[0]?.tiles[0]).toMatchObject({
+      className: "Encounter",
+      properties: [expect.objectContaining({ propertyTypeName: "BiomeType" })]
+    });
+    expect(snapshot.workspace.templates[0]?.object.className).toBe("Encounter");
+    expect(snapshot.workspace.worlds[0]?.properties).toContainEqual(
+      expect.objectContaining({ propertyTypeName: "BiomeType" })
+    );
   });
 
   it("imports a TMJ document into the workspace through the controller", () => {

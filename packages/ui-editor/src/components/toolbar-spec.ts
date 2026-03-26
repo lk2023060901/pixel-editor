@@ -146,10 +146,12 @@ export interface TiledMenuContext {
   canUndo: boolean;
   canRedo: boolean;
   showGrid: boolean;
+  hasProject: boolean;
   hasActiveMap: boolean;
   hasActiveLayer: boolean;
   canMoveLayerUp: boolean;
   canMoveLayerDown: boolean;
+  customTypesEditorOpen: boolean;
 }
 
 function menuAction(
@@ -293,6 +295,11 @@ export function getTiledMainMenus(
     label: t("menu.view"),
     items: [
       menuAction("search-actions", t("action.searchActions"), { implemented: false }),
+      menuAction("custom-types-editor", t("action.customTypesEditor"), {
+        implemented: context.hasProject,
+        checked: context.customTypesEditorOpen
+      }),
+      menuSeparator,
       menuAction("show-grid", t("action.showGrid"), {
         implemented: true,
         checked: context.showGrid,

@@ -119,8 +119,8 @@ Last updated: 2026-03-26
 | ADV-003 | 高级绘制 | Terrain / Wang Brush | TSET-009, ADV-001 | 未开始 | 自动匹配边/角地形 |
 | ADV-004 | 高级绘制 | Select Same Tile / Magic Wand | MAP-008, REN-005 | 未开始 | 选择增强工具 |
 | PROJ-001 | 项目 | Project 文件读写 | DOM-008, IO-007 | 已完成 | 已补齐 `.tiled-project` 读写适配、路径引用解析、controller 导入入口与 project metadata 替换命令，并通过 adapter/controller 回归测试 |
-| PROJ-002 | 项目 | 资源树与项目视图 | PROJ-001, UI-001 | 未开始 | 浏览项目资产 |
-| PROJ-003 | 项目 | Custom Property Types Editor | DOM-006, PROJ-001, UI-005 | 未开始 | enum/class 类型定义 |
+| PROJ-002 | 项目 | 资源树与项目视图 | PROJ-001, UI-001 | 已完成 | 已接入 Project 资源树，按项目根目录展示 map / tileset / image / project file，并支持 map / tileset 资产激活与示例 seed 资产映射 |
+| PROJ-003 | 项目 | Custom Property Types Editor | DOM-006, PROJ-001, UI-005 | 已完成 | 已接入 Tiled 风格 `Custom Types Editor`：支持 enum/class 类型的创建、删除、重命名、usage / enum values / class fields / field default value 编辑；通过 `project` 命令与 controller API 统一替换类型定义，并按稳定 `id` 迁移 map/layer/object/tile/template/world 中的重命名引用，已完成 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | PROJ-004 | 项目 | 兼容版本与导出选项 | PROJ-001 | 未开始 | 保存兼容目标与导出偏好 |
 | TMPL-001 | 模板 | 模板创建与保存 | DOM-009, OBJ-001, IO-007 | 未开始 | object template 文件支持 |
 | TMPL-002 | 模板 | 模板实例化 | TMPL-001, OBJ-001 | 未开始 | 替换对象为模板实例 |

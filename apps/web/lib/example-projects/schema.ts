@@ -4,6 +4,26 @@ import type {
   PropertyTypeName,
   PropertyValue
 } from "@pixel-editor/domain";
+import type { ProjectAssetKind } from "@pixel-editor/contracts";
+
+function normalizeExampleProjectPath(path: string): string {
+  return path.replaceAll("\\", "/").trim().replace(/^\.\/+/, "");
+}
+
+function basename(path: string): string {
+  const normalized = normalizeExampleProjectPath(path);
+  return normalized.split("/").at(-1) ?? normalized;
+}
+
+function slugify(value: string): string {
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return normalized || "untitled";
+}
 
 export interface ExampleProjectDescriptor {
   project: {
@@ -53,6 +73,7 @@ export type ExampleTilesetDescriptor =
       key: string;
       kind: "image";
       name: string;
+      path?: string;
       tileWidth: number;
       tileHeight: number;
       imagePath: string;
@@ -68,6 +89,7 @@ export type ExampleTilesetDescriptor =
       key: string;
       kind: "image-collection";
       name: string;
+      path?: string;
       tileWidth: number;
       tileHeight: number;
       imageSources: string[];
@@ -95,14 +117,23 @@ export interface ExampleTileDescriptor {
 }
 
 export type ExampleMapDescriptor = Omit<CreateMapInput, "tilesetIds"> & {
+  path?: string;
   tilesetKeys: string[];
 };
+
+export interface ExampleProjectAssetDescriptor {
+  id: string;
+  kind: Exclude<ProjectAssetKind, "folder">;
+  name: string;
+  path: string;
+}
 
 export interface ExampleProjectSeed {
   projectId: string;
   project: ExampleProjectDescriptor["project"];
   tilesets: ExampleTilesetDescriptor[];
   maps: ExampleMapDescriptor[];
+  projectAssets?: ExampleProjectAssetDescriptor[];
 }
 
 export function buildExampleAssetUrl(
@@ -110,4 +141,67 @@ export function buildExampleAssetUrl(
   relativeAssetPath: string
 ): string {
   return `/api/example-projects/${projectId}/assets/${relativeAssetPath}`;
+}
+
+export function resolveExampleTilesetDocumentPath(
+  tileset: Pick<ExampleTilesetDescriptor, "key" | "path">
+): string {
+  return normalizeExampleProjectPath(
+    tileset.path ?? `tilesets/${tileset.key}.tsj`
+  );
+}
+
+export function resolveExampleMapDocumentPath(
+  map: Pick<ExampleMapDescriptor, "name" | "path">
+): string {
+  return normalizeExampleProjectPath(
+    map.path ?? `maps/${slugify(map.name)}.tmj`
+  );
+}
+
+export function buildExampleProjectAssetDescriptors(
+  descriptor: ExampleProjectDescriptor
+): ExampleProjectAssetDescriptor[] {
+  const assets = new Map<string, ExampleProjectAssetDescriptor>();
+
+  function addAsset(
+    kind: Exclude<ProjectAssetKind, "folder">,
+    path: string
+  ): void {
+    const normalizedPath = normalizeExampleProjectPath(path);
+
+    if (normalizedPath.length === 0 || assets.has(normalizedPath)) {
+      return;
+    }
+
+    assets.set(normalizedPath, {
+      id: `${kind}:${normalizedPath}`,
+      kind,
+      name: basename(normalizedPath),
+      path: normalizedPath
+    });
+  }
+
+  addAsset("project", "project.json");
+
+  for (const map of descriptor.maps) {
+    addAsset("map", resolveExampleMapDocumentPath(map));
+  }
+
+  for (const tileset of descriptor.tilesets) {
+    addAsset("tileset", resolveExampleTilesetDocumentPath(tileset));
+
+    if (tileset.kind === "image") {
+      addAsset("image", tileset.imagePath);
+      continue;
+    }
+
+    for (const imageSource of tileset.imageSources) {
+      addAsset("image", imageSource);
+    }
+  }
+
+  return [...assets.values()].sort((left, right) =>
+    left.path.localeCompare(right.path)
+  );
 }

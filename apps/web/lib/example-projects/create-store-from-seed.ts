@@ -3,6 +3,7 @@ import {
   type EditorController,
   type EditorNamingConfig
 } from "@pixel-editor/app-services";
+import type { ProjectAssetSummary } from "@pixel-editor/contracts";
 import {
   createEntityId,
   createProject,
@@ -15,6 +16,10 @@ import type {
   ExampleProjectSeed,
   ExamplePropertyTypeDescriptor,
   ExampleTilesetDescriptor
+} from "./schema";
+import {
+  resolveExampleMapDocumentPath,
+  resolveExampleTilesetDocumentPath
 } from "./schema";
 
 function isImageTileset(
@@ -33,6 +38,31 @@ function materializePropertyTypes(
   return (propertyTypes ?? []).map((propertyType) => ({
     ...propertyType,
     id: createEntityId("propertyType")
+  }));
+}
+
+function materializeProjectAssets(
+  seed: ExampleProjectSeed,
+  mapIdsByPath: ReadonlyMap<string, string>,
+  tilesetIdsByPath: ReadonlyMap<string, TilesetDefinition["id"]>
+): ProjectAssetSummary[] {
+  return (seed.projectAssets ?? []).map((asset) => ({
+    id: asset.id,
+    name: asset.name,
+    path: asset.path,
+    kind: asset.kind,
+    ...(asset.kind === "map"
+      ? (() => {
+          const documentId = mapIdsByPath.get(asset.path);
+          return documentId !== undefined ? { documentId } : {};
+        })()
+      : {}),
+    ...(asset.kind === "tileset"
+      ? (() => {
+          const documentId = tilesetIdsByPath.get(asset.path);
+          return documentId !== undefined ? { documentId } : {};
+        })()
+      : {})
   }));
 }
 
@@ -55,6 +85,8 @@ export function createEditorStoreFromExampleSeed(
     options
   );
   const tilesetIdsByKey = new Map<string, TilesetDefinition["id"]>();
+  const tilesetIdsByPath = new Map<string, TilesetDefinition["id"]>();
+  const mapIdsByPath = new Map<string, string>();
 
   for (const tileset of seed.tilesets) {
     if (isImageTileset(tileset)) {
@@ -82,6 +114,7 @@ export function createEditorStoreFromExampleSeed(
 
     if (createdTileset) {
       tilesetIdsByKey.set(tileset.key, createdTileset.id);
+      tilesetIdsByPath.set(resolveExampleTilesetDocumentPath(tileset), createdTileset.id);
 
       if (tileset.tiles?.length) {
         store.setActiveTileset(createdTileset.id);
@@ -113,13 +146,17 @@ export function createEditorStoreFromExampleSeed(
   }
 
   for (const map of seed.maps) {
-    store.createMapDocument({
+    const mapId = store.createMapDocument({
       ...map,
       tilesetIds: map.tilesetKeys
         .map((tilesetKey) => tilesetIdsByKey.get(tilesetKey))
         .filter((tilesetId): tilesetId is TilesetDefinition["id"] => tilesetId !== undefined)
     });
+
+    mapIdsByPath.set(resolveExampleMapDocumentPath(map), mapId);
   }
+
+  store.replaceProjectAssets(materializeProjectAssets(seed, mapIdsByPath, tilesetIdsByPath));
 
   return store;
 }

@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import {
+  buildExampleProjectAssetDescriptors,
   buildExampleAssetUrl,
   type ExampleProjectDescriptor,
   type ExampleProjectSeed,
@@ -60,6 +61,7 @@ export async function loadExampleProjectSeed(
   return {
     projectId,
     project: descriptor.project,
+    projectAssets: buildExampleProjectAssetDescriptors(descriptor),
     tilesets: descriptor.tilesets.map((tileset) =>
       resolveTilesetAssets(projectId, tileset)
     ),
