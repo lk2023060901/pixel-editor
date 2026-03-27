@@ -391,4 +391,60 @@ describe("object layer projection", () => {
       screenHeight: 32
     });
   });
+
+  it("applies inherited parallax factors and map parallax origin to projected objects", () => {
+    const object = createMapObject({
+      name: "Marker",
+      shape: "rectangle",
+      x: 64,
+      y: 48,
+      width: 16,
+      height: 16
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      parallaxX: 0.5,
+      parallaxY: 0.75,
+      objects: [object]
+    });
+    const groupLayer = createGroupLayer({
+      name: "Foreground",
+      parallaxX: 0.5,
+      parallaxY: 0.5,
+      layers: [objectLayer]
+    });
+    const map = createMap({
+      name: "map-1",
+      orientation: "orthogonal",
+      width: 10,
+      height: 10,
+      tileWidth: 32,
+      tileHeight: 32,
+      parallaxOriginX: 32,
+      parallaxOriginY: 16,
+      layers: [groupLayer]
+    });
+
+    const projectedObjects = collectProjectedMapObjects({
+      map,
+      geometry: {
+        tileWidth: 64,
+        tileHeight: 64,
+        gridOriginX: 0,
+        gridOriginY: 0
+      },
+      viewport: {
+        originX: 128,
+        originY: 96
+      }
+    });
+
+    expect(projectedObjects[0]).toMatchObject({
+      objectId: object.id,
+      screenX: 48,
+      screenY: 40,
+      screenWidth: 32,
+      screenHeight: 32
+    });
+  });
 });

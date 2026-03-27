@@ -125,7 +125,9 @@ describe("map commands", () => {
         height: 18,
         tileWidth: 16,
         tileHeight: 16,
-        renderOrder: "left-down"
+        renderOrder: "left-down",
+        parallaxOriginX: 96,
+        parallaxOriginY: 48
       })
     );
     history.execute(addLayerCommand(mapId, "tile", "Decor"));
@@ -134,6 +136,8 @@ describe("map commands", () => {
 
     expect(history.state.maps[0]?.settings.width).toBe(24);
     expect(history.state.maps[0]?.settings.tileWidth).toBe(16);
+    expect(history.state.maps[0]?.settings.parallaxOriginX).toBe(96);
+    expect(history.state.maps[0]?.settings.parallaxOriginY).toBe(48);
     expect(history.state.maps[0]?.layers.map((layer) => layer.name)).toEqual([
       "Objects",
       "Ground"
@@ -211,7 +215,11 @@ describe("map commands", () => {
         locked: true,
         opacity: 0.4,
         offsetX: 10,
-        offsetY: -6
+        offsetY: -6,
+        parallaxX: 0.75,
+        parallaxY: 1.25,
+        tintColor: "#80ff00",
+        blendMode: "screen"
       })
     );
 
@@ -222,7 +230,51 @@ describe("map commands", () => {
       locked: true,
       opacity: 0.4,
       offsetX: 10,
-      offsetY: -6
+      offsetY: -6,
+      parallaxX: 0.75,
+      parallaxY: 1.25,
+      tintColor: "#80ff00",
+      blendMode: "screen"
+    });
+  });
+
+  it("updates image layer specific details", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+    history.execute(addLayerCommand(mapId, "image", "Backdrop"));
+    const imageLayerId = history.state.maps[0]!.layers.at(-1)!.id;
+
+    history.execute(
+      updateLayerDetailsCommand(mapId, imageLayerId, {
+        imagePath: "backgrounds/sky.png",
+        repeatX: true,
+        repeatY: false
+      })
+    );
+
+    expect(history.state.maps[0]?.layers.at(-1)).toMatchObject({
+      kind: "image",
+      imagePath: "backgrounds/sky.png",
+      repeatX: true,
+      repeatY: false
     });
   });
 

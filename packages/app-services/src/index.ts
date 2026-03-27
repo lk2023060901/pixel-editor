@@ -42,13 +42,6 @@ export type {
   TiledWorldImportIssue
 } from "@pixel-editor/tiled-world";
 export type {
-  CanvasGestureModifiers,
-  ObjectMoveGestureModifiers,
-  ObjectResizeGestureModifiers,
-  ObjectResizeHandle,
-  TileStamp
-} from "@pixel-editor/editor-state";
-export type {
   ImportedTmxMapDocument,
   ImportedTxTemplateDocument,
   ImportedTsxTilesetDocument,

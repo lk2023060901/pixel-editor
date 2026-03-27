@@ -1,6 +1,6 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
+import type { EditorController } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 

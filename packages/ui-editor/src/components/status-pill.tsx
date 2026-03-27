@@ -1,6 +1,6 @@
 "use client";
 
-import type { FeatureStatusValue } from "@pixel-editor/contracts";
+import type { FeatureStatusValue } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 
 import { getFeatureStatusLabel } from "./i18n-helpers";

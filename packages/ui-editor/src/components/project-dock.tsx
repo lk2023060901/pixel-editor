@@ -1,143 +1,24 @@
 "use client";
 
-import type { ProjectAssetSummary } from "@pixel-editor/contracts";
+import {
+  type ProjectAssetSummary,
+  type ProjectDockViewState,
+  type ProjectTreeNode
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition } from "react";
 
 import { DockPanel } from "./dock-panel";
 import { getProjectAssetKindLabel } from "./i18n-helpers";
 
-function normalizeProjectPath(path: string): string {
-  return path.replaceAll("\\", "/").trim().replace(/^\.\/+/, "");
-}
-
-interface FolderNode {
-  id: string;
-  kind: "folder";
-  name: string;
-  path: string;
-  children: TreeNode[];
-}
-
-interface AssetNode {
-  id: string;
-  kind: "asset";
-  asset: ProjectAssetSummary;
-}
-
-type TreeNode = FolderNode | AssetNode;
-
-function basename(path: string): string {
-  const normalized = normalizeProjectPath(path);
-  return normalized.split("/").at(-1) ?? normalized;
-}
-
-function createFolderNode(path: string): FolderNode {
-  return {
-    id: `folder:${path || "."}`,
-    kind: "folder",
-    name: path.length > 0 ? basename(path) : ".",
-    path,
-    children: []
-  };
-}
-
-function sortTreeNodes(nodes: TreeNode[]): TreeNode[] {
-  return nodes
-    .map((node) =>
-      node.kind === "folder"
-        ? {
-            ...node,
-            children: sortTreeNodes(node.children)
-          }
-        : node
-    )
-    .sort((left, right) => {
-      if (left.kind !== right.kind) {
-        return left.kind === "folder" ? -1 : 1;
-      }
-
-      const leftName = left.kind === "folder" ? left.name : left.asset.name;
-      const rightName = right.kind === "folder" ? right.name : right.asset.name;
-
-      return leftName.localeCompare(rightName);
-    });
-}
-
-function buildProjectTree(
-  assetRoots: readonly string[],
-  assets: readonly ProjectAssetSummary[]
-): TreeNode[] {
-  const rootNodes: TreeNode[] = [];
-  const folders = new Map<string, FolderNode>();
-
-  function ensureFolder(path: string): FolderNode {
-    const normalizedPath = normalizeProjectPath(path);
-    const existing = folders.get(normalizedPath);
-
-    if (existing) {
-      return existing;
-    }
-
-    const folder = createFolderNode(normalizedPath);
-    folders.set(normalizedPath, folder);
-
-    const segments = normalizedPath.split("/").filter((segment) => segment.length > 0);
-
-    if (segments.length <= 1) {
-      rootNodes.push(folder);
-      return folder;
-    }
-
-    const parentPath = segments.slice(0, -1).join("/");
-    ensureFolder(parentPath).children.push(folder);
-    return folder;
-  }
-
-  for (const assetRoot of assetRoots) {
-    const normalizedRoot = normalizeProjectPath(assetRoot);
-
-    if (normalizedRoot.length === 0 || normalizedRoot === ".") {
-      continue;
-    }
-
-    ensureFolder(normalizedRoot);
-  }
-
-  for (const asset of assets) {
-    const normalizedPath = normalizeProjectPath(asset.path);
-    const segments = normalizedPath.split("/").filter((segment) => segment.length > 0);
-    const assetNode: AssetNode = {
-      id: asset.id,
-      kind: "asset",
-      asset: {
-        ...asset,
-        path: normalizedPath
-      }
-    };
-
-    if (segments.length <= 1) {
-      rootNodes.push(assetNode);
-      continue;
-    }
-
-    const parentPath = segments.slice(0, -1).join("/");
-    ensureFolder(parentPath).children.push(assetNode);
-  }
-
-  return sortTreeNodes(rootNodes);
-}
-
 export interface ProjectDockProps {
-  assetRoots: string[];
-  assets: ProjectAssetSummary[];
-  activeDocumentIds: string[];
+  viewState: ProjectDockViewState;
   onAssetActivate: (asset: ProjectAssetSummary) => void;
   embedded?: boolean;
 }
 
 function ProjectTreeRow(props: {
-  node: TreeNode;
+  node: ProjectTreeNode;
   depth: number;
   activeDocumentIds: readonly string[];
   onAssetActivate: (asset: ProjectAssetSummary) => void;
@@ -223,28 +104,25 @@ function ProjectTreeRow(props: {
 }
 
 function ProjectDockContent({
-  assetRoots,
-  assets,
-  activeDocumentIds,
+  viewState,
   onAssetActivate
 }: Omit<ProjectDockProps, "embedded">) {
   const { t } = useI18n();
-  const tree = buildProjectTree(assetRoots, assets);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {tree.map((node) => (
+        {viewState.tree.map((node) => (
           <ProjectTreeRow
             key={node.id}
-            activeDocumentIds={activeDocumentIds}
+            activeDocumentIds={viewState.activeDocumentIds}
             depth={0}
             node={node}
             onAssetActivate={onAssetActivate}
           />
         ))}
 
-        {tree.length === 0 ? (
+        {viewState.tree.length === 0 ? (
           <div className="px-3 py-3 text-sm text-slate-400">{t("project.noFiles")}</div>
         ) : null}
       </div>

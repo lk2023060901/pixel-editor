@@ -1,13 +1,10 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type { ObjectLayer } from "@pixel-editor/domain";
+import type {
+  EditorController,
+  ObjectsPanelViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import {
-  isObjectSelectionState,
-  type ClipboardState,
-  type SelectionState
-} from "@pixel-editor/editor-state";
 import { startTransition, useMemo, useState } from "react";
 
 import { getObjectShapeLabel } from "./i18n-helpers";
@@ -46,11 +43,7 @@ function DockActionButton(props: {
 }
 
 export interface ObjectsPanelProps {
-  activeLayer: ObjectLayer | undefined;
-  activeTemplateName?: string;
-  hasTemplateInstanceSelection?: boolean;
-  clipboard: ClipboardState;
-  selection: SelectionState;
+  viewState: ObjectsPanelViewState;
   store: EditorController;
   onDetachTemplateInstances?: () => void;
   onReplaceWithTemplate?: () => void;
@@ -60,11 +53,7 @@ export interface ObjectsPanelProps {
 }
 
 function ObjectsPanelContent({
-  activeLayer,
-  activeTemplateName,
-  hasTemplateInstanceSelection,
-  clipboard,
-  selection,
+  viewState,
   store,
   onDetachTemplateInstances,
   onReplaceWithTemplate,
@@ -72,21 +61,16 @@ function ObjectsPanelContent({
   onSaveAsTemplate
 }: Omit<ObjectsPanelProps, "embedded">) {
   const { t } = useI18n();
-  const selectedIds = isObjectSelectionState(selection)
-    ? new Set(selection.objectIds)
-    : new Set();
-  const hasObjectSelection = selectedIds.size > 0;
-  const clipboardSummary =
-    clipboard.kind === "object"
-      ? t("common.objectCount", { count: clipboard.objects.length })
-      : t("common.empty");
+  const clipboardSummary = viewState.hasObjectClipboard
+    ? t("common.objectCount", { count: viewState.clipboardObjectCount })
+    : t("common.empty");
 
   return (
     <>
       <div className="mb-4 grid grid-cols-2 gap-2">
         <ActionButton
           label={t("objects.addRectangle")}
-          disabled={!activeLayer}
+          disabled={!viewState.hasActiveLayer}
           onClick={() => {
             startTransition(() => {
               store.createRectangleObject();
@@ -95,7 +79,7 @@ function ObjectsPanelContent({
         />
         <ActionButton
           label={t("objects.removeSelected")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.removeSelectedObjects();
@@ -107,7 +91,7 @@ function ObjectsPanelContent({
       <div className="mb-4 flex flex-wrap gap-2">
         <ActionButton
           label={t("common.copy")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.copySelectedObjectsToClipboard();
@@ -116,7 +100,7 @@ function ObjectsPanelContent({
         />
         <ActionButton
           label={t("common.cut")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.cutSelectedObjectsToClipboard();
@@ -125,7 +109,7 @@ function ObjectsPanelContent({
         />
         <ActionButton
           label={t("common.paste")}
-          disabled={!activeLayer || clipboard.kind !== "object"}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectClipboard}
           onClick={() => {
             startTransition(() => {
               store.pasteClipboardToActiveObjectLayer();
@@ -134,28 +118,41 @@ function ObjectsPanelContent({
         />
         <ActionButton
           label={t("objects.saveAsTemplate")}
-          disabled={!activeLayer || !hasObjectSelection || !onSaveAsTemplate}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection || !onSaveAsTemplate}
           onClick={() => {
             onSaveAsTemplate?.();
           }}
         />
         <ActionButton
           label={t("objects.replaceWithTemplate")}
-          disabled={!activeLayer || !hasObjectSelection || !activeTemplateName || !onReplaceWithTemplate}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasObjectSelection ||
+            !viewState.activeTemplateName ||
+            !onReplaceWithTemplate
+          }
           onClick={() => {
             onReplaceWithTemplate?.();
           }}
         />
         <ActionButton
           label={t("objects.resetTemplateInstances")}
-          disabled={!activeLayer || !hasTemplateInstanceSelection || !onResetTemplateInstances}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasTemplateInstanceSelection ||
+            !onResetTemplateInstances
+          }
           onClick={() => {
             onResetTemplateInstances?.();
           }}
         />
         <ActionButton
           label={t("objects.detachTemplateInstances")}
-          disabled={!activeLayer || !hasTemplateInstanceSelection || !onDetachTemplateInstances}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasTemplateInstanceSelection ||
+            !onDetachTemplateInstances
+          }
           onClick={() => {
             onDetachTemplateInstances?.();
           }}
@@ -172,14 +169,12 @@ function ObjectsPanelContent({
       </div>
 
       <div className="mt-4 space-y-2">
-        {activeLayer?.objects.map((object, index) => {
-          const isSelected = selectedIds.has(object.id);
-
+        {viewState.objects.map((object, index) => {
           return (
             <article
               key={object.id}
               className={`cursor-pointer rounded-xl border px-3 py-3 transition ${
-                isSelected
+                object.isSelected
                   ? "border-emerald-500/60 bg-emerald-500/10"
                   : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
               }`}
@@ -202,11 +197,11 @@ function ObjectsPanelContent({
           );
         })}
 
-        {!activeLayer && (
+        {!viewState.hasActiveLayer && (
           <p className="text-sm text-slate-400">{t("objects.selectObjectLayer")}</p>
         )}
 
-        {activeLayer && activeLayer.objects.length === 0 && (
+        {viewState.hasActiveLayer && viewState.objects.length === 0 && (
           <p className="text-sm text-slate-400">{t("objects.noObjects")}</p>
         )}
       </div>
@@ -215,11 +210,7 @@ function ObjectsPanelContent({
 }
 
 function ObjectsDockContent({
-  activeLayer,
-  activeTemplateName,
-  hasTemplateInstanceSelection,
-  clipboard,
-  selection,
+  viewState,
   store,
   onDetachTemplateInstances,
   onReplaceWithTemplate,
@@ -228,24 +219,20 @@ function ObjectsDockContent({
 }: Omit<ObjectsPanelProps, "embedded">) {
   const { t } = useI18n();
   const [filterText, setFilterText] = useState("");
-  const selectedIds = isObjectSelectionState(selection)
-    ? new Set(selection.objectIds)
-    : new Set();
-  const hasObjectSelection = selectedIds.size > 0;
   const filteredObjects = useMemo(() => {
     const keyword = filterText.trim().toLowerCase();
 
-    if (!activeLayer || keyword.length === 0) {
-      return activeLayer?.objects ?? [];
+    if (keyword.length === 0) {
+      return viewState.objects;
     }
 
-    return activeLayer.objects.filter((object) => {
+    return viewState.objects.filter((object) => {
       return (
         object.name.toLowerCase().includes(keyword) ||
         getObjectShapeLabel(object.shape, t).toLowerCase().includes(keyword)
       );
     });
-  }, [activeLayer, filterText, t]);
+  }, [filterText, t, viewState.objects]);
 
   return (
     <div className="flex h-full min-h-0 flex-col">
@@ -262,13 +249,11 @@ function ObjectsDockContent({
 
       <div className="min-h-0 flex-1 overflow-y-auto">
         {filteredObjects.map((object) => {
-          const isSelected = selectedIds.has(object.id);
-
           return (
             <button
               key={object.id}
               className={`grid w-full grid-cols-[1fr_auto] items-center gap-2 border-b border-slate-800 px-2 py-1.5 text-left text-sm transition ${
-                isSelected
+                object.isSelected
                   ? "bg-slate-800 text-slate-100"
                   : "bg-slate-900 text-slate-300 hover:bg-slate-800/70"
               }`}
@@ -286,11 +271,11 @@ function ObjectsDockContent({
           );
         })}
 
-        {!activeLayer && (
+        {!viewState.hasActiveLayer && (
           <div className="px-3 py-3 text-sm text-slate-400">{t("objects.selectObjectLayer")}</div>
         )}
 
-        {activeLayer && filteredObjects.length === 0 && (
+        {viewState.hasActiveLayer && filteredObjects.length === 0 && (
           <div className="px-3 py-3 text-sm text-slate-400">
             {t("objects.noObjectsMatchFilter")}
           </div>
@@ -300,7 +285,7 @@ function ObjectsDockContent({
       <div className="flex flex-wrap items-center gap-px border-t border-slate-700 bg-slate-800 p-1">
         <DockActionButton
           label={t("common.add")}
-          disabled={!activeLayer}
+          disabled={!viewState.hasActiveLayer}
           onClick={() => {
             startTransition(() => {
               store.createRectangleObject();
@@ -309,7 +294,7 @@ function ObjectsDockContent({
         />
         <DockActionButton
           label={t("common.delete")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.removeSelectedObjects();
@@ -318,7 +303,7 @@ function ObjectsDockContent({
         />
         <DockActionButton
           label={t("common.copy")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.copySelectedObjectsToClipboard();
@@ -327,7 +312,7 @@ function ObjectsDockContent({
         />
         <DockActionButton
           label={t("common.cut")}
-          disabled={!activeLayer || !hasObjectSelection}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection}
           onClick={() => {
             startTransition(() => {
               store.cutSelectedObjectsToClipboard();
@@ -336,7 +321,7 @@ function ObjectsDockContent({
         />
         <DockActionButton
           label={t("common.paste")}
-          disabled={!activeLayer || clipboard.kind !== "object"}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectClipboard}
           onClick={() => {
             startTransition(() => {
               store.pasteClipboardToActiveObjectLayer();
@@ -345,28 +330,41 @@ function ObjectsDockContent({
         />
         <DockActionButton
           label={t("objects.saveAsTemplate")}
-          disabled={!activeLayer || !hasObjectSelection || !onSaveAsTemplate}
+          disabled={!viewState.hasActiveLayer || !viewState.hasObjectSelection || !onSaveAsTemplate}
           onClick={() => {
             onSaveAsTemplate?.();
           }}
         />
         <DockActionButton
           label={t("objects.replaceWithTemplate")}
-          disabled={!activeLayer || !hasObjectSelection || !activeTemplateName || !onReplaceWithTemplate}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasObjectSelection ||
+            !viewState.activeTemplateName ||
+            !onReplaceWithTemplate
+          }
           onClick={() => {
             onReplaceWithTemplate?.();
           }}
         />
         <DockActionButton
           label={t("objects.resetTemplateInstances")}
-          disabled={!activeLayer || !hasTemplateInstanceSelection || !onResetTemplateInstances}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasTemplateInstanceSelection ||
+            !onResetTemplateInstances
+          }
           onClick={() => {
             onResetTemplateInstances?.();
           }}
         />
         <DockActionButton
           label={t("objects.detachTemplateInstances")}
-          disabled={!activeLayer || !hasTemplateInstanceSelection || !onDetachTemplateInstances}
+          disabled={
+            !viewState.hasActiveLayer ||
+            !viewState.hasTemplateInstanceSelection ||
+            !onDetachTemplateInstances
+          }
           onClick={() => {
             onDetachTemplateInstances?.();
           }}

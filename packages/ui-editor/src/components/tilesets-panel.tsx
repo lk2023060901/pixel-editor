@@ -1,45 +1,26 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
 import {
-  getMapGlobalTileGid,
-  getTilesetTileByLocalId,
-  listTilesetLocalIds,
-  resolveMapTileGid,
-  type EditorMap,
-  type PropertyTypeDefinition,
-  type TilesetDefinition,
-  type TilesetId
-} from "@pixel-editor/domain";
+  type EditorController,
+  type TilesetsPanelViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import {
-  getTileStampFootprint,
-  getTileStampPrimaryGid,
-  type TileStamp
-} from "@pixel-editor/editor-state";
 import type { ReactNode } from "react";
-import { startTransition, useMemo, useState } from "react";
+import { startTransition, useState } from "react";
 
 import { getTilesetKindLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 import { TilePropertiesEditor } from "./tile-properties-editor";
 import { TilePreview } from "./tile-preview";
 import {
-  buildImageCollectionTileStyle,
-  buildImageTilesetTileStyle,
-  getImageTilesetColumns,
+  buildTileVisualStyle,
   TILESET_VIEW_ZOOM_OPTIONS
 } from "./tileset-view-helpers";
 import { TilesetCreateForms } from "./tileset-create-forms";
 import { TilesetDetailsForm } from "./tileset-details-form";
 
 export interface TilesetsPanelProps {
-  activeMap: EditorMap | undefined;
-  tilesets: TilesetDefinition[];
-  activeTilesetId: TilesetId | undefined;
-  activeTileLocalId: number | null;
-  activeStamp: TileStamp;
-  propertyTypes: readonly PropertyTypeDefinition[] | undefined;
+  viewState: TilesetsPanelViewState;
   store: EditorController;
   onExportJson?: () => void;
   onOpenTileAnimationEditor?: () => void;
@@ -87,60 +68,28 @@ function TilesetDockIcon(props: {
 }
 
 function TilesetsPanelContent({
-  activeMap,
-  tilesets,
-  activeTilesetId,
-  activeTileLocalId,
-  activeStamp,
-  propertyTypes,
+  viewState,
   store,
   onExportJson
 }: Omit<TilesetsPanelProps, "embedded">) {
   const { t } = useI18n();
-  const availableTilesets = useMemo(() => {
-    if (!activeMap) {
-      return tilesets;
-    }
-
-    return activeMap.tilesetIds
-      .map((tilesetId) => tilesets.find((tileset) => tileset.id === tilesetId))
-      .filter((tileset): tileset is TilesetDefinition => tileset !== undefined);
-  }, [activeMap, tilesets]);
-
-  const activeStampGid = getTileStampPrimaryGid(activeStamp);
-  const activeStampFootprint = getTileStampFootprint(activeStamp);
-  const selectedStamp =
-    activeMap && activeStampGid !== null
-      ? resolveMapTileGid(activeMap, tilesets, activeStampGid)
-      : undefined;
-  const activeTileset =
-    availableTilesets.find((tileset) => tileset.id === activeTilesetId) ??
-    selectedStamp?.tileset ??
-    availableTilesets[0];
-  const activeTileIds = activeTileset ? listTilesetLocalIds(activeTileset) : [];
-  const selectedLocalId =
-    activeTileset && activeTileLocalId !== null && activeTileIds.includes(activeTileLocalId)
-      ? activeTileLocalId
-      : activeTileIds[0] ?? null;
-  const selectedTile =
-    activeTileset && selectedLocalId !== null
-      ? getTilesetTileByLocalId(activeTileset, selectedLocalId)
-      : undefined;
+  const activeTilesetId = viewState.activeTilesetId;
+  const selectedLocalId = viewState.selectedLocalId;
 
   return (
     <>
-      {!availableTilesets.length && (
+      {!viewState.availableTilesets.length && (
         <p className="text-sm text-slate-400">{t("tilesets.noAttached")}</p>
       )}
 
-      {availableTilesets.length > 0 && (
+      {viewState.availableTilesets.length > 0 && (
         <>
           <div className="space-y-2">
-            {availableTilesets.map((tileset) => (
+            {viewState.availableTilesets.map((tileset) => (
               <article
                 key={tileset.id}
                 className={`cursor-pointer rounded-xl border px-3 py-3 transition ${
-                  activeTileset?.id === tileset.id
+                  tileset.isActive
                     ? "border-emerald-500/60 bg-emerald-500/10"
                     : "border-slate-800 bg-slate-900/60 hover:border-slate-700"
                 }`}
@@ -157,7 +106,7 @@ function TilesetsPanelContent({
                   </span>
                 </div>
                 <p className="mt-2 text-xs text-slate-400">
-                  {t("tilesets.tilesCount", { count: listTilesetLocalIds(tileset).length })}
+                  {t("tilesets.tilesCount", { count: tileset.tileCount })}
                   {" · "}
                   {tileset.tileWidth}×{tileset.tileHeight}
                 </p>
@@ -165,40 +114,36 @@ function TilesetsPanelContent({
             ))}
           </div>
 
-          {activeTileset && (
+          {activeTilesetId && (
             <>
               <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-300">
                 <div className="flex items-center justify-between gap-3">
                   <span>{t("tilesets.activeStamp")}</span>
                   <span>
-                    {activeStamp.kind === "pattern"
+                    {viewState.stampSummary.kind === "pattern"
                       ? t("tilesets.patternSummary", {
-                          width: activeStampFootprint.width,
-                          height: activeStampFootprint.height
+                          width: viewState.stampSummary.width,
+                          height: viewState.stampSummary.height
                         })
-                      : selectedStamp
+                      : viewState.stampSummary.kind === "tile"
                         ? t("tilesets.stampTileSummary", {
-                            gid: activeStampGid,
-                            localId: selectedStamp.localId,
-                            tilesetName: selectedStamp.tileset.name
+                            gid: viewState.stampSummary.gid,
+                            localId: viewState.stampSummary.localId,
+                            tilesetName: viewState.stampSummary.tilesetName
                           })
                         : t("common.none")}
                   </span>
                 </div>
                 {selectedLocalId !== null && (
                   <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
-                    <TilePreview
-                      tileset={activeTileset}
-                      localId={selectedLocalId}
-                      {...(activeStampGid !== null ? { gid: activeStampGid } : {})}
-                    />
+                    {viewState.selectedTilePreview ? <TilePreview viewState={viewState.selectedTilePreview} /> : null}
                     <div>
                       <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
                         {t("tilesets.selectedTile")}
                       </p>
                       <p className="mt-1 text-sm text-slate-100">
                         #{selectedLocalId}
-                        {selectedTile?.className ? ` · ${selectedTile.className}` : ""}
+                        {viewState.selectedTileClassName ? ` · ${viewState.selectedTileClassName}` : ""}
                       </p>
                     </div>
                   </div>
@@ -206,46 +151,35 @@ function TilesetsPanelContent({
               </div>
 
               <div className="mt-4 grid grid-cols-4 gap-2">
-                {activeTileIds.map((localId) => {
-                  const gid = activeMap
-                    ? getMapGlobalTileGid(activeMap, tilesets, activeTileset.id, localId)
-                    : undefined;
-                  const isSelected = selectedLocalId === localId;
-
+                {viewState.activeTileEntries.map((tileEntry) => {
                   return (
                     <button
-                      key={`${activeTileset.id}:${localId}`}
+                      key={`${activeTilesetId}:${tileEntry.localId}`}
                       className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-xs transition ${
-                        isSelected
+                        tileEntry.isSelected
                           ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
                           : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-slate-500"
                       }`}
-                      disabled={gid === undefined}
+                      disabled={tileEntry.preview.gid === undefined}
                       onClick={() => {
                         startTransition(() => {
-                          store.selectStampTile(activeTileset.id, localId);
+                          store.selectStampTile(activeTilesetId, tileEntry.localId);
                         });
                       }}
                     >
-                      <TilePreview
-                        tileset={activeTileset}
-                        localId={localId}
-                        {...(gid !== undefined ? { gid } : {})}
-                      />
-                      <span>#{localId}</span>
+                      <TilePreview viewState={tileEntry.preview} />
+                      <span>#{tileEntry.localId}</span>
                     </button>
                   );
                 })}
               </div>
 
-              <TilesetDetailsForm tileset={activeTileset} store={store} />
-              <TilePropertiesEditor
-                activeMap={activeMap}
-                propertyTypes={propertyTypes}
-                tileset={activeTileset}
-                selectedLocalId={selectedLocalId}
-                store={store}
-              />
+              {viewState.tilesetDetailsViewState ? (
+                <TilesetDetailsForm store={store} viewState={viewState.tilesetDetailsViewState} />
+              ) : null}
+              {viewState.tilePropertiesEditorViewState ? (
+                <TilePropertiesEditor store={store} viewState={viewState.tilePropertiesEditorViewState} />
+              ) : null}
             </>
           )}
         </>
@@ -257,37 +191,21 @@ function TilesetsPanelContent({
 }
 
 function TilesetsDockContent({
-  activeMap,
-  tilesets,
-  activeTilesetId,
-  activeTileLocalId,
+  viewState,
   store,
   onExportJson,
   onOpenTileAnimationEditor,
   onOpenTileCollisionEditor,
   onOpenTerrainSets
-}: Omit<TilesetsPanelProps, "embedded" | "activeStamp">) {
+}: Omit<TilesetsPanelProps, "embedded">) {
   const { t } = useI18n();
   const [zoom, setZoom] = useState<number>(1);
-  const availableTilesets = useMemo(() => {
-    if (!activeMap) {
-      return tilesets;
-    }
+  const activeTilesetId = viewState.activeTilesetId;
+  const selectedLocalId = viewState.selectedLocalId;
+  const activeTileWidth = viewState.activeTileWidth;
+  const activeTileHeight = viewState.activeTileHeight;
 
-    return activeMap.tilesetIds
-      .map((tilesetId) => tilesets.find((tileset) => tileset.id === tilesetId))
-      .filter((tileset): tileset is TilesetDefinition => tileset !== undefined);
-  }, [activeMap, tilesets]);
-  const activeTileset =
-    availableTilesets.find((tileset) => tileset.id === activeTilesetId) ??
-    availableTilesets[0];
-  const activeTileIds = activeTileset ? listTilesetLocalIds(activeTileset) : [];
-  const selectedLocalId =
-    activeTileset && activeTileLocalId !== null && activeTileIds.includes(activeTileLocalId)
-      ? activeTileLocalId
-      : activeTileIds[0] ?? null;
-
-  if (!availableTilesets.length) {
+  if (!viewState.availableTilesets.length) {
     return (
       <div className="flex h-full min-h-[220px] items-center justify-center bg-[#b8b8b8] px-6 text-center text-sm text-slate-700">
         {t("tilesets.noAttached")}
@@ -295,21 +213,16 @@ function TilesetsDockContent({
     );
   }
 
-  const imageColumns =
-    activeTileset?.kind === "image" ? getImageTilesetColumns(activeTileset) : undefined;
-
   return (
     <div className="flex h-full min-h-0 flex-col bg-[#b8b8b8]">
       <div className="flex items-end border-b border-slate-700 bg-slate-800">
         <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto px-1 pt-1">
-          {availableTilesets.map((tileset) => {
-            const isActive = tileset.id === activeTileset?.id;
-
+          {viewState.availableTilesets.map((tileset) => {
             return (
               <button
                 key={tileset.id}
                 className={`shrink-0 border px-2 py-1 text-xs transition ${
-                  isActive
+                  tileset.isActive
                     ? "border-slate-700 border-b-[#b8b8b8] bg-slate-900 text-slate-100"
                     : "border-slate-700 border-b-0 bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
@@ -334,68 +247,57 @@ function TilesetsDockContent({
       </div>
 
       <div className="min-h-0 flex-1 overflow-auto p-2">
-        {activeTileset ? (
-          activeTileset.kind === "image" && imageColumns ? (
+        {activeTilesetId && activeTileWidth !== undefined && activeTileHeight !== undefined ? (
+          viewState.activeTilesetKind === "image" && viewState.activeImageColumns ? (
             <div
               className="inline-grid border border-slate-500/20 bg-transparent"
               style={{
-                gridTemplateColumns: `repeat(${imageColumns}, ${activeTileset.tileWidth * zoom}px)`,
-                gridAutoRows: `${activeTileset.tileHeight * zoom}px`
+                gridTemplateColumns: `repeat(${viewState.activeImageColumns}, ${activeTileWidth * zoom}px)`,
+                gridAutoRows: `${activeTileHeight * zoom}px`
               }}
             >
-              {activeTileIds.map((localId) => {
-                const isSelected = selectedLocalId === localId;
-
+              {viewState.activeTileEntries.map((tileEntry) => {
                 return (
                   <button
-                    key={`${activeTileset.id}:${localId}`}
+                    key={`${activeTilesetId}:${tileEntry.localId}`}
                     className={`relative border border-slate-500/10 bg-transparent ${
-                      isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
-                    }`}
-                    style={{
-                      width: `${activeTileset.tileWidth * zoom}px`,
-                      height: `${activeTileset.tileHeight * zoom}px`
-                    }}
+                      tileEntry.isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
+                      }`}
+                      style={{
+                        width: `${activeTileWidth * zoom}px`,
+                        height: `${activeTileHeight * zoom}px`
+                      }}
                     onClick={() => {
                       startTransition(() => {
-                        store.selectStampTile(activeTileset.id, localId);
+                        store.selectStampTile(activeTilesetId, tileEntry.localId);
                       });
                     }}
                   >
-                    <span
-                      className="block"
-                      style={buildImageTilesetTileStyle(activeTileset, localId, zoom)}
-                    />
+                    <span className="block" style={buildTileVisualStyle(tileEntry.preview, zoom)} />
                   </button>
                 );
               })}
             </div>
           ) : (
             <div className="flex flex-wrap items-start gap-1">
-              {activeTileIds.map((localId) => {
-                const isSelected = selectedLocalId === localId;
-
+              {viewState.activeTileEntries.map((tileEntry) => {
                 return (
                   <button
-                    key={`${activeTileset.id}:${localId}`}
+                    key={`${activeTilesetId}:${tileEntry.localId}`}
                     className={`flex items-center justify-center border bg-slate-900/20 p-1 ${
-                      isSelected ? "ring-2 ring-blue-500 ring-inset" : "border-slate-500/20"
+                      tileEntry.isSelected
+                        ? "ring-2 ring-blue-500 ring-inset"
+                        : "border-slate-500/20"
                     }`}
                     onClick={() => {
                       startTransition(() => {
-                        store.selectStampTile(activeTileset.id, localId);
+                        store.selectStampTile(activeTilesetId, tileEntry.localId);
                       });
                     }}
                   >
                     <span
                       className="block"
-                      style={
-                        buildImageCollectionTileStyle(activeTileset, localId, zoom) ?? {
-                          width: `${activeTileset.tileWidth * zoom}px`,
-                          height: `${activeTileset.tileHeight * zoom}px`,
-                          backgroundColor: "#64748b"
-                        }
-                      }
+                      style={buildTileVisualStyle(tileEntry.preview, zoom)}
                     />
                   </button>
                 );
@@ -422,7 +324,7 @@ function TilesetsDockContent({
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
         <TilesetDockToolbarButton
-          disabled={!activeTileset || !onExportJson}
+          disabled={!activeTilesetId || !onExportJson}
           title={t("action.export")}
           onClick={onExportJson}
         >
@@ -451,7 +353,7 @@ function TilesetsDockContent({
           </TilesetDockIcon>
         </TilesetDockToolbarButton>
         <TilesetDockToolbarButton
-          disabled={!activeTileset || !onOpenTerrainSets}
+          disabled={!activeTilesetId || !onOpenTerrainSets}
           title={t("action.editWangSets")}
           onClick={onOpenTerrainSets}
         >

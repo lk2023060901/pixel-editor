@@ -1,8 +1,11 @@
 "use client";
 
-import type { LayerDefinition, LayerId } from "@pixel-editor/domain";
+import type {
+  EditorStatusBarLayerOption,
+  EditorStatusBarViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 const TILED_ZOOM_FACTORS = [
   0.015625,
@@ -32,7 +35,7 @@ const TILED_ZOOM_FACTORS = [
   256
 ] as const;
 
-const layerKindIconUrls: Record<LayerDefinition["kind"], string> = {
+const layerKindIconUrls: Record<NonNullable<EditorStatusBarViewState["activeLayerKind"]>, string> = {
   tile: "/vendor/tiled-statusbar/layer-tile.png",
   object: "/vendor/tiled-statusbar/layer-object.png",
   image: "/vendor/tiled-statusbar/layer-image.png",
@@ -60,14 +63,9 @@ function parseZoom(value: string): number | undefined {
 }
 
 export interface EditorStatusBarProps {
-  errorCount: number;
-  warningCount: number;
+  viewState: EditorStatusBarViewState;
   statusInfo: string;
-  layers: LayerDefinition[];
-  activeLayerId: LayerId | undefined;
-  activeLayerKind: LayerDefinition["kind"] | undefined;
-  zoom: number;
-  onLayerChange: (layerId: LayerId) => void;
+  onLayerChange: (layerId: EditorStatusBarLayerOption["id"]) => void;
   onZoomChange: (zoom: number) => void;
   onToggleConsole?: () => void;
   onToggleIssues?: () => void;
@@ -75,23 +73,22 @@ export interface EditorStatusBarProps {
 
 export function EditorStatusBar(props: EditorStatusBarProps) {
   const { t } = useI18n();
-  const [zoomDraft, setZoomDraft] = useState(() => formatZoom(props.zoom));
+  const [zoomDraft, setZoomDraft] = useState(() => formatZoom(props.viewState.zoom));
 
   useEffect(() => {
-    setZoomDraft(formatZoom(props.zoom));
-  }, [props.zoom]);
+    setZoomDraft(formatZoom(props.viewState.zoom));
+  }, [props.viewState.zoom]);
 
-  const layerOptions = useMemo(() => [...props.layers].reverse(), [props.layers]);
   const activeLayerIcon =
-    props.activeLayerKind !== undefined
-      ? layerKindIconUrls[props.activeLayerKind]
+    props.viewState.activeLayerKind !== undefined
+      ? layerKindIconUrls[props.viewState.activeLayerKind]
       : layerKindIconUrls.tile;
 
   function commitZoomDraft(): void {
     const zoom = parseZoom(zoomDraft);
 
     if (zoom === undefined) {
-      setZoomDraft(formatZoom(props.zoom));
+      setZoomDraft(formatZoom(props.viewState.zoom));
       return;
     }
 
@@ -118,29 +115,39 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
         <button
           className="flex h-7 items-center gap-2 rounded-sm border border-slate-600 bg-slate-700/40 px-2 transition hover:border-slate-500 hover:bg-slate-700/70"
           title={t("statusBar.issuesSummary", {
-            errorCount: props.errorCount,
-            warningCount: props.warningCount
+            errorCount: props.viewState.errorCount,
+            warningCount: props.viewState.warningCount
           })}
           type="button"
           onClick={props.onToggleIssues}
         >
           <img
             alt=""
-            className={`h-4 w-4 object-contain ${props.errorCount > 0 ? "" : "opacity-45"}`}
+            className={`h-4 w-4 object-contain ${props.viewState.errorCount > 0 ? "" : "opacity-45"}`}
             draggable={false}
             src="/vendor/tiled-statusbar/dialog-error.png"
           />
-          <span className={props.errorCount > 0 ? "font-semibold text-slate-100" : "text-slate-400"}>
-            {props.errorCount}
+          <span
+            className={
+              props.viewState.errorCount > 0 ? "font-semibold text-slate-100" : "text-slate-400"
+            }
+          >
+            {props.viewState.errorCount}
           </span>
           <img
             alt=""
-            className={`h-4 w-4 object-contain ${props.warningCount > 0 ? "" : "opacity-45"}`}
+            className={`h-4 w-4 object-contain ${props.viewState.warningCount > 0 ? "" : "opacity-45"}`}
             draggable={false}
             src="/vendor/tiled-statusbar/dialog-warning.png"
           />
-          <span className={props.warningCount > 0 ? "font-semibold text-slate-100" : "text-slate-400"}>
-            {props.warningCount}
+          <span
+            className={
+              props.viewState.warningCount > 0
+                ? "font-semibold text-slate-100"
+                : "text-slate-400"
+            }
+          >
+            {props.viewState.warningCount}
           </span>
         </button>
 
@@ -156,8 +163,11 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
             />
             <select
               className="h-7 min-w-[176px] rounded-sm border border-slate-600 bg-slate-700/50 pl-8 pr-6 text-sm text-slate-100 outline-none transition focus:border-slate-400"
-              disabled={layerOptions.length === 0 || props.activeLayerId === undefined}
-              value={props.activeLayerId ?? ""}
+              disabled={
+                props.viewState.layerOptions.length === 0 ||
+                props.viewState.activeLayerId === undefined
+              }
+              value={props.viewState.activeLayerId ?? ""}
               onChange={(event) => {
                 const layerId = event.target.value;
 
@@ -165,13 +175,13 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
                   return;
                 }
 
-                props.onLayerChange(layerId as LayerId);
+                props.onLayerChange(layerId as EditorStatusBarLayerOption["id"]);
               }}
             >
-              {layerOptions.length === 0 ? (
+              {props.viewState.layerOptions.length === 0 ? (
                 <option value="">{t("statusBar.noLayer")}</option>
               ) : (
-                layerOptions.map((layer) => (
+                props.viewState.layerOptions.map((layer) => (
                   <option key={layer.id} value={layer.id}>
                     {layer.name}
                   </option>

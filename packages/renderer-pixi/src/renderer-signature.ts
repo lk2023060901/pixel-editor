@@ -44,6 +44,8 @@ export interface ImageLayerRenderSignatureInput {
   highlighted: boolean;
   width: number | undefined;
   height: number | undefined;
+  repeatX: boolean;
+  repeatY: boolean;
   assetVersion: number;
 }
 
@@ -240,6 +242,8 @@ export function createImageLayerRenderSignature(
     input.highlighted ? 1 : 0,
     input.width ?? "",
     input.height ?? "",
+    input.repeatX ? 1 : 0,
+    input.repeatY ? 1 : 0,
     input.assetVersion
   ].join(":");
 }

@@ -1,9 +1,10 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type { ShapeFillMode } from "@pixel-editor/editor-state";
+import type { EditorController } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition } from "react";
+
+type ShapeFillMode = Parameters<EditorController["setShapeFillMode"]>[0];
 
 export interface ShapeFillControlsProps {
   activeMode: ShapeFillMode;

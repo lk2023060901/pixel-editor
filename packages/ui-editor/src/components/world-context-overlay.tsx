@@ -1,28 +1,20 @@
 "use client";
 
 import type {
-  EditorWorldContextMapSnapshot,
-  EditorWorldContextSnapshot
-} from "@pixel-editor/app-services";
-import type { EditorMap } from "@pixel-editor/domain";
-import type { EditorToolId } from "@pixel-editor/editor-state";
-import {
-  projectWorldRectToScreenRect,
-  resolveRendererViewportProjection,
-  type RendererViewportSnapshot
-} from "@pixel-editor/renderer-pixi";
+  WorldContextOverlayMapItemViewState,
+  WorldContextOverlayViewState
+} from "@pixel-editor/app-services/ui";
 import { useRef, useState } from "react";
+
+import type { EditorRenderBridge } from "../render-bridge";
 
 const DRAG_START_DISTANCE = 4;
 
 interface WorldContextOverlayProps {
-  activeMap: EditorMap;
-  viewport: RendererViewportSnapshot;
-  worldContext: EditorWorldContextSnapshot;
-  activeTool: EditorToolId;
+  viewState: WorldContextOverlayViewState;
+  renderBridge: EditorRenderBridge;
   width: number;
   height: number;
-  visible: boolean;
   onActivateMap?: ((mapId: string) => void) | undefined;
   onMoveWorldMap?: ((worldId: string, fileName: string, x: number, y: number) => void) | undefined;
   onStatusInfoChange?: ((statusInfo: string) => void) | undefined;
@@ -30,7 +22,7 @@ interface WorldContextOverlayProps {
 
 interface WorldMapDragState {
   pointerId: number;
-  map: EditorWorldContextMapSnapshot;
+  map: WorldContextOverlayMapItemViewState;
   startClientX: number;
   startClientY: number;
   startX: number;
@@ -39,13 +31,10 @@ interface WorldMapDragState {
 }
 
 export function WorldContextOverlay({
-  activeMap,
-  viewport,
-  worldContext,
-  activeTool,
+  viewState,
+  renderBridge,
   width,
   height,
-  visible,
   onActivateMap,
   onMoveWorldMap,
   onStatusInfoChange
@@ -55,17 +44,17 @@ export function WorldContextOverlay({
     undefined
   );
 
-  if (!visible || width <= 0 || height <= 0) {
+  if (!viewState.visible || width <= 0 || height <= 0) {
     return null;
   }
 
-  const projection = resolveRendererViewportProjection({
-    map: activeMap,
-    viewport,
+  const projection = renderBridge.resolveViewportProjection({
+    map: viewState.activeMap,
+    viewport: viewState.viewport,
     width,
     height
   });
-  const projectedMaps = worldContext.maps.map((mapEntry) => {
+  const projectedMaps = viewState.maps.map((mapEntry) => {
     const worldX = preview?.fileName === mapEntry.fileName ? preview.x : mapEntry.x;
     const worldY = preview?.fileName === mapEntry.fileName ? preview.y : mapEntry.y;
 
@@ -73,9 +62,9 @@ export function WorldContextOverlay({
       ...mapEntry,
       worldX,
       worldY,
-      screenRect: projectWorldRectToScreenRect({
+      screenRect: renderBridge.projectWorldRectToScreenRect({
         projection,
-        activeWorldRect: worldContext.activeMapRect,
+        activeWorldRect: viewState.activeMapRect,
         worldRect: {
           x: worldX,
           y: worldY,
@@ -109,8 +98,8 @@ export function WorldContextOverlay({
       };
     }
 
-    const gridWidth = dragState.map.gridWidth ?? activeMap.settings.tileWidth;
-    const gridHeight = dragState.map.gridHeight ?? activeMap.settings.tileHeight;
+    const gridWidth = dragState.map.gridWidth ?? viewState.activeMap.settings.tileWidth;
+    const gridHeight = dragState.map.gridHeight ?? viewState.activeMap.settings.tileHeight;
 
     return {
       x: Math.round(rawX / gridWidth) * gridWidth,
@@ -145,7 +134,7 @@ export function WorldContextOverlay({
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {projectedMaps.map((mapEntry) => {
-        const isDraggable = activeTool === "world-tool" && worldContext.modifiable;
+        const isDraggable = viewState.activeTool === "world-tool" && viewState.modifiable;
 
         return (
           <button
@@ -162,7 +151,7 @@ export function WorldContextOverlay({
               height: `${Math.max(mapEntry.screenRect.height, 18)}px`
             }}
             onClick={() => {
-              if (activeTool === "world-tool") {
+              if (viewState.activeTool === "world-tool") {
                 return;
               }
 

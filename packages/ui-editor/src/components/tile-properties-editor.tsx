@@ -1,17 +1,13 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import {
-  createSuggestedPropertiesForClassType,
-  type EditorMap,
-  type PropertyTypeDefinition,
-  type TilesetDefinition
-} from "@pixel-editor/domain";
+import type {
+  EditorController,
+  TilePropertiesEditorViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
 import { CustomPropertiesEditor } from "./custom-properties-editor";
-import { buildObjectReferenceOptions } from "./object-reference-options";
 import {
   PropertyBrowserContent,
   PropertyBrowserGroup,
@@ -20,24 +16,12 @@ import {
 } from "./property-browser";
 
 export function TilePropertiesEditor(props: {
-  activeMap: EditorMap | undefined;
-  propertyTypes: readonly PropertyTypeDefinition[] | undefined;
-  tileset: TilesetDefinition;
-  selectedLocalId: number | null;
+  viewState: TilePropertiesEditorViewState;
   store: EditorController;
 }) {
   const { t } = useI18n();
-  const objectReferenceOptions = buildObjectReferenceOptions(props.activeMap);
-  const selectedLocalId = props.selectedLocalId;
-  const selectedTile =
-    selectedLocalId !== null
-      ? props.tileset.tiles.find((tile) => tile.localId === selectedLocalId)
-      : undefined;
-  const suggestedProperties = createSuggestedPropertiesForClassType(
-    props.propertyTypes ?? [],
-    selectedTile?.className,
-    "tile"
-  );
+  const selectedTile = props.viewState.tile;
+  const selectedLocalId = selectedTile?.localId ?? null;
   const [className, setClassName] = useState(selectedTile?.className ?? "");
   const [probability, setProbability] = useState(String(selectedTile?.probability ?? 1));
 
@@ -109,9 +93,9 @@ export function TilePropertiesEditor(props: {
           <CustomPropertiesEditor
             className="bg-slate-950"
             properties={selectedTile.properties}
-            objectReferenceOptions={objectReferenceOptions}
-            propertyTypes={props.propertyTypes}
-            suggestedProperties={suggestedProperties}
+            objectReferenceOptions={props.viewState.objectReferenceOptions}
+            propertyTypes={props.viewState.propertyTypes}
+            suggestedProperties={selectedTile.suggestedProperties}
             onRemove={(propertyName) => {
               props.store.removeSelectedTileProperty(propertyName);
             }}

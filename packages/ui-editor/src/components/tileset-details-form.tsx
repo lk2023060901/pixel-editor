@@ -1,12 +1,14 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
 import type {
-  TilesetDefinition,
+  EditorController,
+  TilesetDetailsViewState
+} from "@pixel-editor/app-services/ui";
+import type {
   TilesetFillMode,
   TilesetObjectAlignment,
   TilesetTileRenderSize
-} from "@pixel-editor/domain";
+} from "@pixel-editor/app-services/ui-tiles";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
@@ -34,7 +36,7 @@ interface TilesetDetailsDraft {
   columns: string;
 }
 
-function createDetailsDraft(tileset: TilesetDefinition): TilesetDetailsDraft {
+function createDetailsDraft(tileset: TilesetDetailsViewState): TilesetDetailsDraft {
   return {
     name: tileset.name,
     tileWidth: String(tileset.tileWidth),
@@ -44,21 +46,15 @@ function createDetailsDraft(tileset: TilesetDefinition): TilesetDetailsDraft {
     objectAlignment: tileset.objectAlignment,
     tileRenderSize: tileset.tileRenderSize,
     fillMode: tileset.fillMode,
-    imagePath: tileset.kind === "image" && tileset.source ? tileset.source.imagePath : "",
-    imageWidth:
-      tileset.kind === "image" && tileset.source?.imageWidth !== undefined
-        ? String(tileset.source.imageWidth)
-        : "",
+    imagePath: tileset.kind === "image" ? tileset.imagePath : "",
+    imageWidth: tileset.kind === "image" && tileset.imageWidth !== undefined ? String(tileset.imageWidth) : "",
     imageHeight:
-      tileset.kind === "image" && tileset.source?.imageHeight !== undefined
-        ? String(tileset.source.imageHeight)
+      tileset.kind === "image" && tileset.imageHeight !== undefined
+        ? String(tileset.imageHeight)
         : "",
-    margin: tileset.kind === "image" && tileset.source ? String(tileset.source.margin) : "0",
-    spacing: tileset.kind === "image" && tileset.source ? String(tileset.source.spacing) : "0",
-    columns:
-      tileset.kind === "image" && tileset.source?.columns !== undefined
-        ? String(tileset.source.columns)
-        : ""
+    margin: tileset.kind === "image" ? String(tileset.margin) : "0",
+    spacing: tileset.kind === "image" ? String(tileset.spacing) : "0",
+    columns: tileset.kind === "image" && tileset.columns !== undefined ? String(tileset.columns) : ""
   };
 }
 
@@ -73,7 +69,7 @@ function parseInteger(value: string): number | undefined {
 }
 
 export function TilesetDetailsForm(props: {
-  tileset: TilesetDefinition;
+  viewState: TilesetDetailsViewState;
   store: EditorController;
 }) {
   const { t } = useI18n();
@@ -106,11 +102,11 @@ export function TilesetDetailsForm(props: {
     label: getTilesetFillModeLabel(value, t),
     value
   }));
-  const [draft, setDraft] = useState(() => createDetailsDraft(props.tileset));
+  const [draft, setDraft] = useState(() => createDetailsDraft(props.viewState));
 
   useEffect(() => {
-    setDraft(createDetailsDraft(props.tileset));
-  }, [props.tileset]);
+    setDraft(createDetailsDraft(props.viewState));
+  }, [props.viewState]);
 
   return (
     <div className="mt-6 space-y-4 border-t border-slate-800 pt-4">
@@ -142,7 +138,7 @@ export function TilesetDetailsForm(props: {
 
             startTransition(() => {
               const nextPatch = {
-                name: draft.name.trim() || props.tileset.name,
+                name: draft.name.trim() || props.viewState.name,
                 tileWidth,
                 tileHeight,
                 tileOffsetX,
@@ -154,7 +150,7 @@ export function TilesetDetailsForm(props: {
 
               props.store.updateActiveTilesetDetails({
                 ...nextPatch,
-                ...(props.tileset.kind === "image"
+                ...(props.viewState.kind === "image"
                   ? {
                       ...(draft.imagePath.trim()
                         ? { imagePath: draft.imagePath.trim() }
@@ -248,7 +244,7 @@ export function TilesetDetailsForm(props: {
           />
         </div>
 
-        {props.tileset.kind === "image" && (
+        {props.viewState.kind === "image" && (
           <>
             <TextField
               label={t("common.imagePath")}

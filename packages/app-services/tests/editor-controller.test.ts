@@ -2386,7 +2386,11 @@ describe("editor controller", () => {
       locked: true,
       opacity: 0.5,
       offsetX: 12,
-      offsetY: -8
+      offsetY: -8,
+      parallaxX: 0.8,
+      parallaxY: 1.2,
+      tintColor: "#80ff00",
+      blendMode: "screen"
     });
 
     const activeLayer = store.getSnapshot().activeLayer;
@@ -2398,7 +2402,55 @@ describe("editor controller", () => {
       locked: true,
       opacity: 0.5,
       offsetX: 12,
-      offsetY: -8
+      offsetY: -8,
+      parallaxX: 0.8,
+      parallaxY: 1.2,
+      tintColor: "#80ff00",
+      blendMode: "screen"
+    });
+  });
+
+  it("updates active map parallax origin through the controller", () => {
+    const store = createTestEditorStore("demo");
+
+    store.updateActiveMapDetails({
+      parallaxOriginX: 96,
+      parallaxOriginY: 48
+    });
+
+    expect(store.getSnapshot().activeMap?.settings).toMatchObject({
+      parallaxOriginX: 96,
+      parallaxOriginY: 48
+    });
+  });
+
+  it("updates active image layer details through the controller", () => {
+    const store = createTestEditorStore("demo");
+
+    store.addImageLayer();
+
+    const imageLayer = store.getSnapshot().activeMap?.layers.at(-1);
+
+    expect(imageLayer?.kind).toBe("image");
+
+    if (!imageLayer || imageLayer.kind !== "image") {
+      throw new Error("Expected active image layer.");
+    }
+
+    store.setActiveLayer(imageLayer.id);
+    store.updateActiveLayerDetails({
+      imagePath: "backgrounds/sky.png",
+      repeatX: true,
+      repeatY: true
+    });
+
+    const activeLayer = store.getSnapshot().activeLayer;
+
+    expect(activeLayer).toMatchObject({
+      kind: "image",
+      imagePath: "backgrounds/sky.png",
+      repeatX: true,
+      repeatY: true
     });
   });
 

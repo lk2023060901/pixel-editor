@@ -1,7 +1,9 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type { EditorProject } from "@pixel-editor/domain";
+import type {
+  EditorController,
+  EditorShellDialogsViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -42,7 +44,7 @@ const COMPATIBILITY_VERSION_OPTIONS = [
   }
 ] as const;
 
-function createDraftFromProject(project: EditorProject): ProjectPropertiesDraft {
+function createDraftFromProject(project: EditorShellDialogsViewState["project"]): ProjectPropertiesDraft {
   return {
     compatibilityVersion: project.compatibilityVersion,
     extensionsDirectory: project.extensionsDirectory,
@@ -79,7 +81,7 @@ function inputClassName() {
 }
 
 export function ProjectPropertiesDialog(props: {
-  project: EditorProject;
+  project: EditorShellDialogsViewState["project"];
   store: EditorController;
   onClose: () => void;
 }) {

@@ -1,17 +1,14 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type {
-  EditorMap,
-  LayerDefinition,
-  MapObject,
-  ObjectLayer,
-  PropertyTypeDefinition
-} from "@pixel-editor/domain";
+import type { EditorController } from "@pixel-editor/app-services/ui";
+import {
+  type PropertiesInspectorViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
 import {
+  getBlendModeLabel,
   getLayerKindLabel,
   getObjectDrawOrderLabel,
   getObjectShapeLabel,
@@ -19,7 +16,6 @@ import {
   getRenderOrderLabel
 } from "./i18n-helpers";
 import { CustomPropertiesEditor } from "./custom-properties-editor";
-import { buildObjectReferenceOptions } from "./object-reference-options";
 import { Panel } from "./panel";
 import {
   PropertyBrowserCheckboxRow,
@@ -30,14 +26,22 @@ import {
   PropertyBrowserTextRow
 } from "./property-browser";
 
+type InspectorMapViewState = NonNullable<PropertiesInspectorViewState["map"]>;
+type InspectorLayerViewState = NonNullable<PropertiesInspectorViewState["layer"]>;
+type InspectorObjectViewState = NonNullable<PropertiesInspectorViewState["object"]>;
+type BlendMode = Exclude<InspectorLayerViewState["blendMode"], undefined>;
+type ObjectLayerDrawOrder = Exclude<InspectorLayerViewState["drawOrder"], undefined>;
+
 interface MapDraft {
   name: string;
-  orientation: EditorMap["settings"]["orientation"];
-  renderOrder: EditorMap["settings"]["renderOrder"];
+  orientation: InspectorMapViewState["orientation"];
+  renderOrder: InspectorMapViewState["renderOrder"];
   width: string;
   height: string;
   tileWidth: string;
   tileHeight: string;
+  parallaxOriginX: string;
+  parallaxOriginY: string;
   infinite: boolean;
   backgroundColor: string;
 }
@@ -50,7 +54,14 @@ interface LayerDraft {
   opacity: string;
   offsetX: string;
   offsetY: string;
-  drawOrder: ObjectLayer["drawOrder"];
+  parallaxX: string;
+  parallaxY: string;
+  tintColor: string;
+  blendMode: BlendMode;
+  drawOrder: ObjectLayerDrawOrder;
+  imagePath: string;
+  repeatX: boolean;
+  repeatY: boolean;
 }
 
 interface ObjectDraft {
@@ -64,7 +75,7 @@ interface ObjectDraft {
   visible: boolean;
 }
 
-const orientationOptions: Array<EditorMap["settings"]["orientation"]> = [
+const orientationOptions: Array<InspectorMapViewState["orientation"]> = [
   "orthogonal",
   "isometric",
   "staggered",
@@ -72,33 +83,51 @@ const orientationOptions: Array<EditorMap["settings"]["orientation"]> = [
   "oblique"
 ];
 
-const renderOrderOptions: Array<EditorMap["settings"]["renderOrder"]> = [
+const renderOrderOptions: Array<InspectorMapViewState["renderOrder"]> = [
   "right-down",
   "right-up",
   "left-down",
   "left-up"
 ];
 
-const objectDrawOrderOptions: Array<ObjectLayer["drawOrder"]> = [
+const objectDrawOrderOptions: ObjectLayerDrawOrder[] = [
   "topdown",
   "index"
 ];
 
-function createMapDraft(map?: EditorMap): MapDraft {
+const blendModeOptions: BlendMode[] = [
+  "normal",
+  "add",
+  "multiply",
+  "screen",
+  "overlay",
+  "darken",
+  "lighten",
+  "color-dodge",
+  "color-burn",
+  "hard-light",
+  "soft-light",
+  "difference",
+  "exclusion"
+];
+
+function createMapDraft(map?: InspectorMapViewState): MapDraft {
   return {
     name: map?.name ?? "",
-    orientation: map?.settings.orientation ?? "orthogonal",
-    renderOrder: map?.settings.renderOrder ?? "right-down",
-    width: String(map?.settings.width || 64),
-    height: String(map?.settings.height || 64),
-    tileWidth: String(map?.settings.tileWidth ?? 32),
-    tileHeight: String(map?.settings.tileHeight ?? 32),
-    infinite: map?.settings.infinite ?? false,
-    backgroundColor: map?.settings.backgroundColor ?? ""
+    orientation: map?.orientation ?? "orthogonal",
+    renderOrder: map?.renderOrder ?? "right-down",
+    width: String(map?.width || 64),
+    height: String(map?.height || 64),
+    tileWidth: String(map?.tileWidth ?? 32),
+    tileHeight: String(map?.tileHeight ?? 32),
+    parallaxOriginX: String(map?.parallaxOriginX ?? 0),
+    parallaxOriginY: String(map?.parallaxOriginY ?? 0),
+    infinite: map?.infinite ?? false,
+    backgroundColor: map?.backgroundColor ?? ""
   };
 }
 
-function createLayerDraft(layer?: LayerDefinition): LayerDraft {
+function createLayerDraft(layer?: InspectorLayerViewState): LayerDraft {
   return {
     name: layer?.name ?? "",
     className: layer?.className ?? "",
@@ -107,11 +136,18 @@ function createLayerDraft(layer?: LayerDefinition): LayerDraft {
     opacity: String(layer?.opacity ?? 1),
     offsetX: String(layer?.offsetX ?? 0),
     offsetY: String(layer?.offsetY ?? 0),
-    drawOrder: layer?.kind === "object" ? layer.drawOrder : "topdown"
+    parallaxX: String(layer?.parallaxX ?? 1),
+    parallaxY: String(layer?.parallaxY ?? 1),
+    tintColor: layer?.tintColor ?? "",
+    blendMode: layer?.blendMode ?? "normal",
+    drawOrder: layer?.kind === "object" ? (layer.drawOrder ?? "topdown") : "topdown",
+    imagePath: layer?.kind === "image" ? (layer.imagePath ?? "") : "",
+    repeatX: layer?.kind === "image" ? (layer.repeatX ?? false) : false,
+    repeatY: layer?.kind === "image" ? (layer.repeatY ?? false) : false
   };
 }
 
-function createObjectDraft(object?: MapObject): ObjectDraft {
+function createObjectDraft(object?: InspectorObjectViewState): ObjectDraft {
   return {
     name: object?.name ?? "",
     className: object?.className ?? "",
@@ -125,26 +161,24 @@ function createObjectDraft(object?: MapObject): ObjectDraft {
 }
 
 export interface PropertiesInspectorProps {
-  activeMap: EditorMap | undefined;
-  activeLayer: LayerDefinition | undefined;
-  activeObject: MapObject | undefined;
-  propertyTypes: readonly PropertyTypeDefinition[] | undefined;
+  viewState: PropertiesInspectorViewState;
   store: EditorController;
   embedded?: boolean;
 }
 
 function PropertiesInspectorContent({
-  activeMap,
-  activeLayer,
-  activeObject,
-  propertyTypes,
+  viewState,
   store
 }: Omit<PropertiesInspectorProps, "embedded">) {
   const { t } = useI18n();
+  const activeMap = viewState.map;
+  const activeLayer = viewState.layer;
+  const activeObject = viewState.object;
   const [mapDraft, setMapDraft] = useState(() => createMapDraft(activeMap));
   const [layerDraft, setLayerDraft] = useState(() => createLayerDraft(activeLayer));
   const [objectDraft, setObjectDraft] = useState(() => createObjectDraft(activeObject));
-  const objectReferenceOptions = buildObjectReferenceOptions(activeMap);
+  const objectReferenceOptions = viewState.objectReferenceOptions;
+  const propertyTypes = viewState.propertyTypes;
 
   useEffect(() => {
     setMapDraft(createMapDraft(activeMap));
@@ -171,10 +205,14 @@ function PropertiesInspectorContent({
     const height = Number.parseInt(nextDraft.height, 10);
     const tileWidth = Number.parseInt(nextDraft.tileWidth, 10);
     const tileHeight = Number.parseInt(nextDraft.tileHeight, 10);
+    const parallaxOriginX = Number.parseFloat(nextDraft.parallaxOriginX);
+    const parallaxOriginY = Number.parseFloat(nextDraft.parallaxOriginY);
 
     if (
       Number.isNaN(tileWidth) ||
       Number.isNaN(tileHeight) ||
+      Number.isNaN(parallaxOriginX) ||
+      Number.isNaN(parallaxOriginY) ||
       (!nextDraft.infinite && (Number.isNaN(width) || Number.isNaN(height)))
     ) {
       setMapDraft(createMapDraft(activeMap));
@@ -188,6 +226,8 @@ function PropertiesInspectorContent({
         renderOrder: nextDraft.renderOrder,
         tileWidth,
         tileHeight,
+        parallaxOriginX,
+        parallaxOriginY,
         infinite: nextDraft.infinite,
         ...(nextDraft.infinite ? {} : { width, height }),
         ...(nextDraft.backgroundColor.trim()
@@ -205,8 +245,16 @@ function PropertiesInspectorContent({
     const opacity = Number.parseFloat(nextDraft.opacity);
     const offsetX = Number.parseFloat(nextDraft.offsetX);
     const offsetY = Number.parseFloat(nextDraft.offsetY);
+    const parallaxX = Number.parseFloat(nextDraft.parallaxX);
+    const parallaxY = Number.parseFloat(nextDraft.parallaxY);
 
-    if (Number.isNaN(opacity) || Number.isNaN(offsetX) || Number.isNaN(offsetY)) {
+    if (
+      Number.isNaN(opacity) ||
+      Number.isNaN(offsetX) ||
+      Number.isNaN(offsetY) ||
+      Number.isNaN(parallaxX) ||
+      Number.isNaN(parallaxY)
+    ) {
       setLayerDraft(createLayerDraft(activeLayer));
       return;
     }
@@ -220,7 +268,18 @@ function PropertiesInspectorContent({
         opacity: Math.max(0, Math.min(opacity, 1)),
         offsetX,
         offsetY,
-        ...(activeLayer.kind === "object" ? { drawOrder: nextDraft.drawOrder } : {})
+        parallaxX,
+        parallaxY,
+        tintColor: nextDraft.tintColor,
+        blendMode: nextDraft.blendMode,
+        ...(activeLayer.kind === "object" ? { drawOrder: nextDraft.drawOrder } : {}),
+        ...(activeLayer.kind === "image"
+          ? {
+              imagePath: nextDraft.imagePath.trim(),
+              repeatX: nextDraft.repeatX,
+              repeatY: nextDraft.repeatY
+            }
+          : {})
       });
     });
   }
@@ -283,12 +342,12 @@ function PropertiesInspectorContent({
             }))}
             value={mapDraft.orientation}
             onChange={(value) => {
-              const nextDraft = {
-                ...mapDraft,
-                orientation: value as EditorMap["settings"]["orientation"]
-              };
-              setMapDraft(nextDraft);
-              applyMapDraft(nextDraft);
+                const nextDraft = {
+                  ...mapDraft,
+                  orientation: value as InspectorMapViewState["orientation"]
+                };
+                setMapDraft(nextDraft);
+                applyMapDraft(nextDraft);
             }}
           />
           <PropertyBrowserSelectRow
@@ -299,12 +358,12 @@ function PropertiesInspectorContent({
             }))}
             value={mapDraft.renderOrder}
             onChange={(value) => {
-              const nextDraft = {
-                ...mapDraft,
-                renderOrder: value as EditorMap["settings"]["renderOrder"]
-              };
-              setMapDraft(nextDraft);
-              applyMapDraft(nextDraft);
+                const nextDraft = {
+                  ...mapDraft,
+                  renderOrder: value as InspectorMapViewState["renderOrder"]
+                };
+                setMapDraft(nextDraft);
+                applyMapDraft(nextDraft);
             }}
           />
           <PropertyBrowserTextRow
@@ -351,6 +410,28 @@ function PropertiesInspectorContent({
             }}
             onChange={(value) => {
               setMapDraft((current) => ({ ...current, tileHeight: value }));
+            }}
+          />
+          <PropertyBrowserTextRow
+            label={t("propertiesInspector.parallaxOriginX")}
+            type="number"
+            value={mapDraft.parallaxOriginX}
+            onCommit={() => {
+              applyMapDraft();
+            }}
+            onChange={(value) => {
+              setMapDraft((current) => ({ ...current, parallaxOriginX: value }));
+            }}
+          />
+          <PropertyBrowserTextRow
+            label={t("propertiesInspector.parallaxOriginY")}
+            type="number"
+            value={mapDraft.parallaxOriginY}
+            onCommit={() => {
+              applyMapDraft();
+            }}
+            onChange={(value) => {
+              setMapDraft((current) => ({ ...current, parallaxOriginY: value }));
             }}
           />
           <PropertyBrowserTextRow
@@ -466,6 +547,86 @@ function PropertiesInspectorContent({
                 setLayerDraft((current) => ({ ...current, offsetY: value }));
               }}
             />
+            <PropertyBrowserTextRow
+              label={t("propertiesInspector.parallaxX")}
+              type="number"
+              value={layerDraft.parallaxX}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
+              onChange={(value) => {
+                setLayerDraft((current) => ({ ...current, parallaxX: value }));
+              }}
+            />
+            <PropertyBrowserTextRow
+              label={t("propertiesInspector.parallaxY")}
+              type="number"
+              value={layerDraft.parallaxY}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
+              onChange={(value) => {
+                setLayerDraft((current) => ({ ...current, parallaxY: value }));
+              }}
+            />
+            <PropertyBrowserTextRow
+              label={t("propertiesInspector.tintColor")}
+              value={layerDraft.tintColor}
+              onCommit={() => {
+                applyLayerDraft();
+              }}
+              onChange={(value) => {
+                setLayerDraft((current) => ({ ...current, tintColor: value }));
+              }}
+            />
+            <PropertyBrowserSelectRow
+              label={t("propertiesInspector.blendMode")}
+              options={blendModeOptions.map((blendMode) => ({
+                value: blendMode,
+                label: getBlendModeLabel(blendMode, t)
+              }))}
+              value={layerDraft.blendMode}
+              onChange={(value) => {
+                const nextDraft = {
+                  ...layerDraft,
+                  blendMode: value as BlendMode
+                };
+                setLayerDraft(nextDraft);
+                applyLayerDraft(nextDraft);
+              }}
+            />
+            {activeLayer.kind === "image" ? (
+              <>
+                <PropertyBrowserTextRow
+                  label={t("common.imagePath")}
+                  value={layerDraft.imagePath}
+                  onCommit={() => {
+                    applyLayerDraft();
+                  }}
+                  onChange={(value) => {
+                    setLayerDraft((current) => ({ ...current, imagePath: value }));
+                  }}
+                />
+                <PropertyBrowserCheckboxRow
+                  checked={layerDraft.repeatX}
+                  label={t("propertiesInspector.repeatX")}
+                  onChange={(checked) => {
+                    const nextDraft = { ...layerDraft, repeatX: checked };
+                    setLayerDraft(nextDraft);
+                    applyLayerDraft(nextDraft);
+                  }}
+                />
+                <PropertyBrowserCheckboxRow
+                  checked={layerDraft.repeatY}
+                  label={t("propertiesInspector.repeatY")}
+                  onChange={(checked) => {
+                    const nextDraft = { ...layerDraft, repeatY: checked };
+                    setLayerDraft(nextDraft);
+                    applyLayerDraft(nextDraft);
+                  }}
+                />
+              </>
+            ) : null}
             {activeLayer.kind === "object" ? (
               <PropertyBrowserSelectRow
                 label={t("propertiesInspector.drawOrder")}
@@ -477,7 +638,7 @@ function PropertiesInspectorContent({
                 onChange={(value) => {
                   const nextDraft = {
                     ...layerDraft,
-                    drawOrder: value as ObjectLayer["drawOrder"]
+                    drawOrder: value as ObjectLayerDrawOrder
                   };
                   setLayerDraft(nextDraft);
                   applyLayerDraft(nextDraft);

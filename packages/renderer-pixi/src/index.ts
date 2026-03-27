@@ -1,9 +1,11 @@
 import {
+  type BlendMode,
   type EditorMap,
   type LayerId,
   type ObjectId,
   type TilesetDefinition
 } from "@pixel-editor/domain";
+import "pixi.js/advanced-blend-modes";
 import {
   Application,
   Assets,
@@ -30,7 +32,12 @@ import {
   type ProjectedMapObject,
   pickProjectedObject
 } from "./object-layer";
+import { collectImageLayerTilePositions } from "./image-layer-tiling";
 import { collectRenderableLayers } from "./layer-composition";
+import {
+  DEFAULT_LAYER_BLEND_MODE,
+  DEFAULT_LAYER_TINT
+} from "./layer-style";
 import {
   createProjectedObjectSceneNodes,
   destroyProjectedObjectSceneNodes,
@@ -58,6 +65,8 @@ import { createTileTransformMatrix } from "./tile-transform";
 import { collectVisibleTileSegments } from "./tile-visibility";
 import type { ResolvedTileTexture } from "./tile-texture";
 import {
+  computeParallaxAdjustedViewportOriginX,
+  computeParallaxAdjustedViewportOriginY,
   worldLengthToScreenHeight,
   worldLengthToScreenWidth
 } from "./projection-utils";
@@ -186,6 +195,8 @@ interface ResolvedRenderableTileLayer {
   layerId: LayerId;
   opacity: number;
   highlighted: boolean;
+  tintColor: number | undefined;
+  blendMode: BlendMode;
   screenX: number;
   screenY: number;
   segments: ResolvedRenderableTileSegment[];
@@ -200,6 +211,8 @@ interface ResolvedRenderableTileSegment {
 
 interface ResolvedRenderableObjectLayer {
   layerId: LayerId;
+  tintColor: number | undefined;
+  blendMode: BlendMode;
   objects: ProjectedMapObject[];
 }
 
@@ -208,10 +221,18 @@ interface ResolvedRenderableImageLayer {
   imagePath: string;
   opacity: number;
   highlighted: boolean;
+  tintColor: number | undefined;
+  blendMode: BlendMode;
+  repeatX: boolean;
+  repeatY: boolean;
   screenX: number;
   screenY: number;
   screenWidth: number | undefined;
   screenHeight: number | undefined;
+  canvasX: number;
+  canvasY: number;
+  canvasWidth: number;
+  canvasHeight: number;
 }
 
 type ResolvedRenderableLayerEntry =
@@ -262,8 +283,8 @@ interface ObjectLayerSceneNodes {
 
 interface ImageLayerSceneNodes {
   root: Container;
+  sprites: Container;
   graphics: Graphics;
-  sprite: Sprite | undefined;
   signature: string | undefined;
 }
 
@@ -560,9 +581,33 @@ function resolveRenderableLayers(input: {
   const projectedObjects: ProjectedMapObject[] = [];
   const objectTileTextures = new Map<ObjectId, ResolvedTileTexture | undefined>();
   const selectedObjectIds = new Set(input.selectedObjectIds ?? []);
+  const visibleColumns = input.geometry.endTileX - input.geometry.startTileX;
+  const visibleRows = input.geometry.endTileY - input.geometry.startTileY;
 
   for (const entry of collectRenderableLayers(input.map.layers, input.highlightedLayerId)) {
+    const screenOffsetX = worldLengthToScreenWidth(entry.offsetX, input.map, input.geometry);
+    const screenOffsetY = worldLengthToScreenHeight(entry.offsetY, input.map, input.geometry);
+    const viewportOriginX = computeParallaxAdjustedViewportOriginX({
+      viewportOriginX: input.viewport.originX,
+      parallaxFactorX: entry.parallaxX,
+      map: input.map,
+      geometry: input.geometry
+    });
+    const viewportOriginY = computeParallaxAdjustedViewportOriginY({
+      viewportOriginY: input.viewport.originY,
+      parallaxFactorY: entry.parallaxY,
+      map: input.map,
+      geometry: input.geometry
+    });
+    const layerGridOriginX =
+      input.geometry.canvasX - positiveModulo(viewportOriginX, input.geometry.tileWidth);
+    const layerGridOriginY =
+      input.geometry.canvasY - positiveModulo(viewportOriginY, input.geometry.tileHeight);
+
     if (entry.kind === "tile") {
+      const startTileX = Math.floor(viewportOriginX / input.geometry.tileWidth);
+      const startTileY = Math.floor(viewportOriginY / input.geometry.tileHeight);
+
       layers.push({
         kind: "tile",
         layerId: entry.layer.id,
@@ -570,19 +615,15 @@ function resolveRenderableLayers(input: {
           layerId: entry.layer.id,
           opacity: entry.opacity,
           highlighted: entry.highlighted,
-          screenX:
-            input.geometry.gridOriginX -
-            input.viewport.originX +
-            worldLengthToScreenWidth(entry.offsetX, input.map, input.geometry),
-          screenY:
-            input.geometry.gridOriginY -
-            input.viewport.originY +
-            worldLengthToScreenHeight(entry.offsetY, input.map, input.geometry),
+          tintColor: entry.tintColor,
+          blendMode: entry.blendMode,
+          screenX: layerGridOriginX - viewportOriginX + screenOffsetX,
+          screenY: layerGridOriginY - viewportOriginY + screenOffsetY,
           segments: collectVisibleTileSegments(entry.layer, {
-            startTileX: input.geometry.startTileX,
-            startTileY: input.geometry.startTileY,
-            endTileX: input.geometry.endTileX,
-            endTileY: input.geometry.endTileY
+            startTileX,
+            startTileY,
+            endTileX: startTileX + visibleColumns,
+            endTileY: startTileY + visibleRows
           }).map((segment) => ({
             key: segment.key,
             originTileX: segment.originTileX,
@@ -604,7 +645,10 @@ function resolveRenderableLayers(input: {
         map: input.map,
         layer: entry.layer,
         geometry: input.geometry,
-        viewport: input.viewport,
+        viewport: {
+          originX: viewportOriginX,
+          originY: viewportOriginY
+        },
         opacity: entry.opacity,
         highlighted: entry.highlighted,
         offsetX: entry.offsetX,
@@ -632,6 +676,8 @@ function resolveRenderableLayers(input: {
         layerId: entry.layer.id,
         objectLayer: {
           layerId: entry.layer.id,
+          tintColor: entry.tintColor,
+          blendMode: entry.blendMode,
           objects
         }
       });
@@ -653,14 +699,12 @@ function resolveRenderableLayers(input: {
         imagePath: entry.layer.imagePath,
         opacity: entry.opacity,
         highlighted: entry.highlighted,
-        screenX:
-          input.geometry.gridOriginX -
-          input.viewport.originX +
-          worldLengthToScreenWidth(entry.offsetX, input.map, input.geometry),
-        screenY:
-          input.geometry.gridOriginY -
-          input.viewport.originY +
-          worldLengthToScreenHeight(entry.offsetY, input.map, input.geometry),
+        tintColor: entry.tintColor,
+        blendMode: entry.blendMode,
+        repeatX: entry.layer.repeatX,
+        repeatY: entry.layer.repeatY,
+        screenX: layerGridOriginX - viewportOriginX + screenOffsetX,
+        screenY: layerGridOriginY - viewportOriginY + screenOffsetY,
         screenWidth:
           worldWidth !== undefined
             ? worldLengthToScreenWidth(worldWidth, input.map, input.geometry)
@@ -668,7 +712,11 @@ function resolveRenderableLayers(input: {
         screenHeight:
           worldHeight !== undefined
             ? worldLengthToScreenHeight(worldHeight, input.map, input.geometry)
-            : undefined
+            : undefined,
+        canvasX: input.geometry.canvasX,
+        canvasY: input.geometry.canvasY,
+        canvasWidth: input.geometry.canvasWidth,
+        canvasHeight: input.geometry.canvasHeight
       }
     });
   }
@@ -682,13 +730,15 @@ function resolveRenderableLayers(input: {
 
 function drawImageLayerPlaceholder(
   graphics: Graphics,
+  x: number,
+  y: number,
   width: number,
   height: number,
   opacity: number
 ): void {
   const radius = Math.min(width, height) * 0.1;
 
-  graphics.roundRect(0, 0, width, height, radius);
+  graphics.roundRect(x, y, width, height, radius);
   graphics.fill({
     color: 0x0f172a,
     alpha: Math.max(0.08, Math.min(0.18, opacity * 0.16))
@@ -702,12 +752,14 @@ function drawImageLayerPlaceholder(
 
 function drawImageLayerHighlight(
   graphics: Graphics,
+  x: number,
+  y: number,
   width: number,
   height: number
 ): void {
   const radius = Math.min(width, height) * 0.1;
 
-  graphics.roundRect(0, 0, width, height, radius);
+  graphics.roundRect(x, y, width, height, radius);
   graphics.stroke({
     color: 0xf8fafc,
     width: 1.4,
@@ -724,6 +776,8 @@ function drawStaticTileLayer(
   const graphics = new Graphics();
 
   layerScene.position.set(layer.screenX, layer.screenY);
+  layerScene.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
 
   for (const segment of layer.segments) {
     for (const { x: tileX, y: tileY, cell } of segment.cells) {
@@ -754,21 +808,46 @@ function drawStaticImageLayer(
     return;
   }
 
+  const layerScene = new Container();
   const graphics = new Graphics();
 
-  graphics.position.set(layer.screenX, layer.screenY);
-  drawImageLayerPlaceholder(
-    graphics,
-    layer.screenWidth,
-    layer.screenHeight,
-    layer.opacity
-  );
+  layerScene.position.set(layer.screenX, layer.screenY);
+  layerScene.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
+  for (const tile of collectImageLayerTilePositions({
+    screenX: layer.screenX,
+    screenY: layer.screenY,
+    screenWidth: layer.screenWidth,
+    screenHeight: layer.screenHeight,
+    repeatX: layer.repeatX,
+    repeatY: layer.repeatY,
+    canvasX: layer.canvasX,
+    canvasY: layer.canvasY,
+    canvasWidth: layer.canvasWidth,
+    canvasHeight: layer.canvasHeight
+  })) {
+    drawImageLayerPlaceholder(
+      graphics,
+      tile.x,
+      tile.y,
+      layer.screenWidth,
+      layer.screenHeight,
+      layer.opacity
+    );
 
-  if (layer.highlighted) {
-    drawImageLayerHighlight(graphics, layer.screenWidth, layer.screenHeight);
+    if (layer.highlighted) {
+      drawImageLayerHighlight(
+        graphics,
+        tile.x,
+        tile.y,
+        layer.screenWidth,
+        layer.screenHeight
+      );
+    }
   }
 
-  scene.addChild(graphics);
+  layerScene.addChild(graphics);
+  scene.addChild(layerScene);
 }
 
 function drawStaticLayerContent(
@@ -784,6 +863,10 @@ function drawStaticLayerContent(
 
     if (entry.kind === "object") {
       const objectLayerScene = new Container();
+
+      objectLayerScene.tint = entry.objectLayer.tintColor ?? DEFAULT_LAYER_TINT;
+      objectLayerScene.blendMode =
+        entry.objectLayer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
       drawProjectedObjects(objectLayerScene, entry.objectLayer.objects, geometry);
       scene.addChild(objectLayerScene);
       continue;
@@ -956,14 +1039,16 @@ function destroyObjectLayerSceneNodes(layer: ObjectLayerSceneNodes): void {
 
 function createImageLayerSceneNodes(): ImageLayerSceneNodes {
   const root = new Container();
+  const sprites = new Container();
   const graphics = new Graphics();
 
+  root.addChild(sprites);
   root.addChild(graphics);
 
   return {
     root,
+    sprites,
     graphics,
-    sprite: undefined,
     signature: undefined
   };
 }
@@ -1081,6 +1166,8 @@ function updateTileLayerScene(
   }
 ): void {
   layerScene.root.position.set(layer.screenX, layer.screenY);
+  layerScene.root.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.root.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
 
   const nextSegmentKeys = new Set(layer.segments.map((segment) => segment.key));
 
@@ -1243,6 +1330,9 @@ function updateObjectLayerScene(
     assetVersion: number;
   }
 ): void {
+  layerScene.root.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.root.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
+
   const nextObjectIds = new Set(layer.objects.map((object) => object.objectId));
 
   for (const [objectId, objectScene] of layerScene.objects) {
@@ -1290,29 +1380,8 @@ function updateObjectLayerScene(
   syncContainerChildren(layerScene.root, orderedObjectRoots);
 }
 
-function clearImageLayerSprite(scene: ImageLayerSceneNodes): void {
-  if (!scene.sprite) {
-    return;
-  }
-
-  scene.root.removeChild(scene.sprite);
-  scene.sprite.destroy();
-  scene.sprite = undefined;
-}
-
-function getOrCreateImageLayerSprite(scene: ImageLayerSceneNodes): Sprite {
-  if (scene.sprite) {
-    return scene.sprite;
-  }
-
-  const sprite = new Sprite({
-    texture: Texture.EMPTY,
-    roundPixels: true
-  });
-
-  scene.sprite = sprite;
-  scene.root.addChildAt(sprite, 0);
-  return sprite;
+function clearImageLayerSprites(scene: ImageLayerSceneNodes): void {
+  clearContainerChildren(scene.sprites);
 }
 
 function updateImageLayerScene(
@@ -1324,6 +1393,8 @@ function updateImageLayerScene(
   }
 ): void {
   layerScene.root.position.set(layer.screenX, layer.screenY);
+  layerScene.root.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.root.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
 
   const signature = createImageLayerRenderSignature({
     imagePath: layer.imagePath,
@@ -1331,47 +1402,73 @@ function updateImageLayerScene(
     highlighted: layer.highlighted,
     width: layer.screenWidth,
     height: layer.screenHeight,
+    repeatX: layer.repeatX,
+    repeatY: layer.repeatY,
     assetVersion: layer.imagePath ? options.assetVersion : 0
   });
 
-  if (layerScene.signature === signature) {
+  if (!layer.repeatX && !layer.repeatY && layerScene.signature === signature) {
     return;
   }
 
   layerScene.signature = signature;
   layerScene.graphics.clear();
+  clearImageLayerSprites(layerScene);
 
   if (!layer.imagePath || layer.screenWidth === undefined || layer.screenHeight === undefined) {
-    clearImageLayerSprite(layerScene);
     return;
   }
 
   const texture = options.getSourceTexture(layer.imagePath);
+  const tilePositions = collectImageLayerTilePositions({
+    screenX: layer.screenX,
+    screenY: layer.screenY,
+    screenWidth: layer.screenWidth,
+    screenHeight: layer.screenHeight,
+    repeatX: layer.repeatX,
+    repeatY: layer.repeatY,
+    canvasX: layer.canvasX,
+    canvasY: layer.canvasY,
+    canvasWidth: layer.canvasWidth,
+    canvasHeight: layer.canvasHeight
+  });
 
   if (texture) {
-    const sprite = getOrCreateImageLayerSprite(layerScene);
+    for (const tile of tilePositions) {
+      const sprite = new Sprite({
+        texture,
+        roundPixels: true
+      });
 
-    sprite.texture = texture;
-    sprite.position.set(0, 0);
-    sprite.width = layer.screenWidth;
-    sprite.height = layer.screenHeight;
-    sprite.alpha = layer.opacity;
+      sprite.position.set(tile.x, tile.y);
+      sprite.width = layer.screenWidth;
+      sprite.height = layer.screenHeight;
+      sprite.alpha = layer.opacity;
+      layerScene.sprites.addChild(sprite);
+    }
   } else {
-    clearImageLayerSprite(layerScene);
-    drawImageLayerPlaceholder(
-      layerScene.graphics,
-      layer.screenWidth,
-      layer.screenHeight,
-      layer.opacity
-    );
+    for (const tile of tilePositions) {
+      drawImageLayerPlaceholder(
+        layerScene.graphics,
+        tile.x,
+        tile.y,
+        layer.screenWidth,
+        layer.screenHeight,
+        layer.opacity
+      );
+    }
   }
 
   if (layer.highlighted) {
-    drawImageLayerHighlight(
-      layerScene.graphics,
-      layer.screenWidth,
-      layer.screenHeight
-    );
+    for (const tile of tilePositions) {
+      drawImageLayerHighlight(
+        layerScene.graphics,
+        tile.x,
+        tile.y,
+        layer.screenWidth,
+        layer.screenHeight
+      );
+    }
   }
 }
 

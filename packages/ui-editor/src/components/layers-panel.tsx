@@ -1,7 +1,10 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type { EditorMap, LayerDefinition, LayerId } from "@pixel-editor/domain";
+import type { EditorController } from "@pixel-editor/app-services/ui";
+import type {
+  LayersPanelLayerItemViewState,
+  LayersPanelViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import type { ReactNode } from "react";
 import { startTransition, useState } from "react";
@@ -9,7 +12,7 @@ import { startTransition, useState } from "react";
 import { getLayerKindLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
-function LayerKindIcon(props: { kind: LayerDefinition["kind"] }) {
+function LayerKindIcon(props: { kind: LayersPanelLayerItemViewState["kind"] }) {
   if (props.kind === "object") {
     return (
       <svg
@@ -261,8 +264,7 @@ function NewLayerButton(props: {
 }
 
 function LayerRow(props: {
-  layer: LayerDefinition;
-  selected: boolean;
+  layer: LayersPanelLayerItemViewState;
   highlightCurrentLayer: boolean;
   visibleLabel: string;
   hiddenLabel: string;
@@ -275,7 +277,7 @@ function LayerRow(props: {
   return (
     <div
       className={`grid w-full grid-cols-[minmax(0,1fr)_24px_24px] items-center gap-1 border-b border-slate-800 px-2 py-1 text-left text-sm transition ${
-        props.selected
+        props.layer.isSelected
           ? "bg-slate-800 text-slate-100"
           : "bg-slate-900 text-slate-300 hover:bg-slate-800/70"
       }`}
@@ -287,8 +289,8 @@ function LayerRow(props: {
       >
         <LayerKindIcon kind={props.layer.kind} />
         <span
-          className={`truncate ${props.selected ? "font-semibold" : "font-normal"} ${
-            props.selected && props.highlightCurrentLayer ? "text-emerald-200" : ""
+          className={`truncate ${props.layer.isSelected ? "font-semibold" : "font-normal"} ${
+            props.layer.isSelected && props.highlightCurrentLayer ? "text-emerald-200" : ""
           }`}
         >
           {props.layer.name}
@@ -313,28 +315,13 @@ function LayerRow(props: {
 }
 
 export interface LayersPanelProps {
-  activeMap: EditorMap | undefined;
-  activeLayerId: LayerId | undefined;
-  highlightCurrentLayer: boolean;
+  viewState: LayersPanelViewState;
   store: EditorController;
   embedded?: boolean;
 }
 
-function LayersPanelContent({
-  activeMap,
-  activeLayerId,
-  highlightCurrentLayer,
-  store
-}: Omit<LayersPanelProps, "embedded">) {
+function LayersPanelContent({ viewState, store }: Omit<LayersPanelProps, "embedded">) {
   const { t } = useI18n();
-  const activeLayerIndex =
-    activeMap?.layers.findIndex((layer) => layer.id === activeLayerId) ?? -1;
-  const displayedLayers = activeMap ? [...activeMap.layers].reverse() : [];
-  const hasActiveLayer = activeLayerIndex >= 0;
-  const hasSiblingLayers = Boolean(activeMap && activeMap.layers.length > 1 && hasActiveLayer);
-  const otherLayers = activeMap?.layers.filter((layer) => layer.id !== activeLayerId) ?? [];
-  const otherLayersHidden = otherLayers.length > 0 && otherLayers.every((layer) => !layer.visible);
-  const otherLayersLocked = otherLayers.length > 0 && otherLayers.every((layer) => layer.locked);
 
   function addTileLayer(): void {
     startTransition(() => {
@@ -363,14 +350,13 @@ function LayersPanelContent({
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-900">
-        {displayedLayers.map((layer) => (
+        {viewState.layers.map((layer) => (
           <LayerRow
             key={layer.id}
             hiddenLabel={t("layers.hidden")}
-            highlightCurrentLayer={highlightCurrentLayer}
+            highlightCurrentLayer={viewState.highlightCurrentLayer}
             layer={layer}
             lockedLabel={t("layers.locked")}
-            selected={layer.id === activeLayerId}
             unlockedLabel={t("layers.unlocked")}
             visibleLabel={t("layers.visible")}
             onSelect={() => {
@@ -391,7 +377,7 @@ function LayersPanelContent({
           />
         ))}
 
-        {!activeMap ? (
+        {!viewState.hasMap ? (
           <div className="px-3 py-3 text-sm text-slate-400">{t("layers.noActiveMap")}</div>
         ) : null}
       </div>
@@ -411,7 +397,7 @@ function LayersPanelContent({
           onAddTileLayer={addTileLayer}
         />
         <ToolbarIconButton
-          disabled={!activeMap || activeLayerIndex <= 0}
+          disabled={!viewState.canMoveActiveLayerUp}
           title={t("action.raiseLayers")}
           onClick={() => {
             startTransition(() => {
@@ -424,11 +410,7 @@ function LayersPanelContent({
           </svg>
         </ToolbarIconButton>
         <ToolbarIconButton
-          disabled={
-            !activeMap ||
-            activeLayerIndex < 0 ||
-            activeLayerIndex >= activeMap.layers.length - 1
-          }
+          disabled={!viewState.canMoveActiveLayerDown}
           title={t("action.lowerLayers")}
           onClick={() => {
             startTransition(() => {
@@ -447,7 +429,7 @@ function LayersPanelContent({
           </svg>
         </ToolbarIconButton>
         <ToolbarIconButton
-          disabled={!activeLayerId}
+          disabled={!viewState.hasActiveLayer}
           title={t("action.removeLayers")}
           onClick={() => {
             startTransition(() => {
@@ -461,8 +443,8 @@ function LayersPanelContent({
         </ToolbarIconButton>
         <div className="mx-1 h-4 w-px bg-slate-600" />
         <ToolbarIconButton
-          disabled={!hasSiblingLayers}
-          active={otherLayersHidden}
+          disabled={!viewState.hasSiblingLayers}
+          active={viewState.otherLayersHidden}
           title={t("action.showHideOtherLayers")}
           onClick={() => {
             startTransition(() => {
@@ -473,8 +455,8 @@ function LayersPanelContent({
           <VisibilityIcon visible />
         </ToolbarIconButton>
         <ToolbarIconButton
-          disabled={!hasSiblingLayers}
-          active={otherLayersLocked}
+          disabled={!viewState.hasSiblingLayers}
+          active={viewState.otherLayersLocked}
           title={t("action.lockUnlockOtherLayers")}
           onClick={() => {
             startTransition(() => {
@@ -486,8 +468,8 @@ function LayersPanelContent({
         </ToolbarIconButton>
         <div className="min-w-0 flex-1" />
         <ToolbarIconButton
-          active={highlightCurrentLayer}
-          disabled={!activeLayerId}
+          active={viewState.highlightCurrentLayer}
+          disabled={!viewState.hasActiveLayer}
           title={t("action.highlightCurrentLayer")}
           onClick={() => {
             startTransition(() => {

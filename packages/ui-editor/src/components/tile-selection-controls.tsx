@@ -1,49 +1,30 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
+import type {
+  EditorController,
+  TileSelectionControlsViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import {
-  getTileStampFootprint,
-  getTileSelectionBounds,
-  isTileSelectionState,
-  type ClipboardState,
-  type SelectionState
-} from "@pixel-editor/editor-state";
 import { startTransition } from "react";
 
 export interface TileSelectionControlsProps {
-  clipboard: ClipboardState;
-  selection: SelectionState;
-  canEditTiles: boolean;
+  viewState: TileSelectionControlsViewState | undefined;
   store: EditorController;
 }
 
-export function TileSelectionControls({
-  clipboard,
-  selection,
-  canEditTiles,
-  store
-}: TileSelectionControlsProps) {
+export function TileSelectionControls({ viewState, store }: TileSelectionControlsProps) {
   const { t } = useI18n();
 
-  if (!isTileSelectionState(selection) || selection.coordinates.length === 0) {
+  if (!viewState) {
     return null;
   }
 
-  const bounds = getTileSelectionBounds(selection);
-
-  if (!bounds) {
-    return null;
-  }
-
-  const tileClipboardFootprint =
-    clipboard.kind === "tile" ? getTileStampFootprint(clipboard.stamp) : undefined;
   const clipboardSummary =
-    clipboard.kind === "tile"
-      ? `${tileClipboardFootprint?.width ?? 0}×${tileClipboardFootprint?.height ?? 0}`
-      : clipboard.kind === "object"
-        ? t("common.objectCount", { count: clipboard.objects.length })
-      : t("common.empty");
+    viewState.clipboard.kind === "tile"
+      ? `${viewState.clipboard.width}×${viewState.clipboard.height}`
+      : viewState.clipboard.kind === "object"
+        ? t("common.objectCount", { count: viewState.clipboard.objectCount })
+        : t("common.empty");
 
   return (
     <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-300">
@@ -53,8 +34,8 @@ export function TileSelectionControls({
             {t("tileSelection.title")}
           </p>
           <p className="mt-1 text-sm text-slate-100">
-            {bounds.width}×{bounds.height} · {t("common.cellCount", {
-              count: selection.coordinates.length
+            {viewState.selectionWidth}×{viewState.selectionHeight} · {t("common.cellCount", {
+              count: viewState.selectionCellCount
             })}
           </p>
         </div>
@@ -69,7 +50,7 @@ export function TileSelectionControls({
       <div className="mt-3 flex flex-wrap gap-2">
         <button
           className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-          disabled={!canEditTiles}
+          disabled={!viewState.canEditTiles}
           onClick={() =>
             startTransition(() => {
               store.copySelectedTilesToClipboard();
@@ -80,7 +61,7 @@ export function TileSelectionControls({
         </button>
         <button
           className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-          disabled={!canEditTiles}
+          disabled={!viewState.canEditTiles}
           onClick={() =>
             startTransition(() => {
               store.cutSelectedTilesToClipboard();
@@ -91,7 +72,7 @@ export function TileSelectionControls({
         </button>
         <button
           className="rounded-full border border-slate-700 bg-slate-900/70 px-3 py-2 text-xs font-medium text-slate-100 transition hover:border-slate-500 disabled:cursor-not-allowed disabled:border-slate-800 disabled:text-slate-500"
-          disabled={!canEditTiles || clipboard.kind !== "tile"}
+          disabled={!viewState.canEditTiles || !viewState.hasTileClipboard}
           onClick={() =>
             startTransition(() => {
               store.pasteClipboardToSelection();
@@ -102,7 +83,7 @@ export function TileSelectionControls({
         </button>
         <button
           className="rounded-full border border-emerald-500/50 bg-emerald-500/10 px-3 py-2 text-xs font-medium text-emerald-100 transition hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:border-slate-700 disabled:bg-slate-900 disabled:text-slate-500"
-          disabled={!canEditTiles}
+          disabled={!viewState.canEditTiles}
           onClick={() =>
             startTransition(() => {
               store.captureSelectedTilesAsStamp();

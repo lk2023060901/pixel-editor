@@ -1,21 +1,50 @@
 import type {
   DocumentSummary,
   FeatureStatusValue,
-  ProjectAssetKind
-} from "@pixel-editor/contracts";
-import type {
-  EditorMap,
-  LayerDefinition,
-  ObjectShape,
-  PropertyDefinition,
-  PropertyTypeUseAs,
-  TilesetDefinition,
-  TilesetFillMode,
-  TilesetObjectAlignment,
-  TilesetTileRenderSize,
-  WangSetDefinition
-} from "@pixel-editor/domain";
+  MapPropertiesPanelViewState,
+  ObjectsPanelObjectItem,
+  PropertiesInspectorLayerViewState,
+  PropertiesInspectorObjectViewState,
+  ProjectAssetKind,
+  TerrainSetsPanelWangSetItemViewState,
+  TilesetDetailsViewState,
+  TilesetsPanelTilesetItemViewState
+} from "@pixel-editor/app-services/ui";
 import type { I18nMessageKey, TranslationFn } from "@pixel-editor/i18n";
+
+type MapOrientation = MapPropertiesPanelViewState["orientation"];
+type MapRenderOrder = MapPropertiesPanelViewState["renderOrder"];
+type ObjectShape = PropertiesInspectorObjectViewState["shape"] | ObjectsPanelObjectItem["shape"];
+type BlendMode = Exclude<PropertiesInspectorLayerViewState["blendMode"], undefined>;
+type TilesetKind =
+  | TilesetsPanelTilesetItemViewState["kind"]
+  | TilesetDetailsViewState["kind"];
+type TilesetObjectAlignment = TilesetDetailsViewState["objectAlignment"];
+type TilesetTileRenderSize = TilesetDetailsViewState["tileRenderSize"];
+type TilesetFillMode = TilesetDetailsViewState["fillMode"];
+type WangSetType = TerrainSetsPanelWangSetItemViewState["type"];
+type PropertyTypeName =
+  | "string"
+  | "int"
+  | "float"
+  | "bool"
+  | "color"
+  | "file"
+  | "object"
+  | "enum"
+  | "class";
+type PropertyTypeUseAs =
+  | "property"
+  | "map"
+  | "layer"
+  | "object"
+  | "tile"
+  | "tileset"
+  | "wangcolor"
+  | "wangset"
+  | "project"
+  | "world"
+  | "template";
 
 export function getDocumentKindLabel(
   kind: DocumentSummary["kind"],
@@ -40,7 +69,7 @@ export function getProjectAssetKindLabel(
 }
 
 export function getLayerKindLabel(
-  kind: LayerDefinition["kind"],
+  kind: "tile" | "object" | "image" | "group",
   t: TranslationFn
 ): string {
   return t(`layerKind.${kind}` as I18nMessageKey);
@@ -54,28 +83,28 @@ export function getObjectShapeLabel(
 }
 
 export function getTilesetKindLabel(
-  kind: TilesetDefinition["kind"],
+  kind: TilesetKind,
   t: TranslationFn
 ): string {
   return t(`tilesetKind.${kind}` as I18nMessageKey);
 }
 
 export function getWangSetTypeLabel(
-  type: WangSetDefinition["type"],
+  type: WangSetType,
   t: TranslationFn
 ): string {
   return t(`wangSetType.${type}` as I18nMessageKey);
 }
 
 export function getOrientationLabel(
-  orientation: EditorMap["settings"]["orientation"],
+  orientation: MapOrientation,
   t: TranslationFn
 ): string {
   return t(`mapOrientation.${orientation}` as I18nMessageKey);
 }
 
 export function getRenderOrderLabel(
-  renderOrder: EditorMap["settings"]["renderOrder"],
+  renderOrder: MapRenderOrder,
   t: TranslationFn
 ): string {
   return t(`mapRenderOrder.${renderOrder}` as I18nMessageKey);
@@ -86,6 +115,13 @@ export function getObjectDrawOrderLabel(
   t: TranslationFn
 ): string {
   return t(`objectDrawOrder.${drawOrder}` as I18nMessageKey);
+}
+
+export function getBlendModeLabel(
+  blendMode: BlendMode,
+  t: TranslationFn
+): string {
+  return t(`layerBlendMode.${blendMode}` as I18nMessageKey);
 }
 
 export function getTilesetObjectAlignmentLabel(
@@ -110,7 +146,7 @@ export function getTilesetFillModeLabel(
 }
 
 export function getPropertyTypeLabel(
-  value: PropertyDefinition["type"],
+  value: PropertyTypeName,
   t: TranslationFn
 ): string {
   return t(`propertyType.${value}` as I18nMessageKey);

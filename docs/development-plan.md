@@ -67,8 +67,8 @@ Last updated: 2026-03-27
 | REN-009 | 渲染 | Hexagonal 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 hex side length |
 | REN-010 | 渲染 | Oblique 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 skewx/skewy |
 | REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state、shape-aware canvas picking、keyed object scene cache / redraw 基础、runtime tile object 贴图解析、text style fidelity 基础、selection bounds / transform handles 可视反馈，以及单对象 resize handles 的 preview/commit；rotate 与多选缩放待补 |
-| REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 开发中 | 已接入基于 layer tree 顺序的统一内容合成，支持 group visibility/opacity/offset 继承下的 tile/object/image 基础渲染与 image layer 纹理加载；repeat/parallax/tint/blend 等更完整视觉语义待补 |
-| REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 未开始 | 必须对齐 Tiled 图层视觉语义 |
+| REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 开发中 | 已接入基于 layer tree 顺序的统一内容合成，支持 group visibility/opacity/offset/parallax/tint 基础继承下的 tile/object/image 渲染与 image layer 纹理加载；更完整的 group blend compositing 与其他视觉语义待补 |
+| REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 开发中 | 已接入 map parallax origin + layer parallax factors 的基础 renderer/picking 语义，以及 layer tint / blend mode 的基础 inspector + renderer 支持；更完整的 Tiled group compositing 语义待补 |
 | REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |
 | UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现 Tiled 风格的 editor shell：左侧 `Project / Properties` 双 dock、右侧双 dock stack 与底部 status bar 骨架，去除 news 按钮；UI shell 仍仅通过注入的 `EditorController` 通信 |
 | UI-002 | Web 壳 | 项目路由与编辑页入口 | FND-004 | 开发中 | 已实现 `/projects/[projectId]` 页面与 web-host 装配层，当前从 `examples/` 加载示例项目 seed，UI 不再直接绑定 demo store |
@@ -80,7 +80,7 @@ Last updated: 2026-03-27
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
 | UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 已完成 | 已接入 runtime issue slice、状态栏问题计数按钮与底部 Issues Panel，支持展示导入兼容/校验问题并清空/关闭 |
 | MAP-001 | 地图编辑 | New Map 流程 | UI-001, DOM-002, CMD-001 | 开发中 | 已接入 quick create map 与默认图层初始化 |
-| MAP-002 | 地图编辑 | Map Properties 编辑 | MAP-001, DOM-002 | 已完成 | 已支持 name、orientation、render order、尺寸、infinite 与 background color 编辑 |
+| MAP-002 | 地图编辑 | Map Properties 编辑 | MAP-001, DOM-002 | 已完成 | 已支持 name、orientation、render order、尺寸、infinite、background color 与 parallax origin 编辑 |
 | MAP-003 | 地图编辑 | Tile Layer 新增/删除/重排 | MAP-001, DOM-003, CMD-001 | 开发中 | 已支持顶层 tile/object layer 管理，group 内部层级调整待实现 |
 | MAP-004 | 地图编辑 | Stamp Brush | REN-003, SES-003, CMD-001 | 开发中 | 已支持 tileset panel 真实 asset preview 选取 stamp、拖拽连续绘制与单次 stroke undo |
 | MAP-005 | 地图编辑 | Eraser | MAP-004 | 已完成 | 已支持点击与拖拽擦除，并通过 controller stroke 单元测试 |
@@ -108,12 +108,12 @@ Last updated: 2026-03-27
 | TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 已完成 | 已接入 Tiled 风格的 tile animation editor 对话框，支持 frame 列表、拖拽重排、duration 应用与 tileset 选帧，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 已完成 | 已接入独立 tile collision editor 对话框，支持 collision object 的创建、列表选择、画布拖拽移动、层级调整、基础属性与自定义属性编辑，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 已完成 | 已接入 tileset 级 Wang set 数据/命令/控制器链路，支持 Terrain Sets dock 的创建、重命名、类型切换、删除，以及菜单/tileset 工具条入口，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
-| LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level image layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，并接通基础 renderer；`imagePath/repeatx/repeaty` 细节编辑与更完整视觉语义待补 |
+| LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level image layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，接通基础 renderer、Properties Inspector 中的 `imagePath/repeatX/repeatY` 编辑，以及 `repeatX/repeatY` 的基础平铺渲染；更完整视觉语义待补 |
 | LYR-002 | 高级图层 | Group Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level group layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，并接通基础 group compositing / inherited visibility+opacity+offset renderer 语义；嵌套树编辑与 child layer 组织 UI 待补 |
 | LYR-003 | 高级图层 | Offset / Opacity / Visibility / Lock | DOM-003, UI-004 | 开发中 | 已接通 layer details 的 offset/opacity/visibility/lock command 链路、Properties Inspector 编辑、Layers dock 行内切换、other layers toggle 与 current layer highlight 开关，并让 canvas renderer 反映基础 offset/opacity/group inheritance；更完整的 lock 语义与 repeat/parallax 等深层联动待补 |
-| LYR-004 | 高级图层 | Tint Color | LYR-001, LYR-002, REN-013 | 未开始 | 递归影响 child layers |
-| LYR-005 | 高级图层 | Blend Mode | LYR-001, LYR-002, REN-013 | 未开始 | 对齐 Tiled 支持列表 |
-| LYR-006 | 高级图层 | Parallax | LYR-001, LYR-002, REN-013 | 未开始 | map parallax origin + layer factors |
+| LYR-004 | 高级图层 | Tint Color | LYR-001, LYR-002, REN-013 | 开发中 | 已接通 layer tint color 的 Properties Inspector / command / controller 链路，并让基础 renderer 反映 layer/group tint 继承；更完整的视觉一致性待补 |
+| LYR-005 | 高级图层 | Blend Mode | LYR-001, LYR-002, REN-013 | 开发中 | 已接通 blend mode 的 Properties Inspector / command / controller 链路，并让基础 renderer 反映常见 blend mode；更完整的 group compositing 语义待补 |
+| LYR-006 | 高级图层 | Parallax | LYR-001, LYR-002, REN-013 | 开发中 | 已接通 map parallax origin + layer factors 的 Properties Inspector / command / controller 链路，并让基础 renderer 与 object picking 反映 parallax 偏移；更完整视觉语义待补 |
 | ADV-001 | 高级绘制 | Tile Stamp Memory | MAP-008, TSET-005 | 未开始 | stamp variations 与 probability |
 | ADV-002 | 高级绘制 | Random Mode | ADV-001, TSET-005 | 未开始 | 依赖 tile probability |
 | ADV-003 | 高级绘制 | Terrain / Wang Brush | TSET-009, ADV-001 | 未开始 | 自动匹配边/角地形 |

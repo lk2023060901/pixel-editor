@@ -1,11 +1,42 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import { getObjectById } from "@pixel-editor/domain";
-import { summarizeEditorIssues } from "@pixel-editor/editor-state";
+import {
+  createEditorShellActionPlan,
+  deriveEditorShellChromeViewState,
+  deriveEditorShellDialogsViewState,
+  deriveEditorStatusBarViewState,
+  deriveEditorShellViewState,
+  deriveIssuesPanelViewState,
+  deriveLayersPanelViewState,
+  deriveMapImageExportViewState,
+  deriveMiniMapPanelViewState,
+  deriveObjectsPanelViewState,
+  deriveProjectDockViewState,
+  derivePropertiesInspectorViewState,
+  deriveRendererCanvasViewState,
+  deriveTerrainSetsPanelViewState,
+  deriveTileAnimationEditorViewState,
+  deriveTileCollisionEditorViewState,
+  deriveTilesetsPanelViewState,
+  getTiledMainMenus,
+  getTiledMainToolbarActions,
+  getTiledNewMenuItems,
+  getTiledToolOptionItems,
+  getTiledToolToolbarItems,
+  isEditorShellMainToolbarActionDisabled,
+  isEditorShellToolActionDisabled,
+  isEditorShellToolOptionActive,
+  resolveProjectDockActivation,
+  toolbarIconUrls,
+  type EditorController,
+  type EditorShellActionPlan,
+  type TiledMenuItemSpec2,
+  type ToolbarActionSpec
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { exportRendererSnapshotImageDataUrl } from "@pixel-editor/renderer-pixi";
 import { startTransition, useEffect, useRef, useState, useSyncExternalStore } from "react";
+
+import type { EditorRenderBridge } from "../render-bridge";
 
 import { LayersPanel } from "./layers-panel";
 import { DockPanel } from "./dock-panel";
@@ -21,22 +52,13 @@ import { EditorStatusBar } from "./editor-status-bar";
 import { IssuesPanel } from "./issues-panel";
 import { ProjectPropertiesDialog } from "./project-properties-dialog";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
-import {
-  getTiledMainMenus,
-  getTiledMainToolbarActions,
-  getTiledNewMenuItems,
-  getTiledToolOptionItems,
-  getTiledToolToolbarItems,
-  toolbarIconUrls,
-  type TiledMenuItemSpec2,
-  type ToolbarActionSpec
-} from "./toolbar-spec";
 import { TileAnimationEditorDialog } from "./tile-animation-editor-dialog";
 import { TileCollisionEditorDialog } from "./tile-collision-editor-dialog";
 import { TilesetsPanel } from "./tilesets-panel";
 
 export interface EditorShellProps {
   store: EditorController;
+  renderBridge: EditorRenderBridge;
 }
 
 type UpperRightDockTabId = "layers" | "objects" | "mini-map";
@@ -236,7 +258,7 @@ function ToolbarSplitButton(props: {
   );
 }
 
-export function EditorShell({ store }: EditorShellProps) {
+export function EditorShell({ store, renderBridge }: EditorShellProps) {
   const { t } = useI18n();
   const [upperRightDockTab, setUpperRightDockTab] = useState<UpperRightDockTabId>("layers");
   const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
@@ -254,47 +276,31 @@ export function EditorShell({ store }: EditorShellProps) {
     store.getSnapshot.bind(store),
     store.getSnapshot.bind(store)
   );
-  const activeMap = snapshot.activeMap;
-  const activeLayer = snapshot.activeLayer;
-  const activeObjectLayer = activeLayer?.kind === "object" ? activeLayer : undefined;
-  const selectedObjectId =
-    snapshot.workspace.session.selection.kind === "object"
-      ? snapshot.workspace.session.selection.objectIds[0]
-      : undefined;
-  const activeObject =
-    activeObjectLayer && selectedObjectId
-      ? getObjectById(activeObjectLayer, selectedObjectId)
-      : undefined;
-  const hasTemplateInstanceSelection =
-    activeObjectLayer !== undefined &&
-    snapshot.workspace.session.selection.kind === "object" &&
-    snapshot.workspace.session.selection.objectIds.some((objectId) =>
-      getObjectById(activeObjectLayer, objectId)?.templateId !== undefined
-    );
-  const activeStamp = snapshot.workspace.session.activeStamp;
-  const activeDocument =
-    snapshot.bootstrap.documents.find(
-      (document) => document.id === snapshot.bootstrap.activeDocumentId
-    ) ?? snapshot.bootstrap.documents[0];
-  const worldContext = snapshot.worldContext;
-  const activeProjectDocumentIds = [
-    ...(activeMap ? [activeMap.id] : []),
-    ...(snapshot.workspace.session.activeTilesetId !== undefined
-      ? [snapshot.workspace.session.activeTilesetId]
-      : []),
-    ...(snapshot.workspace.session.activeTemplateId !== undefined
-      ? [snapshot.workspace.session.activeTemplateId]
-      : []),
-    ...(worldContext !== undefined ? [worldContext.worldId] : [])
-  ];
-  const activeLayerIndex =
-    activeMap?.layers.findIndex((layer) => layer.id === snapshot.workspace.session.activeLayerId) ?? -1;
-  const activeTool = snapshot.workspace.session.activeTool;
-  const canMoveWorldMaps = worldContext?.modifiable ?? false;
+  const shellViewState = deriveEditorShellViewState(snapshot);
+  const statusBarViewState = deriveEditorStatusBarViewState(snapshot);
+  const issuesPanelViewState = deriveIssuesPanelViewState(snapshot);
+  const layersPanelViewState = deriveLayersPanelViewState(snapshot);
+  const mapImageExportViewState = deriveMapImageExportViewState(snapshot);
+  const miniMapPanelViewState = deriveMiniMapPanelViewState(snapshot);
+  const objectsPanelViewState = deriveObjectsPanelViewState(snapshot);
+  const projectDockViewState = deriveProjectDockViewState(snapshot);
+  const propertiesInspectorViewState = derivePropertiesInspectorViewState(snapshot);
+  const rendererCanvasViewState = deriveRendererCanvasViewState(snapshot);
+  const shellChromeViewState = deriveEditorShellChromeViewState({
+    snapshot,
+    customTypesEditorOpen
+  });
+  const shellDialogsViewState = deriveEditorShellDialogsViewState(snapshot);
+  const terrainSetsPanelViewState = deriveTerrainSetsPanelViewState(snapshot);
+  const tilesetsPanelViewState = deriveTilesetsPanelViewState(snapshot);
+  const tileAnimationEditorViewState = deriveTileAnimationEditorViewState(snapshot);
+  const tileCollisionEditorViewState = deriveTileCollisionEditorViewState(snapshot);
+  const activeObject = shellViewState.activeObject;
+  const activeDocument = shellViewState.activeDocument;
   const toolOptionItems = getTiledToolOptionItems(
     {
-      activeTool,
-      shapeFillMode: snapshot.workspace.session.shapeFillMode
+      activeTool: shellChromeViewState.activeTool,
+      shapeFillMode: shellChromeViewState.shapeFillMode
     },
     t
   );
@@ -312,37 +318,7 @@ export function EditorShell({ store }: EditorShellProps) {
   ];
   const newAction = mainToolbarActions[0];
   const remainingMainActions = mainToolbarActions.slice(1);
-  const issueSummary = summarizeEditorIssues(snapshot.runtime.issues);
-  const menuSpecs = getTiledMainMenus(
-    {
-      activeDocumentKind: activeDocument?.kind,
-      canUndo: snapshot.canUndo,
-      canRedo: snapshot.canRedo,
-      canSaveActiveDocument: snapshot.canSaveActiveDocument,
-      canSaveAllDocuments: snapshot.canSaveAllDocuments,
-      canExportActiveDocument: snapshot.canExportActiveDocument,
-      canExportActiveMapImage: snapshot.canExportActiveMapImage,
-      showGrid: snapshot.bootstrap.viewport.showGrid,
-      showWorlds: snapshot.workspace.session.showWorlds,
-      autoMapWhileDrawing: snapshot.workspace.session.autoMapWhileDrawing,
-      highlightCurrentLayer: snapshot.workspace.session.highlightCurrentLayer,
-      hasProject: true,
-      hasActiveMap: Boolean(activeMap),
-      hasAutomappingRulesFile: Boolean(snapshot.workspace.project.automappingRulesFile),
-      hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
-      hasSiblingLayers: Boolean(activeMap && activeMap.layers.length > 1 && activeLayerIndex >= 0),
-      hasWorldContext: Boolean(worldContext),
-      canMoveWorldMaps,
-      canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
-      canMoveLayerDown: Boolean(
-        activeMap &&
-          activeLayerIndex >= 0 &&
-          activeLayerIndex < activeMap.layers.length - 1
-      ),
-      customTypesEditorOpen
-    },
-    t
-  );
+  const menuSpecs = getTiledMainMenus(shellChromeViewState.menuContext, t);
 
   useEffect(() => {
     if (!openMenuId) {
@@ -372,24 +348,15 @@ export function EditorShell({ store }: EditorShellProps) {
   }, [activeObject, saveTemplateDialogOpen]);
 
   async function handleExportAsImage(): Promise<void> {
-    if (!activeMap) {
+    if (!mapImageExportViewState) {
       return;
     }
 
     try {
-      const dataUrl = await exportRendererSnapshotImageDataUrl({
-        snapshot: {
-          map: activeMap,
-          tilesets: snapshot.workspace.tilesets,
-          viewport: {
-            zoom: 1,
-            originX: 0,
-            originY: 0,
-            showGrid: false
-          }
-        },
-        width: Math.max(1, activeMap.settings.width) * activeMap.settings.tileWidth,
-        height: Math.max(1, activeMap.settings.height) * activeMap.settings.tileHeight,
+      const dataUrl = await renderBridge.exportSnapshotImageDataUrl({
+        snapshot: mapImageExportViewState.snapshot,
+        width: mapImageExportViewState.width,
+        height: mapImageExportViewState.height,
         labels: {
           noActiveMap: t("canvas.noActiveMap")
         }
@@ -401,241 +368,82 @@ export function EditorShell({ store }: EditorShellProps) {
     }
   }
 
+  function executeActionPlan(plan: EditorShellActionPlan): void {
+    switch (plan.kind) {
+      case "transition":
+        startTransition(() => {
+          plan.run(store);
+        });
+        return;
+      case "async":
+        void plan.run(store);
+        return;
+      case "local":
+        switch (plan.action) {
+          case "export-as-image":
+            void handleExportAsImage();
+            return;
+          case "toggle-custom-types-editor":
+            setCustomTypesEditorOpen((current) => !current);
+            return;
+          case "toggle-project-properties":
+            setProjectPropertiesOpen((current) => !current);
+            return;
+          case "open-tile-animation-editor":
+            setTileAnimationEditorOpen(true);
+            return;
+          case "open-tile-collision-editor":
+            setTileCollisionEditorOpen(true);
+            return;
+          case "focus-terrain-sets":
+            setLowerRightDockTab("terrain-sets");
+            return;
+        }
+      case "noop":
+        return;
+    }
+  }
+
+  function buildShellActionPlan(
+    actionId: string,
+    editorToolId?: ToolbarActionSpec["editorToolId"]
+  ): EditorShellActionPlan {
+    return createEditorShellActionPlan({
+      actionId,
+      canUseWorldTool: shellChromeViewState.canUseWorldTool,
+      ...(editorToolId === undefined ? {} : { editorToolId }),
+      ...(shellChromeViewState.activeLayerId === undefined
+        ? {}
+        : { activeLayerId: shellChromeViewState.activeLayerId })
+    });
+  }
+
   function handleToolbarAction(action: ToolbarActionSpec): void {
     if (!action.implemented) {
       return;
     }
 
-    const toolId = action.editorToolId;
-
-    if (toolId !== undefined) {
-      if (toolId === "world-tool" && !canMoveWorldMaps) {
-        return;
-      }
-
-      startTransition(() => {
-        store.setActiveTool(toolId);
-      });
-      return;
-    }
-
-    switch (action.id) {
-      case "new":
-        startTransition(() => {
-          store.createQuickMapDocument();
-        });
-        return;
-      case "undo":
-        startTransition(() => {
-          store.undo();
-        });
-        return;
-      case "save":
-        void store.saveActiveDocument();
-        return;
-      case "export":
-        void store.exportActiveDocumentAsJson();
-        return;
-      case "export-as-image":
-        void handleExportAsImage();
-        return;
-      case "redo":
-        startTransition(() => {
-          store.redo();
-        });
-        return;
-      case "shape-fill-rectangle":
-        startTransition(() => {
-          store.setShapeFillMode("rectangle");
-        });
-        return;
-      case "shape-fill-ellipse":
-        startTransition(() => {
-          store.setShapeFillMode("ellipse");
-        });
-        return;
-      default:
-        return;
-    }
+    executeActionPlan(buildShellActionPlan(action.id, action.editorToolId));
   }
 
   function handleNewMenuItem(menuItemId: string): void {
     setNewMenuOpen(false);
-
-    if (menuItemId !== "new-map") {
-      return;
-    }
-
-    startTransition(() => {
-      store.createQuickMapDocument();
-    });
+    executeActionPlan(buildShellActionPlan(menuItemId));
   }
 
   function handleMenuAction(actionId: string): void {
-    switch (actionId) {
-      case "new-map":
-        handleNewMenuItem("new-map");
-        return;
-      case "undo":
-        startTransition(() => {
-          store.undo();
-        });
-        return;
-      case "save":
-        void store.saveActiveDocument();
-        return;
-      case "save-all":
-        void store.saveAllDocuments();
-        return;
-      case "export":
-        void store.exportActiveDocumentAsJson();
-        return;
-      case "export-as-image":
-        void handleExportAsImage();
-        return;
-      case "redo":
-        startTransition(() => {
-          store.redo();
-        });
-        return;
-      case "show-grid":
-        startTransition(() => {
-          store.toggleGrid();
-        });
-        return;
-      case "enable-worlds":
-        startTransition(() => {
-          store.toggleWorlds();
-        });
-        return;
-      case "auto-map-while-drawing":
-        startTransition(() => {
-          store.toggleAutoMapWhileDrawing();
-        });
-        return;
-      case "highlight-current-layer":
-        startTransition(() => {
-          store.toggleHighlightCurrentLayer();
-        });
-        return;
-      case "custom-types-editor":
-        setCustomTypesEditorOpen((current) => !current);
-        return;
-      case "project-properties":
-        setProjectPropertiesOpen((current) => !current);
-        return;
-      case "auto-map":
-        startTransition(() => {
-          store.runManualAutomapping();
-        });
-        return;
-      case "zoom-in":
-        startTransition(() => {
-          store.zoomIn();
-        });
-        return;
-      case "zoom-out":
-        startTransition(() => {
-          store.zoomOut();
-        });
-        return;
-      case "zoom-normal":
-        startTransition(() => {
-          store.setViewportZoom(1);
-        });
-        return;
-      case "add-tile-layer":
-        startTransition(() => {
-          store.addTileLayer();
-        });
-        return;
-      case "add-object-layer":
-        startTransition(() => {
-          store.addObjectLayer();
-        });
-        return;
-      case "add-image-layer":
-        startTransition(() => {
-          store.addImageLayer();
-        });
-        return;
-      case "add-group-layer":
-        startTransition(() => {
-          store.addGroupLayer();
-        });
-        return;
-      case "remove-layers":
-        startTransition(() => {
-          store.removeActiveLayer();
-        });
-        return;
-      case "show-hide-layers":
-        if (!snapshot.workspace.session.activeLayerId) {
-          return;
-        }
-        startTransition(() => {
-          store.toggleLayerVisibility(snapshot.workspace.session.activeLayerId!);
-        });
-        return;
-      case "lock-unlock-layers":
-        if (!snapshot.workspace.session.activeLayerId) {
-          return;
-        }
-        startTransition(() => {
-          store.toggleLayerLock(snapshot.workspace.session.activeLayerId!);
-        });
-        return;
-      case "show-hide-other-layers":
-        startTransition(() => {
-          store.toggleOtherLayersVisibility();
-        });
-        return;
-      case "lock-unlock-other-layers":
-        startTransition(() => {
-          store.toggleOtherLayersLock();
-        });
-        return;
-      case "raise-layers":
-        startTransition(() => {
-          store.moveActiveLayer("up");
-        });
-        return;
-      case "lower-layers":
-        startTransition(() => {
-          store.moveActiveLayer("down");
-        });
-        return;
-      case "tile-animation-editor":
-        setTileAnimationEditorOpen(true);
-        return;
-      case "edit-collision":
-        setTileCollisionEditorOpen(true);
-        return;
-      case "edit-wang-sets":
-        setLowerRightDockTab("terrain-sets");
-        return;
-      default:
-        return;
-    }
+    executeActionPlan(buildShellActionPlan(actionId));
   }
 
   let upperRightDockContent = (
-    <LayersPanel
-      embedded
-      activeMap={activeMap}
-      activeLayerId={snapshot.workspace.session.activeLayerId}
-      highlightCurrentLayer={snapshot.workspace.session.highlightCurrentLayer}
-      store={store}
-    />
+    <LayersPanel embedded store={store} viewState={layersPanelViewState} />
   );
 
   if (upperRightDockTab === "objects") {
     upperRightDockContent = (
       <ObjectsPanel
         embedded
-        activeLayer={activeObjectLayer}
-        clipboard={snapshot.runtime.clipboard}
-        hasTemplateInstanceSelection={hasTemplateInstanceSelection}
+        viewState={objectsPanelViewState}
         onDetachTemplateInstances={() => {
           startTransition(() => {
             store.detachSelectedTemplateInstances();
@@ -654,42 +462,19 @@ export function EditorShell({ store }: EditorShellProps) {
         onSaveAsTemplate={() => {
           setSaveTemplateDialogOpen(true);
         }}
-        selection={snapshot.workspace.session.selection}
         store={store}
-        {...(snapshot.activeTemplate?.name !== undefined
-          ? { activeTemplateName: snapshot.activeTemplate.name }
-          : {})}
       />
     );
   } else if (upperRightDockTab === "mini-map") {
-    upperRightDockContent = (
-      <MiniMapPanel
-        embedded
-        activeMap={activeMap}
-        viewportOriginX={snapshot.bootstrap.viewport.originX}
-        viewportOriginY={snapshot.bootstrap.viewport.originY}
-        viewportZoom={snapshot.bootstrap.viewport.zoom}
-      />
-    );
+    upperRightDockContent = <MiniMapPanel embedded viewState={miniMapPanelViewState} />;
   }
 
   const lowerRightDockContent =
     lowerRightDockTab === "terrain-sets" ? (
-      <TerrainSetsPanel
-        embedded
-        activeMap={activeMap}
-        activeTilesetId={snapshot.workspace.session.activeTilesetId}
-        store={store}
-        tilesets={snapshot.workspace.tilesets}
-      />
+      <TerrainSetsPanel embedded store={store} viewState={terrainSetsPanelViewState} />
     ) : (
       <TilesetsPanel
         embedded
-        activeMap={activeMap}
-        tilesets={snapshot.workspace.tilesets}
-        activeTilesetId={snapshot.workspace.session.activeTilesetId}
-        activeTileLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
-        activeStamp={activeStamp}
         onOpenTileAnimationEditor={() => {
           setTileAnimationEditorOpen(true);
         }}
@@ -702,8 +487,8 @@ export function EditorShell({ store }: EditorShellProps) {
         onOpenTerrainSets={() => {
           setLowerRightDockTab("terrain-sets");
         }}
-        propertyTypes={snapshot.workspace.project.propertyTypes}
         store={store}
+        viewState={tilesetsPanelViewState}
       />
     );
 
@@ -778,9 +563,7 @@ export function EditorShell({ store }: EditorShellProps) {
                 action={action}
                 disabled={
                   !action.implemented ||
-                  (action.id === "save" && !snapshot.canSaveActiveDocument) ||
-                  (action.id === "undo" && !snapshot.canUndo) ||
-                  (action.id === "redo" && !snapshot.canRedo)
+                  isEditorShellMainToolbarActionDisabled(shellChromeViewState, action.id)
                 }
                 onClick={() => {
                   handleToolbarAction(action);
@@ -795,10 +578,13 @@ export function EditorShell({ store }: EditorShellProps) {
                 <ToolbarIconButton
                   key={item.action.id}
                   action={item.action}
-                  active={item.action.editorToolId === activeTool}
+                  active={item.action.editorToolId === shellChromeViewState.activeTool}
                   disabled={
                     !item.action.implemented ||
-                    (item.action.editorToolId === "world-tool" && !canMoveWorldMaps)
+                    isEditorShellToolActionDisabled(
+                      shellChromeViewState,
+                      item.action.editorToolId
+                    )
                   }
                   onClick={() => {
                     handleToolbarAction(item.action);
@@ -814,12 +600,7 @@ export function EditorShell({ store }: EditorShellProps) {
                 <ToolbarIconButton
                   key={item.action.id}
                   action={item.action}
-                  active={
-                    (item.action.id === "shape-fill-rectangle" &&
-                      snapshot.workspace.session.shapeFillMode === "rectangle") ||
-                    (item.action.id === "shape-fill-ellipse" &&
-                      snapshot.workspace.session.shapeFillMode === "ellipse")
-                  }
+                  active={isEditorShellToolOptionActive(shellChromeViewState, item.action.id)}
                   onClick={() => {
                     handleToolbarAction(item.action);
                   }}
@@ -831,43 +612,25 @@ export function EditorShell({ store }: EditorShellProps) {
 
         <div className="grid min-h-0 flex-1 grid-cols-[250px_280px_minmax(0,1fr)_360px] gap-px bg-slate-700">
           <ProjectDock
-            activeDocumentIds={activeProjectDocumentIds}
-            assetRoots={snapshot.bootstrap.project.assetRoots}
-            assets={snapshot.bootstrap.projectAssets}
+            viewState={projectDockViewState}
             onAssetActivate={(asset) => {
-              if (asset.kind === "map" && asset.documentId !== undefined) {
-                store.setActiveMap(asset.documentId);
+              const activation = resolveProjectDockActivation(snapshot, asset);
+
+              if (activation === undefined) {
                 return;
               }
 
-              if (asset.kind === "world" && asset.documentId !== undefined) {
-                const world = snapshot.workspace.worlds.find((entry) => entry.id === asset.documentId);
-                const firstMapPath = world?.maps[0]?.fileName;
-                const firstMapAsset =
-                  firstMapPath !== undefined
-                    ? snapshot.bootstrap.projectAssets.find(
-                        (entry) =>
-                          entry.kind === "map" &&
-                          entry.path === firstMapPath &&
-                          entry.documentId !== undefined
-                      )
-                    : undefined;
-
-                if (firstMapAsset?.documentId !== undefined) {
-                  store.setActiveMap(firstMapAsset.documentId);
-                }
-
-                return;
-              }
-
-              if (asset.kind === "tileset" && asset.documentId !== undefined) {
-                setLowerRightDockTab("tilesets");
-                store.setActiveTileset(asset.documentId);
-                return;
-              }
-
-              if (asset.kind === "template" && asset.documentId !== undefined) {
-                store.setActiveTemplate(asset.documentId);
+              switch (activation.kind) {
+                case "map":
+                  store.setActiveMap(activation.documentId);
+                  return;
+                case "tileset":
+                  setLowerRightDockTab("tilesets");
+                  store.setActiveTileset(activation.documentId);
+                  return;
+                case "template":
+                  store.setActiveTemplate(activation.documentId);
+                  return;
               }
             }}
           />
@@ -878,11 +641,8 @@ export function EditorShell({ store }: EditorShellProps) {
           >
             <PropertiesInspector
               embedded
-              activeLayer={activeLayer}
-              activeMap={activeMap}
-              activeObject={activeObject}
-              propertyTypes={snapshot.workspace.project.propertyTypes}
               store={store}
+              viewState={propertiesInspectorViewState}
             />
           </DockPanel>
 
@@ -895,7 +655,8 @@ export function EditorShell({ store }: EditorShellProps) {
 
             <div className="min-h-0 flex-1">
               <RendererCanvas
-                snapshot={snapshot}
+                renderBridge={renderBridge}
+                viewState={rendererCanvasViewState}
                 onWorldMapActivate={(mapId) => {
                   store.setActiveMap(mapId);
                 }}
@@ -959,9 +720,9 @@ export function EditorShell({ store }: EditorShellProps) {
           </aside>
         </div>
 
-        {snapshot.runtime.issues.panelOpen ? (
+        {shellDialogsViewState.issuesPanelOpen ? (
           <IssuesPanel
-            issues={snapshot.runtime.issues.entries}
+            viewState={issuesPanelViewState}
             onClear={() => {
               startTransition(() => {
                 store.clearIssues();
@@ -976,13 +737,8 @@ export function EditorShell({ store }: EditorShellProps) {
         ) : null}
 
         <EditorStatusBar
-          activeLayerId={snapshot.workspace.session.activeLayerId}
-          activeLayerKind={activeLayer?.kind}
-          errorCount={issueSummary.errorCount}
-          layers={activeMap?.layers ?? []}
           statusInfo={statusInfo}
-          warningCount={issueSummary.warningCount}
-          zoom={snapshot.bootstrap.viewport.zoom}
+          viewState={statusBarViewState}
           onToggleIssues={() => {
             startTransition(() => {
               store.toggleIssuesPanel();
@@ -999,11 +755,10 @@ export function EditorShell({ store }: EditorShellProps) {
             });
           }}
         />
-        {tileAnimationEditorOpen && snapshot.activeTileset ? (
+        {tileAnimationEditorOpen && tileAnimationEditorViewState ? (
           <TileAnimationEditorDialog
-            selectedLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
             store={store}
-            tileset={snapshot.activeTileset}
+            viewState={tileAnimationEditorViewState}
             onClose={() => {
               setTileAnimationEditorOpen(false);
             }}
@@ -1011,7 +766,7 @@ export function EditorShell({ store }: EditorShellProps) {
         ) : null}
         {customTypesEditorOpen ? (
           <ProjectPropertyTypesEditorDialog
-            propertyTypes={snapshot.workspace.project.propertyTypes}
+            propertyTypes={shellDialogsViewState.projectPropertyTypes}
             store={store}
             onClose={() => {
               setCustomTypesEditorOpen(false);
@@ -1020,19 +775,18 @@ export function EditorShell({ store }: EditorShellProps) {
         ) : null}
         {projectPropertiesOpen ? (
           <ProjectPropertiesDialog
-            project={snapshot.workspace.project}
+            project={shellDialogsViewState.project}
             store={store}
             onClose={() => {
               setProjectPropertiesOpen(false);
             }}
           />
         ) : null}
-        {tileCollisionEditorOpen && snapshot.activeTileset ? (
+        {tileCollisionEditorOpen && tileCollisionEditorViewState ? (
           <TileCollisionEditorDialog
-            propertyTypes={snapshot.workspace.project.propertyTypes}
-            selectedLocalId={snapshot.workspace.session.activeTilesetTileLocalId}
+            renderBridge={renderBridge}
             store={store}
-            tileset={snapshot.activeTileset}
+            viewState={tileCollisionEditorViewState}
             onClose={() => {
               setTileCollisionEditorOpen(false);
             }}

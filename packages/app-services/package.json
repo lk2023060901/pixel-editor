@@ -4,7 +4,11 @@
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./ui": "./src/ui.ts",
+    "./ui-custom-properties": "./src/ui-custom-properties.ts",
+    "./ui-property-types": "./src/ui-property-types.ts",
+    "./ui-tiles": "./src/ui-tiles.ts"
   },
   "dependencies": {
     "@pixel-editor/asset-reference": "0.1.0",
@@ -13,6 +17,7 @@
     "@pixel-editor/contracts": "0.1.0",
     "@pixel-editor/domain": "0.1.0",
     "@pixel-editor/editor-state": "0.1.0",
+    "@pixel-editor/i18n": "0.1.0",
     "@pixel-editor/map": "0.1.0",
     "@pixel-editor/objects": "0.1.0",
     "@pixel-editor/project": "0.1.0",

@@ -26,6 +26,7 @@ import {
   updateMapDetails,
   type UpdateMapDetailsInput,
   type CreateMapInput,
+  type BlendMode,
   type EditorMap,
   type LayerDefinition,
   type LayerId,
@@ -70,7 +71,14 @@ export interface UpdateLayerDetailsInput {
   opacity?: number;
   offsetX?: number;
   offsetY?: number;
+  parallaxX?: number;
+  parallaxY?: number;
+  tintColor?: string;
+  blendMode?: BlendMode;
   drawOrder?: "topdown" | "index";
+  imagePath?: string;
+  repeatX?: boolean;
+  repeatY?: boolean;
 }
 
 export function upsertMapPropertyCommand(
@@ -677,7 +685,10 @@ export function updateLayerDetailsCommand(
                 ...(patch.locked !== undefined ? { locked: patch.locked } : {}),
                 ...(patch.opacity !== undefined ? { opacity: patch.opacity } : {}),
                 ...(patch.offsetX !== undefined ? { offsetX: patch.offsetX } : {}),
-                ...(patch.offsetY !== undefined ? { offsetY: patch.offsetY } : {})
+                ...(patch.offsetY !== undefined ? { offsetY: patch.offsetY } : {}),
+                ...(patch.parallaxX !== undefined ? { parallaxX: patch.parallaxX } : {}),
+                ...(patch.parallaxY !== undefined ? { parallaxY: patch.parallaxY } : {}),
+                ...(patch.blendMode !== undefined ? { blendMode: patch.blendMode } : {})
               };
 
               if (patch.className !== undefined) {
@@ -690,10 +701,29 @@ export function updateLayerDetailsCommand(
                 }
               }
 
+              if (patch.tintColor !== undefined) {
+                const tintColor = patch.tintColor.trim();
+
+                if (tintColor.length > 0) {
+                  nextLayer.tintColor = tintColor;
+                } else {
+                  delete nextLayer.tintColor;
+                }
+              }
+
               if (layer.kind === "object" && patch.drawOrder !== undefined) {
                 return {
                   ...nextLayer,
                   drawOrder: patch.drawOrder
+                };
+              }
+
+              if (layer.kind === "image") {
+                return {
+                  ...nextLayer,
+                  ...(patch.imagePath !== undefined ? { imagePath: patch.imagePath } : {}),
+                  ...(patch.repeatX !== undefined ? { repeatX: patch.repeatX } : {}),
+                  ...(patch.repeatY !== undefined ? { repeatY: patch.repeatY } : {})
                 };
               }
 

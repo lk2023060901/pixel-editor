@@ -1,30 +1,25 @@
 "use client";
 
 import {
-  createMap,
-  createObjectLayer,
-  type MapObject,
-  type ObjectId,
-  type TilesetDefinition
-} from "@pixel-editor/domain";
-import {
-  collectProjectedMapObjects,
-  pickProjectedObject,
-  type ObjectTransformPreview,
-  type ProjectedMapObject
-} from "@pixel-editor/renderer-pixi";
+  type TileCollisionCanvasViewState
+} from "@pixel-editor/app-services/ui";
 import { useMemo, useState } from "react";
 
-import {
-  buildImageCollectionTileStyle,
-  buildImageTilesetTileStyle
-} from "./tileset-view-helpers";
+import type {
+  EditorRenderBridge,
+  EditorRenderObjectTransformPreview,
+  EditorRenderProjectedMapObject
+} from "../render-bridge";
+
+import { buildTileVisualStyle } from "./tileset-view-helpers";
+
+type CollisionCanvasObjectId = TileCollisionCanvasViewState["objects"][number]["id"];
 
 const CANVAS_WIDTH = 360;
 const CANVAS_HEIGHT = 360;
 const CANVAS_PADDING = 24;
 
-function renderProjectedObject(object: ProjectedMapObject) {
+function renderProjectedObject(object: EditorRenderProjectedMapObject) {
   const stroke = object.selected ? "#38bdf8" : "#f8fafc";
   const fillAlpha = object.shape === "tile" ? "rgba(245,158,11,0.18)" : "rgba(56,189,248,0.18)";
   const markerSize = Math.max(
@@ -110,28 +105,21 @@ function renderProjectedObject(object: ProjectedMapObject) {
   );
 }
 
-function buildTileBackgroundStyle(
-  tileset: TilesetDefinition,
-  tileLocalId: number,
-  zoom: number
-) {
-  return tileset.kind === "image"
-    ? buildImageTilesetTileStyle(tileset, tileLocalId, zoom)
-    : buildImageCollectionTileStyle(tileset, tileLocalId, zoom);
-}
-
 export function TileCollisionCanvas(props: {
-  tileset: TilesetDefinition;
-  tileLocalId: number;
-  objects: readonly MapObject[];
-  selectedObjectIds: readonly ObjectId[];
-  onSelectionChange: (objectIds: ObjectId[]) => void;
-  onMoveCommit: (objectIds: readonly ObjectId[], deltaX: number, deltaY: number) => void;
+  renderBridge: EditorRenderBridge;
+  viewState: TileCollisionCanvasViewState;
+  selectedObjectIds: readonly CollisionCanvasObjectId[];
+  onSelectionChange: (objectIds: CollisionCanvasObjectId[]) => void;
+  onMoveCommit: (
+    objectIds: readonly CollisionCanvasObjectId[],
+    deltaX: number,
+    deltaY: number
+  ) => void;
 }) {
   const [dragState, setDragState] = useState<
     | {
         pointerId: number;
-        objectIds: ObjectId[];
+        objectIds: CollisionCanvasObjectId[];
         startLocalX: number;
         startLocalY: number;
         deltaX: number;
@@ -140,33 +128,14 @@ export function TileCollisionCanvas(props: {
     | undefined
   >();
   const scale = Math.min(
-    (CANVAS_WIDTH - CANVAS_PADDING * 2) / props.tileset.tileWidth,
-    (CANVAS_HEIGHT - CANVAS_PADDING * 2) / props.tileset.tileHeight
+    (CANVAS_WIDTH - CANVAS_PADDING * 2) / props.viewState.tileWidth,
+    (CANVAS_HEIGHT - CANVAS_PADDING * 2) / props.viewState.tileHeight
   );
-  const tileWidth = props.tileset.tileWidth * scale;
-  const tileHeight = props.tileset.tileHeight * scale;
+  const tileWidth = props.viewState.tileWidth * scale;
+  const tileHeight = props.viewState.tileHeight * scale;
   const originX = Math.round((CANVAS_WIDTH - tileWidth) * 0.5);
   const originY = Math.round((CANVAS_HEIGHT - tileHeight) * 0.5);
-  const collisionMap = useMemo(
-    () =>
-      createMap({
-        name: "tile-collision-preview",
-        orientation: "orthogonal",
-        width: 1,
-        height: 1,
-        tileWidth: props.tileset.tileWidth,
-        tileHeight: props.tileset.tileHeight,
-        layers: [
-          createObjectLayer({
-            name: "collision",
-            drawOrder: "index",
-            objects: [...props.objects]
-          })
-        ]
-      }),
-    [props.objects, props.tileset.tileHeight, props.tileset.tileWidth]
-  );
-  const objectTransformPreview: ObjectTransformPreview | undefined = dragState
+  const objectTransformPreview: EditorRenderObjectTransformPreview | undefined = dragState
     ? {
         kind: "move",
         objectIds: dragState.objectIds,
@@ -177,7 +146,7 @@ export function TileCollisionCanvas(props: {
   const projectedObjects = useMemo(
     () => {
       const input = {
-        map: collisionMap,
+        map: props.viewState.previewMap,
         geometry: {
           tileWidth,
           tileHeight,
@@ -188,10 +157,10 @@ export function TileCollisionCanvas(props: {
           originX: 0,
           originY: 0
         },
-        selectedObjectIds: props.selectedObjectIds as ObjectId[]
+        selectedObjectIds: props.selectedObjectIds as CollisionCanvasObjectId[]
       };
 
-      return collectProjectedMapObjects(
+      return props.renderBridge.collectProjectedMapObjects(
         objectTransformPreview
           ? {
               ...input,
@@ -201,16 +170,17 @@ export function TileCollisionCanvas(props: {
       );
     },
     [
-      collisionMap,
       objectTransformPreview,
       originX,
       originY,
+      props.renderBridge,
+      props.viewState.previewMap,
       props.selectedObjectIds,
       tileHeight,
       tileWidth
     ]
   );
-  const tileBackgroundStyle = buildTileBackgroundStyle(props.tileset, props.tileLocalId, scale);
+  const tileBackgroundStyle = buildTileVisualStyle(props.viewState.tilePreview, scale);
 
   function toLocalPoint(target: HTMLDivElement, clientX: number, clientY: number) {
     const bounds = target.getBoundingClientRect();
@@ -226,7 +196,7 @@ export function TileCollisionCanvas(props: {
       className="relative h-[360px] w-[360px] border border-slate-700 bg-slate-950"
       onPointerDown={(event) => {
         const point = toLocalPoint(event.currentTarget, event.clientX, event.clientY);
-        const objectId = pickProjectedObject(projectedObjects, point.x, point.y);
+        const objectId = props.renderBridge.pickProjectedObject(projectedObjects, point.x, point.y);
 
         if (!objectId) {
           props.onSelectionChange([]);

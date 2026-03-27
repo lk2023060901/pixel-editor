@@ -1,15 +1,13 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
+import type { EditorController } from "@pixel-editor/app-services/ui";
 import type {
-  ObjectId,
-  Point,
-  PropertyTypeDefinition,
-  TilesetDefinition,
-  UpdateMapObjectDetailsInput
-} from "@pixel-editor/domain";
+  TileCollisionEditorViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
+
+import type { EditorRenderBridge } from "../render-bridge";
 
 import { CustomPropertiesEditor } from "./custom-properties-editor";
 import {
@@ -22,11 +20,18 @@ import {
 import { TileCollisionCanvas } from "./tile-collision-canvas";
 import { getObjectShapeLabel } from "./i18n-helpers";
 
-function formatPoints(points: readonly Point[] | undefined): string {
+type CollisionObject = TileCollisionEditorViewState["collisionObjects"][number];
+type CollisionObjectId = CollisionObject["id"];
+type CollisionPoint = NonNullable<CollisionObject["points"]>[number];
+type UpdateSelectedCollisionObjectPatch = Parameters<
+  EditorController["updateSelectedTileCollisionObjectDetails"]
+>[1];
+
+function formatPoints(points: readonly CollisionPoint[] | undefined): string {
   return (points ?? []).map((point) => `${point.x},${point.y}`).join(" ");
 }
 
-function parsePoints(value: string): Point[] | undefined {
+function parsePoints(value: string): CollisionPoint[] | undefined {
   const trimmed = value.trim();
 
   if (!trimmed) {
@@ -52,20 +57,15 @@ function parsePoints(value: string): Point[] | undefined {
 }
 
 export function TileCollisionEditorDialog(props: {
-  propertyTypes: readonly PropertyTypeDefinition[] | undefined;
-  selectedLocalId: number | null;
+  renderBridge: EditorRenderBridge;
   store: EditorController;
-  tileset: TilesetDefinition;
+  viewState: TileCollisionEditorViewState;
   onClose: () => void;
 }) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const selectedTile =
-    props.selectedLocalId !== null
-      ? props.tileset.tiles.find((tile) => tile.localId === props.selectedLocalId)
-      : undefined;
-  const collisionObjects = selectedTile?.collisionLayer?.objects ?? [];
-  const [selectedObjectId, setSelectedObjectId] = useState<ObjectId | undefined>();
+  const collisionObjects = props.viewState.collisionObjects;
+  const [selectedObjectId, setSelectedObjectId] = useState<CollisionObjectId | undefined>();
   const selectedObject = collisionObjects.find((object) => object.id === selectedObjectId);
   const [name, setName] = useState("");
   const [className, setClassName] = useState("");
@@ -99,7 +99,7 @@ export function TileCollisionEditorDialog(props: {
     setPoints(formatPoints(selectedObject?.points));
   }, [selectedObject]);
 
-  function commitSelectedObjectPatch(patch: UpdateMapObjectDetailsInput): void {
+  function commitSelectedObjectPatch(patch: UpdateSelectedCollisionObjectPatch): void {
     if (!selectedObjectId) {
       return;
     }
@@ -269,7 +269,7 @@ export function TileCollisionEditorDialog(props: {
           </button>
         </div>
 
-        {props.selectedLocalId === null ? (
+        {props.viewState.selectedLocalId === null || !props.viewState.canvas ? (
           <div className="flex min-h-0 flex-1 items-center justify-center px-6 text-sm text-slate-400">
             {t("tileCollisionEditor.noTileSelected")}
           </div>
@@ -277,10 +277,9 @@ export function TileCollisionEditorDialog(props: {
           <div className="grid min-h-0 flex-1 grid-cols-[392px_minmax(0,1fr)]">
             <div className="flex min-h-0 flex-col border-r border-slate-700 px-4 py-4">
               <TileCollisionCanvas
-                objects={collisionObjects}
+                renderBridge={props.renderBridge}
                 selectedObjectIds={selectedObjectId ? [selectedObjectId] : []}
-                tileLocalId={props.selectedLocalId}
-                tileset={props.tileset}
+                viewState={props.viewState.canvas}
                 onMoveCommit={(objectIds, deltaX, deltaY) => {
                   props.store.moveSelectedTileCollisionObjects(objectIds, deltaX, deltaY);
                 }}
@@ -425,7 +424,7 @@ export function TileCollisionEditorDialog(props: {
                         className="bg-slate-950"
                         objectReferenceOptions={[]}
                         properties={selectedObject.properties}
-                        propertyTypes={props.propertyTypes}
+                        propertyTypes={props.viewState.propertyTypes}
                         onRemove={(propertyName) => {
                           props.store.removeSelectedTileCollisionObjectProperty(
                             selectedObject.id,

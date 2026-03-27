@@ -1,6 +1,9 @@
 "use client";
 
 import {
+  type ObjectReferenceOption
+} from "@pixel-editor/app-services/ui";
+import {
   clonePropertyValue,
   createDefaultPropertyValue,
   createProperty,
@@ -13,13 +16,12 @@ import {
   type PropertyDefinition,
   type PropertyTypeDefinition,
   type PropertyValue
-} from "@pixel-editor/domain";
+} from "@pixel-editor/app-services/ui-custom-properties";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useMemo, useRef, useState, type RefObject } from "react";
 
 import { NumberField, SelectField, TextField } from "./editor-fields";
 import { getPropertyTypeLabel } from "./i18n-helpers";
-import type { ObjectReferenceOption } from "./object-reference-options";
 import {
   PropertyBrowserGroup,
   PropertyBrowserRow,

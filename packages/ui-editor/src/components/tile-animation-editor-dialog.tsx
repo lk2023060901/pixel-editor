@@ -1,20 +1,16 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
 import {
-  getTilesetTileByLocalId,
-  listTilesetLocalIds,
-  type TileAnimationFrame,
-  type TilesetDefinition
-} from "@pixel-editor/domain";
+  type TileAnimationEditorViewState,
+  type EditorController
+} from "@pixel-editor/app-services/ui";
+import type { TileAnimationFrame } from "@pixel-editor/app-services/ui-tiles";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useMemo, useRef, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 
 import { TilePreview } from "./tile-preview";
 import {
-  buildImageCollectionTileStyle,
-  buildImageTilesetTileStyle,
-  getImageTilesetColumns,
+  buildTileVisualStyle,
   TILESET_VIEW_ZOOM_OPTIONS
 } from "./tileset-view-helpers";
 
@@ -51,39 +47,35 @@ function isEditableElement(target: EventTarget | null): target is HTMLElement {
 }
 
 export function TileAnimationEditorDialog(props: {
-  tileset: TilesetDefinition;
-  selectedLocalId: number | null;
+  viewState: TileAnimationEditorViewState;
   store: EditorController;
   onClose: () => void;
 }) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [zoom, setZoom] = useState<number>(1);
-  const [sourceLocalId, setSourceLocalId] = useState<number | null>(props.selectedLocalId);
+  const [sourceLocalId, setSourceLocalId] = useState<number | null>(props.viewState.selectedLocalId);
   const [selectedFrameIndex, setSelectedFrameIndex] = useState<number | null>(null);
   const [dragFrameIndex, setDragFrameIndex] = useState<number | null>(null);
   const [frameDurationText, setFrameDurationText] = useState(String(DEFAULT_FRAME_DURATION_MS));
   const [previewFrameIndex, setPreviewFrameIndex] = useState(0);
-  const tileIds = useMemo(() => listTilesetLocalIds(props.tileset), [props.tileset]);
-  const selectedTile =
-    props.selectedLocalId !== null
-      ? getTilesetTileByLocalId(props.tileset, props.selectedLocalId)
-      : undefined;
-  const frames = selectedTile?.animation ?? [];
+  const frames = props.viewState.frames;
   const previewFrame = frames[previewFrameIndex] ?? frames[0];
-  const previewTileLocalId = previewFrame?.tileId;
-  const imageColumns =
-    props.tileset.kind === "image" ? getImageTilesetColumns(props.tileset) : undefined;
+  const imageColumns = props.viewState.imageColumns;
 
   useEffect(() => {
     dialogRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    setSourceLocalId(props.selectedLocalId ?? tileIds[0] ?? null);
+    setSourceLocalId(props.viewState.selectedLocalId ?? props.viewState.sourceTiles[0]?.localId ?? null);
     setSelectedFrameIndex(null);
     setPreviewFrameIndex(0);
-  }, [props.selectedLocalId, props.tileset.id, tileIds]);
+  }, [
+    props.viewState.selectedLocalId,
+    props.viewState.tilesetId,
+    props.viewState.sourceTiles.length
+  ]);
 
   useEffect(() => {
     if (!frames.length) {
@@ -127,7 +119,10 @@ export function TileAnimationEditorDialog(props: {
     const parsedDuration = Number.parseInt(frameDurationText, 10);
 
     commitAnimation([
-      ...frames,
+      ...frames.map((frame) => ({
+        tileId: frame.tileId,
+        durationMs: frame.durationMs
+      })),
       {
         tileId: localId,
         durationMs:
@@ -144,7 +139,14 @@ export function TileAnimationEditorDialog(props: {
       return;
     }
 
-    commitAnimation(frames.filter((_, frameIndex) => frameIndex !== selectedFrameIndex));
+    commitAnimation(
+      frames
+        .filter((_, frameIndex) => frameIndex !== selectedFrameIndex)
+        .map((frame) => ({
+          tileId: frame.tileId,
+          durationMs: frame.durationMs
+        }))
+    );
     setSelectedFrameIndex((currentIndex) => {
       if (currentIndex === null) {
         return null;
@@ -174,10 +176,13 @@ export function TileAnimationEditorDialog(props: {
       frames.map((frame, frameIndex) =>
         frameIndex === selectedFrameIndex
           ? {
-              ...frame,
+              tileId: frame.tileId,
               durationMs: nextDuration
             }
-          : { ...frame }
+          : {
+              tileId: frame.tileId,
+              durationMs: frame.durationMs
+            }
       )
     );
   }
@@ -287,12 +292,21 @@ export function TileAnimationEditorDialog(props: {
                             return;
                           }
 
-                          commitAnimation(reorderAnimationFrames(frames, dragFrameIndex, frameIndex));
+                          commitAnimation(
+                            reorderAnimationFrames(
+                              frames.map((frame) => ({
+                                tileId: frame.tileId,
+                                durationMs: frame.durationMs
+                              })),
+                              dragFrameIndex,
+                              frameIndex
+                            )
+                          );
                           setSelectedFrameIndex(frameIndex);
                           setDragFrameIndex(null);
                         }}
                       >
-                        <TilePreview localId={frame.tileId} tileset={props.tileset} />
+                        <TilePreview viewState={frame.preview} />
                         <div className="min-w-0 flex-1">
                           <div className="truncate text-sm">#{frame.tileId}</div>
                           <div className="text-xs text-slate-400">
@@ -311,9 +325,9 @@ export function TileAnimationEditorDialog(props: {
             </div>
 
             <div className="flex items-center justify-center border-t border-slate-700 bg-slate-900 px-4 py-4">
-              {previewTileLocalId !== undefined ? (
+              {previewFrame?.preview ? (
                 <div className="flex h-full w-full flex-col items-center justify-center gap-3 border border-slate-700 bg-slate-950 text-slate-100">
-                  <TilePreview localId={previewTileLocalId} tileset={props.tileset} />
+                  <TilePreview viewState={previewFrame.preview} />
                   <span className="text-xs text-slate-400">{t("tileAnimationEditor.preview")}</span>
                 </div>
               ) : (
@@ -325,72 +339,60 @@ export function TileAnimationEditorDialog(props: {
           </div>
 
           <div className="min-h-0 overflow-auto bg-[#b8b8b8] p-3">
-            {props.tileset.kind === "image" && imageColumns ? (
+            {props.viewState.tilesetKind === "image" && imageColumns ? (
               <div
                 className="inline-grid border border-slate-500/20 bg-transparent"
                 style={{
-                  gridTemplateColumns: `repeat(${imageColumns}, ${props.tileset.tileWidth * zoom}px)`,
-                  gridAutoRows: `${props.tileset.tileHeight * zoom}px`
+                  gridTemplateColumns: `repeat(${imageColumns}, ${props.viewState.tileWidth * zoom}px)`,
+                  gridAutoRows: `${props.viewState.tileHeight * zoom}px`
                 }}
               >
-                {tileIds.map((localId) => {
-                  const isSelected = sourceLocalId === localId;
+                {props.viewState.sourceTiles.map((tile) => {
+                  const isSelected = sourceLocalId === tile.localId;
 
                   return (
                     <button
-                      key={`${props.tileset.id}:${localId}`}
+                      key={`${props.viewState.tilesetId}:${tile.localId}`}
                       className={`relative border border-slate-500/10 bg-transparent ${
                         isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
                       }`}
                       style={{
-                        width: `${props.tileset.tileWidth * zoom}px`,
-                        height: `${props.tileset.tileHeight * zoom}px`
+                        width: `${props.viewState.tileWidth * zoom}px`,
+                        height: `${props.viewState.tileHeight * zoom}px`
                       }}
                       type="button"
                       onClick={() => {
-                        setSourceLocalId(localId);
+                        setSourceLocalId(tile.localId);
                       }}
                       onDoubleClick={() => {
-                        addFrame(localId);
+                        addFrame(tile.localId);
                       }}
                     >
-                      <span
-                        className="block"
-                        style={buildImageTilesetTileStyle(props.tileset, localId, zoom)}
-                      />
+                      <span className="block" style={buildTileVisualStyle(tile.preview, zoom)} />
                     </button>
                   );
                 })}
               </div>
             ) : (
               <div className="flex flex-wrap items-start gap-1">
-                {tileIds.map((localId) => {
-                  const isSelected = sourceLocalId === localId;
+                {props.viewState.sourceTiles.map((tile) => {
+                  const isSelected = sourceLocalId === tile.localId;
 
                   return (
                     <button
-                      key={`${props.tileset.id}:${localId}`}
+                      key={`${props.viewState.tilesetId}:${tile.localId}`}
                       className={`flex items-center justify-center border bg-slate-900/20 p-1 ${
                         isSelected ? "ring-2 ring-blue-500 ring-inset" : "border-slate-500/20"
                       }`}
                       type="button"
                       onClick={() => {
-                        setSourceLocalId(localId);
+                        setSourceLocalId(tile.localId);
                       }}
                       onDoubleClick={() => {
-                        addFrame(localId);
+                        addFrame(tile.localId);
                       }}
                     >
-                      <span
-                        className="block"
-                        style={
-                          buildImageCollectionTileStyle(props.tileset, localId, zoom) ?? {
-                            width: `${props.tileset.tileWidth * zoom}px`,
-                            height: `${props.tileset.tileHeight * zoom}px`,
-                            backgroundColor: "#64748b"
-                          }
-                        }
-                      />
+                      <span className="block" style={buildTileVisualStyle(tile.preview, zoom)} />
                     </button>
                   );
                 })}

@@ -1,22 +1,22 @@
 "use client";
 
-import type { EditorIssueEntry } from "@pixel-editor/editor-state";
+import type { IssuesPanelViewState } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 
 export interface IssuesPanelProps {
-  issues: readonly EditorIssueEntry[];
+  viewState: IssuesPanelViewState;
   onClear: () => void;
   onClose: () => void;
 }
 
-function severityClassName(severity: EditorIssueEntry["severity"]): string {
+function severityClassName(severity: IssuesPanelViewState["issues"][number]["severity"]): string {
   return severity === "error"
     ? "border-rose-500/40 bg-rose-500/10 text-rose-200"
     : "border-amber-500/40 bg-amber-500/10 text-amber-200";
 }
 
 function severityLabel(
-  severity: EditorIssueEntry["severity"],
+  severity: IssuesPanelViewState["issues"][number]["severity"],
   translate: ReturnType<typeof useI18n>["t"]
 ): string {
   return severity === "error"
@@ -24,7 +24,7 @@ function severityLabel(
     : translate("issuesPanel.severity.warning");
 }
 
-export function IssuesPanel({ issues, onClear, onClose }: IssuesPanelProps) {
+export function IssuesPanel({ viewState, onClear, onClose }: IssuesPanelProps) {
   const { t } = useI18n();
 
   return (
@@ -33,7 +33,7 @@ export function IssuesPanel({ issues, onClear, onClose }: IssuesPanelProps) {
         <div className="flex min-w-0 items-center gap-3">
           <h2 className="text-sm font-medium text-slate-100">{t("issuesPanel.title")}</h2>
           <span className="text-xs text-slate-400">
-            {t("issuesPanel.summary", { count: issues.length })}
+            {t("issuesPanel.summary", { count: viewState.issues.length })}
           </span>
         </div>
         <div className="flex items-center gap-2">
@@ -54,14 +54,14 @@ export function IssuesPanel({ issues, onClear, onClose }: IssuesPanelProps) {
         </div>
       </header>
 
-      {issues.length === 0 ? (
+      {viewState.issues.length === 0 ? (
         <div className="flex min-h-[180px] items-center justify-center px-6 text-sm text-slate-400">
           {t("issuesPanel.empty")}
         </div>
       ) : (
         <div className="min-h-0 overflow-auto">
           <ul className="divide-y divide-slate-800">
-            {issues.map((issue) => (
+            {viewState.issues.map((issue) => (
               <li key={issue.id} className="grid gap-2 px-3 py-2 text-sm text-slate-200">
                 <div className="flex flex-wrap items-center gap-2">
                   <span

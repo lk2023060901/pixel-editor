@@ -10,6 +10,8 @@ import { translateMapObject, updateMapObject } from "@pixel-editor/domain";
 
 import { collectRenderableLayers } from "./layer-composition";
 import {
+  computeParallaxAdjustedViewportOriginX,
+  computeParallaxAdjustedViewportOriginY,
   worldLengthToScreenHeight,
   worldLengthToScreenWidth
 } from "./projection-utils";
@@ -306,12 +308,27 @@ export function collectProjectedMapObjects(input: {
       continue;
     }
 
+    const viewport = {
+      originX: computeParallaxAdjustedViewportOriginX({
+        viewportOriginX: input.viewport.originX,
+        parallaxFactorX: entry.parallaxX,
+        map: input.map,
+        geometry: input.geometry
+      }),
+      originY: computeParallaxAdjustedViewportOriginY({
+        viewportOriginY: input.viewport.originY,
+        parallaxFactorY: entry.parallaxY,
+        map: input.map,
+        geometry: input.geometry
+      })
+    };
+
     projectedObjects.push(
       ...projectObjectLayer({
         map: input.map,
         layer: entry.layer,
         geometry: input.geometry,
-        viewport: input.viewport,
+        viewport,
         opacity: entry.opacity,
         highlighted: entry.highlighted,
         offsetX: entry.offsetX,

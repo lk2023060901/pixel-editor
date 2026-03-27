@@ -4,13 +4,19 @@
 
 Allowed dependency direction:
 
-`ui-editor -> app-services -> map -> editor-state -> domain`
+`ui-editor -> app-services/ui -> map -> editor-state -> domain`
 
-`ui-editor -> app-services -> tileset -> editor-state -> domain`
+`ui-editor -> app-services/ui-custom-properties -> domain`
 
-`ui-editor -> app-services -> project -> editor-state -> domain`
+`ui-editor -> app-services/ui-property-types -> domain`
 
-`ui-editor -> app-services -> template -> editor-state -> domain`
+`ui-editor -> app-services/ui-tiles -> domain`
+
+`ui-editor -> app-services/ui -> tileset -> editor-state -> domain`
+
+`ui-editor -> app-services/ui -> project -> editor-state -> domain`
+
+`ui-editor -> app-services/ui -> template -> editor-state -> domain`
 
 `app-services -> command-engine`
 
@@ -30,7 +36,7 @@ Allowed dependency direction:
 
 `renderer-pixi -> domain`
 
-`apps/web -> ui-editor, app-services, contracts, example-project-support, export-jobs`
+`apps/web -> ui-editor, app-services, renderer-pixi, contracts, example-project-support, export-jobs`
 
 `apps/worker -> contracts, example-project-support, export-jobs`
 
@@ -179,6 +185,8 @@ Owns:
 - composition of multiple domain commands
 - service interfaces for storage, export, validation, and asset loading
 - mapping between contracts and domain operations
+- editor action and menu contracts consumed by the UI shell
+- UI read-model helpers and selectors that flatten editor state for presentation
 
 Must not own:
 
@@ -189,6 +197,10 @@ Must not own:
 Public API rules:
 
 - expose task-focused entrypoints such as `createMap`, `paintTiles`, `saveDocument`
+- expose typed UI contracts instead of forcing `ui-editor` to mirror business action registries
+- keep shell and panel contracts under the `@pixel-editor/app-services/ui` subpath
+- keep low-level widget helpers split by concern under dedicated subpaths such as `@pixel-editor/app-services/ui-custom-properties`, `@pixel-editor/app-services/ui-property-types`, and `@pixel-editor/app-services/ui-tiles`
+- centralize state-to-view derivation there instead of rebuilding it ad hoc inside React components
 - define interfaces for infrastructure dependencies instead of reaching into app code
 
 ## `packages/map`
@@ -390,7 +402,7 @@ Public API rules:
 
 - accept typed render snapshots
 - isolate Pixi object creation behind package-private modules
-- expose stable canvas host interfaces to `apps/web`
+- expose stable renderer bridge implementations to `apps/web`
 
 ## `packages/ui-editor`
 
@@ -411,8 +423,9 @@ Must not own:
 
 Public API rules:
 
-- consume selectors and typed action callbacks
+- consume `@pixel-editor/app-services/ui` shell and panel contracts, dedicated widget helper subpaths, and injected render bridges
 - components remain reusable and capability-scoped
+- avoid reconstructing layer trees, project trees, or active-selection derivations from raw snapshot state
 - avoid app-global singleton state
 
 ## Cross-Package Contracts
@@ -443,6 +456,17 @@ It returns:
 
 - normalized pick results
 - viewport callbacks
+
+### Renderer Bridge
+
+`ui-editor` depends on an injected renderer bridge for:
+
+- canvas renderer creation
+- snapshot export
+- object projection and picking
+- world overlay projection
+
+`apps/web` provides the concrete `renderer-pixi` implementation.
 - renderer lifecycle hooks
 
 ### UI Actions

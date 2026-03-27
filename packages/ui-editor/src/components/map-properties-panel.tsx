@@ -1,7 +1,7 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
-import type { EditorMap } from "@pixel-editor/domain";
+import type { EditorController } from "@pixel-editor/app-services/ui";
+import type { MapPropertiesPanelViewState } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
@@ -10,8 +10,8 @@ import { Panel } from "./panel";
 
 interface MapDetailsDraft {
   name: string;
-  orientation: EditorMap["settings"]["orientation"];
-  renderOrder: EditorMap["settings"]["renderOrder"];
+  orientation: MapPropertiesPanelViewState["orientation"];
+  renderOrder: MapPropertiesPanelViewState["renderOrder"];
   width: string;
   height: string;
   tileWidth: string;
@@ -20,31 +20,31 @@ interface MapDetailsDraft {
   backgroundColor: string;
 }
 
-const orientationOptions: Array<EditorMap["settings"]["orientation"]> = [
+const orientationOptions: Array<MapPropertiesPanelViewState["orientation"]> = [
   "orthogonal",
   "isometric",
   "staggered",
   "hexagonal",
   "oblique"
 ];
-const renderOrderOptions: Array<EditorMap["settings"]["renderOrder"]> = [
+const renderOrderOptions: Array<MapPropertiesPanelViewState["renderOrder"]> = [
   "right-down",
   "right-up",
   "left-down",
   "left-up"
 ];
 
-function createDraft(map?: EditorMap): MapDetailsDraft {
+function createDraft(viewState?: MapPropertiesPanelViewState): MapDetailsDraft {
   return {
-    name: map?.name ?? "",
-    orientation: map?.settings.orientation ?? "orthogonal",
-    renderOrder: map?.settings.renderOrder ?? "right-down",
-    width: String(map?.settings.width || 64),
-    height: String(map?.settings.height || 64),
-    tileWidth: String(map?.settings.tileWidth ?? 32),
-    tileHeight: String(map?.settings.tileHeight ?? 32),
-    infinite: map?.settings.infinite ?? false,
-    backgroundColor: map?.settings.backgroundColor ?? ""
+    name: viewState?.name ?? "",
+    orientation: viewState?.orientation ?? "orthogonal",
+    renderOrder: viewState?.renderOrder ?? "right-down",
+    width: String(viewState?.width ?? 64),
+    height: String(viewState?.height ?? 64),
+    tileWidth: String(viewState?.tileWidth ?? 32),
+    tileHeight: String(viewState?.tileHeight ?? 32),
+    infinite: viewState?.infinite ?? false,
+    backgroundColor: viewState?.backgroundColor ?? ""
   };
 }
 
@@ -72,30 +72,30 @@ function NumberField(props: {
 }
 
 export interface MapPropertiesPanelProps {
-  activeMap: EditorMap | undefined;
+  viewState: MapPropertiesPanelViewState | undefined;
   store: EditorController;
   embedded?: boolean;
   compact?: boolean;
 }
 
 function MapPropertiesPanelContent({
-  activeMap,
+  viewState,
   store,
   compact = false
 }: Omit<MapPropertiesPanelProps, "embedded">) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState(() => createDraft(activeMap));
+  const [draft, setDraft] = useState(() => createDraft(viewState));
 
   useEffect(() => {
-    setDraft(createDraft(activeMap));
-  }, [activeMap]);
+    setDraft(createDraft(viewState));
+  }, [viewState]);
 
-  if (!activeMap) {
+  if (!viewState) {
     return <p className="text-sm text-slate-400">{t("mapProperties.noActiveMap")}</p>;
   }
 
   function applyDraft(): void {
-    if (!activeMap) {
+    if (!viewState) {
       return;
     }
 
@@ -114,7 +114,7 @@ function MapPropertiesPanelContent({
 
     startTransition(() => {
       store.updateActiveMapDetails({
-        name: draft.name.trim() || activeMap.name,
+        name: draft.name.trim() || viewState.name,
         orientation: draft.orientation,
         renderOrder: draft.renderOrder,
         tileWidth,
@@ -155,7 +155,7 @@ function MapPropertiesPanelContent({
               onChange={(event) => {
                 setDraft((current) => ({
                   ...current,
-                  orientation: event.target.value as EditorMap["settings"]["orientation"]
+                  orientation: event.target.value as MapPropertiesPanelViewState["orientation"]
                 }));
               }}
             >
@@ -174,7 +174,7 @@ function MapPropertiesPanelContent({
               onChange={(event) => {
                 setDraft((current) => ({
                   ...current,
-                  renderOrder: event.target.value as EditorMap["settings"]["renderOrder"]
+                  renderOrder: event.target.value as MapPropertiesPanelViewState["renderOrder"]
                 }));
               }}
             >
@@ -307,7 +307,7 @@ function MapPropertiesPanelContent({
               const { value } = event.target;
               setDraft((current) => ({
                 ...current,
-                orientation: value as EditorMap["settings"]["orientation"]
+                orientation: value as MapPropertiesPanelViewState["orientation"]
               }));
             }}
           >
@@ -330,7 +330,7 @@ function MapPropertiesPanelContent({
               const { value } = event.target;
               setDraft((current) => ({
                 ...current,
-                renderOrder: value as EditorMap["settings"]["renderOrder"]
+                renderOrder: value as MapPropertiesPanelViewState["renderOrder"]
               }));
             }}
           >

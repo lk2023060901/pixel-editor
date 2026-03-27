@@ -1,42 +1,60 @@
 "use client";
 
 import type {
-  CanvasGestureModifiers,
-  EditorRuntimeSnapshot,
-  ObjectMoveGestureModifiers,
-  ObjectResizeGestureModifiers,
-  ObjectResizeHandle
-} from "@pixel-editor/app-services";
-import type { ObjectId } from "@pixel-editor/domain";
+  EditorController,
+  RendererCanvasViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { createPixiEditorRenderer } from "@pixel-editor/renderer-pixi";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
+
+import type { EditorRenderBridge } from "../render-bridge";
 
 import { WorldContextOverlay } from "./world-context-overlay";
 
+type RendererCanvasObjectId = Parameters<EditorController["selectObject"]>[0];
+type RendererCanvasGestureModifiers = NonNullable<
+  Parameters<EditorController["beginCanvasStroke"]>[2]
+>;
+type RendererCanvasObjectMoveGestureModifiers = NonNullable<
+  Parameters<EditorController["beginObjectMove"]>[3]
+>;
+type RendererCanvasObjectResizeHandle = Parameters<EditorController["beginObjectResize"]>[1];
+type RendererCanvasObjectResizeGestureModifiers = NonNullable<
+  Parameters<EditorController["beginObjectResize"]>[4]
+>;
+
 export interface RendererCanvasProps {
-  snapshot: EditorRuntimeSnapshot;
-  onStrokeStart?: (x: number, y: number, modifiers: CanvasGestureModifiers) => void;
-  onStrokeMove?: (x: number, y: number, modifiers: CanvasGestureModifiers) => void;
+  renderBridge: EditorRenderBridge;
+  viewState: RendererCanvasViewState;
+  onStrokeStart?: (x: number, y: number, modifiers: RendererCanvasGestureModifiers) => void;
+  onStrokeMove?: (x: number, y: number, modifiers: RendererCanvasGestureModifiers) => void;
   onStrokeEnd?: () => void;
   onStatusInfoChange?: (statusInfo: string) => void;
-  onObjectSelect?: (objectId: ObjectId) => void;
+  onObjectSelect?: (objectId: RendererCanvasObjectId) => void;
   onObjectMoveStart?: (
-    objectId: ObjectId,
+    objectId: RendererCanvasObjectId,
     x: number,
     y: number,
-    modifiers: ObjectMoveGestureModifiers
+    modifiers: RendererCanvasObjectMoveGestureModifiers
   ) => void;
-  onObjectMove?: (x: number, y: number, modifiers: ObjectMoveGestureModifiers) => void;
+  onObjectMove?: (
+    x: number,
+    y: number,
+    modifiers: RendererCanvasObjectMoveGestureModifiers
+  ) => void;
   onObjectMoveEnd?: () => void;
   onObjectResizeStart?: (
-    objectId: ObjectId,
-    handle: ObjectResizeHandle,
+    objectId: RendererCanvasObjectId,
+    handle: RendererCanvasObjectResizeHandle,
     x: number,
     y: number,
-    modifiers: ObjectResizeGestureModifiers
+    modifiers: RendererCanvasObjectResizeGestureModifiers
   ) => void;
-  onObjectResize?: (x: number, y: number, modifiers: ObjectResizeGestureModifiers) => void;
+  onObjectResize?: (
+    x: number,
+    y: number,
+    modifiers: RendererCanvasObjectResizeGestureModifiers
+  ) => void;
   onObjectResizeEnd?: () => void;
   onWorldMapActivate?: (mapId: string) => void;
   onWorldMapMove?: (worldId: string, fileName: string, x: number, y: number) => void;
@@ -47,7 +65,7 @@ const OBJECT_DRAG_START_DISTANCE = 4;
 interface PendingObjectDragState {
   kind: "move";
   pointerId: number;
-  objectId: ObjectId;
+  objectId: RendererCanvasObjectId;
   startClientX: number;
   startClientY: number;
   startWorldX: number;
@@ -60,8 +78,8 @@ interface PendingObjectDragState {
 interface PendingObjectResizeState {
   kind: "resize";
   pointerId: number;
-  objectId: ObjectId;
-  handle: ObjectResizeHandle;
+  objectId: RendererCanvasObjectId;
+  handle: RendererCanvasObjectResizeHandle;
   lastWorldX: number;
   lastWorldY: number;
 }
@@ -71,7 +89,8 @@ type PendingObjectGestureState =
   | PendingObjectResizeState;
 
 export function RendererCanvas({
-  snapshot,
+  renderBridge,
+  viewState,
   onStrokeStart,
   onStrokeMove,
   onStrokeEnd,
@@ -90,13 +109,13 @@ export function RendererCanvas({
   const hostRef = useRef<HTMLDivElement | null>(null);
   const canvasHostRef = useRef<HTMLDivElement | null>(null);
   const rendererRef = useRef(
-    createPixiEditorRenderer({
+    renderBridge.createRenderer({
       labels: {
         noActiveMap: t("canvas.noActiveMap")
       }
     })
   );
-  const deferredSnapshot = useDeferredValue(snapshot);
+  const deferredViewState = useDeferredValue(viewState);
   const isStrokeActiveRef = useRef(false);
   const lastPickedTileRef = useRef<{ x: number; y: number } | undefined>(undefined);
   const pendingObjectGestureRef = useRef<PendingObjectGestureState | undefined>(undefined);
@@ -106,7 +125,7 @@ export function RendererCanvas({
   function readModifiers(event: {
     shiftKey: boolean;
     altKey: boolean;
-  }): CanvasGestureModifiers {
+  }): RendererCanvasGestureModifiers {
     return {
       lockAspectRatio: event.shiftKey,
       fromCenter: event.altKey
@@ -115,7 +134,7 @@ export function RendererCanvas({
 
   function readObjectMoveModifiers(event: {
     ctrlKey: boolean;
-  }): ObjectMoveGestureModifiers {
+  }): RendererCanvasObjectMoveGestureModifiers {
     return {
       snapToGrid: event.ctrlKey
     };
@@ -123,7 +142,7 @@ export function RendererCanvas({
 
   function readObjectResizeModifiers(event: {
     ctrlKey: boolean;
-  }): ObjectResizeGestureModifiers {
+  }): RendererCanvasObjectResizeGestureModifiers {
     return {
       snapToGrid: event.ctrlKey
     };
@@ -176,47 +195,9 @@ export function RendererCanvas({
 
   useEffect(() => {
     rendererRef.current.update({
-      tilesets: deferredSnapshot.workspace.tilesets,
-      viewport: deferredSnapshot.bootstrap.viewport,
-      ...(deferredSnapshot.activeMap ? { map: deferredSnapshot.activeMap } : {}),
-      ...(deferredSnapshot.workspace.session.highlightCurrentLayer &&
-      deferredSnapshot.workspace.session.activeLayerId
-        ? { highlightedLayerId: deferredSnapshot.workspace.session.activeLayerId }
-        : {}),
-      ...(deferredSnapshot.workspace.session.selection.kind === "tile"
-        ? { selectedTiles: deferredSnapshot.workspace.session.selection.coordinates }
-        : {}),
-      ...(deferredSnapshot.workspace.session.selection.kind === "object"
-        ? { selectedObjectIds: deferredSnapshot.workspace.session.selection.objectIds }
-        : {}),
-      ...(deferredSnapshot.runtime.interactions.objectTransformPreview.kind === "object-move"
-        ? {
-            objectTransformPreview: {
-              kind: "move" as const,
-              objectIds:
-                deferredSnapshot.runtime.interactions.objectTransformPreview.objectIds,
-              deltaX: deferredSnapshot.runtime.interactions.objectTransformPreview.deltaX,
-              deltaY: deferredSnapshot.runtime.interactions.objectTransformPreview.deltaY
-            }
-          }
-        : deferredSnapshot.runtime.interactions.objectTransformPreview.kind === "object-resize"
-          ? {
-              objectTransformPreview: {
-                kind: "resize" as const,
-                objectId:
-                  deferredSnapshot.runtime.interactions.objectTransformPreview.objectId,
-                x: deferredSnapshot.runtime.interactions.objectTransformPreview.x,
-                y: deferredSnapshot.runtime.interactions.objectTransformPreview.y,
-                width: deferredSnapshot.runtime.interactions.objectTransformPreview.width,
-                height: deferredSnapshot.runtime.interactions.objectTransformPreview.height
-              }
-            }
-          : {}),
-      ...(deferredSnapshot.runtime.interactions.canvasPreview.kind !== "none"
-        ? { previewTiles: deferredSnapshot.runtime.interactions.canvasPreview.coordinates }
-        : {})
+      ...deferredViewState.render
     });
-  }, [deferredSnapshot]);
+  }, [deferredViewState]);
 
   function pickTile(clientX: number, clientY: number): { x: number; y: number } | undefined {
     const result = rendererRef.current.pick(clientX, clientY, {
@@ -265,7 +246,7 @@ export function RendererCanvas({
       return "";
     }
 
-    if (snapshot.workspace.session.activeTool !== "object-select") {
+    if (viewState.activeTool !== "object-select") {
       return `${tile.x}, ${tile.y}`;
     }
 
@@ -361,9 +342,7 @@ export function RendererCanvas({
     if (pending.dragging) {
       onObjectMoveEnd?.();
     } else {
-      const selection = snapshot.workspace.session.selection;
-      const alreadySelected =
-        selection.kind === "object" && selection.objectIds.includes(pending.objectId);
+      const alreadySelected = viewState.selectedObjectIds.includes(pending.objectId);
 
       if (!alreadySelected) {
         onObjectSelect?.(pending.objectId);
@@ -387,12 +366,12 @@ export function RendererCanvas({
           return;
         }
 
-        if (snapshot.workspace.session.activeTool === "world-tool") {
+        if (viewState.activeTool === "world-tool") {
           hostRef.current?.focus();
           return;
         }
 
-        if (snapshot.workspace.session.activeTool === "object-select") {
+        if (viewState.activeTool === "object-select") {
           const result = rendererRef.current.pick(event.clientX, event.clientY, {
             mode: "object"
           });
@@ -403,11 +382,8 @@ export function RendererCanvas({
               return;
             }
 
-            const selection = snapshot.workspace.session.selection;
-
             if (
-              selection.kind !== "object" ||
-              selection.objectIds.length !== 1 ||
+              viewState.selectedObjectIds.length !== 1 ||
               !onObjectResizeStart
             ) {
               return;
@@ -422,7 +398,7 @@ export function RendererCanvas({
             pendingObjectGestureRef.current = {
               kind: "resize",
               pointerId: event.pointerId,
-              objectId: selection.objectIds[0]!,
+              objectId: viewState.selectedObjectIds[0]!,
               handle: result.handle,
               lastWorldX: location.worldX,
               lastWorldY: location.worldY
@@ -430,7 +406,7 @@ export function RendererCanvas({
             hostRef.current?.focus();
             hostRef.current?.setPointerCapture(event.pointerId);
             onObjectResizeStart(
-              selection.objectIds[0]!,
+              viewState.selectedObjectIds[0]!,
               result.handle,
               location.worldX,
               location.worldY,
@@ -485,7 +461,7 @@ export function RendererCanvas({
       onPointerMove={(event) => {
         publishStatusInfo(readStatusInfo(event.clientX, event.clientY));
 
-        if (snapshot.workspace.session.activeTool === "object-select") {
+        if (viewState.activeTool === "object-select") {
           const pending = pendingObjectGestureRef.current;
 
           if (!pending) {
@@ -574,7 +550,7 @@ export function RendererCanvas({
         const pending = pendingObjectGestureRef.current;
 
         if (
-          snapshot.workspace.session.activeTool === "object-select" &&
+          viewState.activeTool === "object-select" &&
           pending?.kind === "move" &&
           pending.dragging
         ) {
@@ -587,7 +563,7 @@ export function RendererCanvas({
         }
 
         if (
-          snapshot.workspace.session.activeTool === "object-select" &&
+          viewState.activeTool === "object-select" &&
           pending?.kind === "resize"
         ) {
           onObjectResize?.(
@@ -612,7 +588,7 @@ export function RendererCanvas({
         const pending = pendingObjectGestureRef.current;
 
         if (
-          snapshot.workspace.session.activeTool === "object-select" &&
+          viewState.activeTool === "object-select" &&
           pending?.kind === "move" &&
           pending.dragging
         ) {
@@ -625,7 +601,7 @@ export function RendererCanvas({
         }
 
         if (
-          snapshot.workspace.session.activeTool === "object-select" &&
+          viewState.activeTool === "object-select" &&
           pending?.kind === "resize"
         ) {
           onObjectResize?.(
@@ -649,18 +625,12 @@ export function RendererCanvas({
       tabIndex={0}
     >
       <div ref={canvasHostRef} className="absolute inset-0" />
-      {snapshot.activeMap && snapshot.worldContext ? (
+      {viewState.worldOverlay ? (
         <WorldContextOverlay
-          activeMap={snapshot.activeMap}
-          activeTool={snapshot.workspace.session.activeTool}
           height={hostSize.height}
-          viewport={snapshot.bootstrap.viewport}
-          visible={
-            snapshot.workspace.session.showWorlds ||
-            snapshot.workspace.session.activeTool === "world-tool"
-          }
+          renderBridge={renderBridge}
+          viewState={viewState.worldOverlay}
           width={hostSize.width}
-          worldContext={snapshot.worldContext}
           onActivateMap={onWorldMapActivate}
           onMoveWorldMap={onWorldMapMove}
           onStatusInfoChange={publishStatusInfo}

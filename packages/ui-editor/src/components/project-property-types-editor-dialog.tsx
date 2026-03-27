@@ -1,7 +1,7 @@
 "use client";
 
-import { createIndexedName } from "@pixel-editor/app-services";
-import type { EditorController } from "@pixel-editor/app-services";
+import { createIndexedName } from "@pixel-editor/app-services/ui";
+import type { EditorController } from "@pixel-editor/app-services/ui";
 import {
   clonePropertyTypeDefinition,
   clonePropertyValue,
@@ -16,7 +16,7 @@ import {
   type PropertyTypeName,
   type PropertyTypeUseAs,
   type PropertyValue
-} from "@pixel-editor/domain";
+} from "@pixel-editor/app-services/ui-property-types";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 

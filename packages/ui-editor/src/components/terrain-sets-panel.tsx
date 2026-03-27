@@ -1,23 +1,19 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services";
+import type { EditorController } from "@pixel-editor/app-services/ui";
 import type {
-  EditorMap,
-  TilesetDefinition,
-  TilesetId,
-  WangSetDefinition,
-  WangSetType
-} from "@pixel-editor/domain";
+  TerrainSetsPanelViewState,
+  TerrainSetsPanelWangSetItemViewState
+} from "@pixel-editor/app-services/ui";
+import type { WangSetType } from "@pixel-editor/app-services/ui-tiles";
 import { useI18n } from "@pixel-editor/i18n/client";
-import { startTransition, useEffect, useMemo, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 
 import { getWangSetTypeLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
 export interface TerrainSetsPanelProps {
-  activeMap: EditorMap | undefined;
-  tilesets: TilesetDefinition[];
-  activeTilesetId: TilesetId | undefined;
+  viewState: TerrainSetsPanelViewState;
   store: EditorController;
   embedded?: boolean;
 }
@@ -42,7 +38,7 @@ function TerrainSetToolbarButton(props: {
 }
 
 function TerrainSetDetails(props: {
-  wangSet: WangSetDefinition | undefined;
+  wangSet: TerrainSetsPanelWangSetItemViewState | undefined;
   onRename: (name: string) => void;
   onTypeChange: (type: WangSetType) => void;
 }) {
@@ -104,29 +100,17 @@ function TerrainSetDetails(props: {
   );
 }
 
-function TerrainSetsDockContent({
-  activeMap,
-  tilesets,
-  activeTilesetId,
-  store
-}: Omit<TerrainSetsPanelProps, "embedded">) {
+function TerrainSetsDockContent({ viewState, store }: Omit<TerrainSetsPanelProps, "embedded">) {
   const { t } = useI18n();
-  const [selectedWangSetId, setSelectedWangSetId] = useState<WangSetDefinition["id"] | undefined>();
-  const availableTilesets = useMemo(() => {
-    if (!activeMap) {
-      return tilesets;
-    }
-
-    return activeMap.tilesetIds
-      .map((tilesetId) => tilesets.find((tileset) => tileset.id === tilesetId))
-      .filter((tileset): tileset is TilesetDefinition => tileset !== undefined);
-  }, [activeMap, tilesets]);
+  const [selectedWangSetId, setSelectedWangSetId] = useState<
+    TerrainSetsPanelWangSetItemViewState["id"] | undefined
+  >();
   const activeTileset =
-    availableTilesets.find((tileset) => tileset.id === activeTilesetId) ??
-    availableTilesets[0];
+    viewState.availableTilesets.find((tileset) => tileset.isActive) ??
+    viewState.availableTilesets[0];
   const selectedWangSet =
-    activeTileset?.wangSets.find((wangSet) => wangSet.id === selectedWangSetId) ??
-    activeTileset?.wangSets[0];
+    viewState.wangSets.find((wangSet) => wangSet.id === selectedWangSetId) ??
+    viewState.wangSets[0];
 
   useEffect(() => {
     if (!activeTileset) {
@@ -136,15 +120,15 @@ function TerrainSetsDockContent({
 
     if (
       selectedWangSetId &&
-      activeTileset.wangSets.some((wangSet) => wangSet.id === selectedWangSetId)
+      viewState.wangSets.some((wangSet) => wangSet.id === selectedWangSetId)
     ) {
       return;
     }
 
-    setSelectedWangSetId(activeTileset.wangSets[0]?.id);
-  }, [activeTileset, selectedWangSetId]);
+    setSelectedWangSetId(viewState.wangSets[0]?.id);
+  }, [activeTileset, selectedWangSetId, viewState.wangSets]);
 
-  if (!availableTilesets.length) {
+  if (!viewState.availableTilesets.length) {
     return (
       <div className="flex h-full min-h-[220px] items-center justify-center bg-[#b8b8b8] px-6 text-center text-sm text-slate-700">
         {t("terrainSets.noneAvailable")}
@@ -156,14 +140,12 @@ function TerrainSetsDockContent({
     <div className="flex h-full min-h-0 flex-col bg-[#b8b8b8]">
       <div className="flex items-end border-b border-slate-700 bg-slate-800">
         <div className="flex min-w-0 flex-1 items-end gap-px overflow-x-auto px-1 pt-1">
-          {availableTilesets.map((tileset) => {
-            const isActive = tileset.id === activeTileset?.id;
-
+          {viewState.availableTilesets.map((tileset) => {
             return (
               <button
                 key={tileset.id}
                 className={`shrink-0 border px-2 py-1 text-xs transition ${
-                  isActive
+                  tileset.isActive
                     ? "border-slate-700 border-b-[#b8b8b8] bg-slate-900 text-slate-100"
                     : "border-slate-700 border-b-0 bg-slate-800 text-slate-300 hover:bg-slate-700"
                 }`}
@@ -181,10 +163,10 @@ function TerrainSetsDockContent({
       </div>
 
       <div className="min-h-0 flex-1 overflow-y-auto">
-        {activeTileset?.wangSets.length ? (
+        {viewState.wangSets.length ? (
           <div className="p-2">
             <ul className="border border-slate-500/20 bg-slate-100/70">
-              {activeTileset.wangSets.map((wangSet) => {
+              {viewState.wangSets.map((wangSet) => {
                 const isSelected = wangSet.id === selectedWangSet?.id;
 
                 return (
@@ -211,7 +193,9 @@ function TerrainSetsDockContent({
           </div>
         ) : (
           <div className="flex h-full min-h-[180px] items-center justify-center px-6 text-center text-sm text-slate-700">
-            {t("terrainSets.noSetsInTileset", { name: activeTileset?.name ?? t("common.none") })}
+            {t("terrainSets.noSetsInTileset", {
+              name: viewState.activeTilesetName ?? t("common.none")
+            })}
           </div>
         )}
       </div>
@@ -288,11 +272,12 @@ function TerrainSetsDockContent({
               return;
             }
 
-            const nextIndex = activeTileset?.wangSets.findIndex((wangSet) => wangSet.id === selectedWangSet.id) ?? -1;
+            const nextIndex =
+              viewState.wangSets.findIndex((wangSet) => wangSet.id === selectedWangSet.id) ?? -1;
             const fallbackId =
               nextIndex > 0
-                ? activeTileset?.wangSets[nextIndex - 1]?.id
-                : activeTileset?.wangSets[1]?.id;
+                ? viewState.wangSets[nextIndex - 1]?.id
+                : viewState.wangSets[1]?.id;
 
             startTransition(() => {
               store.removeActiveTilesetWangSet(selectedWangSet.id);

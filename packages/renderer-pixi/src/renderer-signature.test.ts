@@ -351,6 +351,8 @@ describe("renderer signatures", () => {
       highlighted: false,
       width: 320,
       height: 180,
+      repeatX: false,
+      repeatY: false,
       assetVersion: 1
     });
     const resizedSignature = createImageLayerRenderSignature({
@@ -359,6 +361,8 @@ describe("renderer signatures", () => {
       highlighted: false,
       width: 360,
       height: 180,
+      repeatX: false,
+      repeatY: false,
       assetVersion: 1
     });
     const reloadedAssetSignature = createImageLayerRenderSignature({
@@ -367,10 +371,23 @@ describe("renderer signatures", () => {
       highlighted: false,
       width: 320,
       height: 180,
+      repeatX: false,
+      repeatY: false,
       assetVersion: 2
+    });
+    const repeatedSignature = createImageLayerRenderSignature({
+      imagePath: "/backdrop.png",
+      opacity: 0.8,
+      highlighted: false,
+      width: 320,
+      height: 180,
+      repeatX: true,
+      repeatY: false,
+      assetVersion: 1
     });
 
     expect(baseSignature).not.toBe(resizedSignature);
     expect(baseSignature).not.toBe(reloadedAssetSignature);
+    expect(baseSignature).not.toBe(repeatedSignature);
   });
 });
