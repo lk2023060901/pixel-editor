@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  createImageLayerRenderSignature,
   createProjectedObjectRenderSignature,
   createProjectedObjectSelectionSignature,
   createBoundsRenderSignature,
@@ -341,5 +342,35 @@ describe("renderer signatures", () => {
 
     expect(baseSignature).not.toBe(movedSignature);
     expect(baseSignature).not.toBe(unselectedSignature);
+  });
+
+  it("changes image layer signatures when size or assets change", () => {
+    const baseSignature = createImageLayerRenderSignature({
+      imagePath: "/backdrop.png",
+      opacity: 0.8,
+      highlighted: false,
+      width: 320,
+      height: 180,
+      assetVersion: 1
+    });
+    const resizedSignature = createImageLayerRenderSignature({
+      imagePath: "/backdrop.png",
+      opacity: 0.8,
+      highlighted: false,
+      width: 360,
+      height: 180,
+      assetVersion: 1
+    });
+    const reloadedAssetSignature = createImageLayerRenderSignature({
+      imagePath: "/backdrop.png",
+      opacity: 0.8,
+      highlighted: false,
+      width: 320,
+      height: 180,
+      assetVersion: 2
+    });
+
+    expect(baseSignature).not.toBe(resizedSignature);
+    expect(baseSignature).not.toBe(reloadedAssetSignature);
   });
 });

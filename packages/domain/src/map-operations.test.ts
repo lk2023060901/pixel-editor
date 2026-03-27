@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  addTopLevelGroupLayer,
+  addTopLevelImageLayer,
   addTopLevelObjectLayer,
   addTopLevelTileLayer,
   createMap,
@@ -64,6 +66,33 @@ describe("map operations", () => {
 
     expect(moved.layers.map((layer) => layer.name)).toEqual(["Objects", "Ground"]);
     expect(removed.layers.map((layer) => layer.name)).toEqual(["Ground"]);
+  });
+
+  it("adds image and group layers at the top level", () => {
+    const map = createMap({
+      name: "layers",
+      orientation: "orthogonal",
+      width: 4,
+      height: 4,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+
+    const withImage = addTopLevelImageLayer(map, "Backdrop").map;
+    const withGroup = addTopLevelGroupLayer(withImage, "Gameplay").map;
+
+    expect(withGroup.layers).toMatchObject([
+      {
+        kind: "image",
+        name: "Backdrop",
+        imagePath: ""
+      },
+      {
+        kind: "group",
+        name: "Gameplay",
+        layers: []
+      }
+    ]);
   });
 
   it("paints and erases finite tile cells", () => {

@@ -51,6 +51,7 @@ export interface EditorSessionState {
   viewport: ViewportState;
   showWorlds: boolean;
   autoMapWhileDrawing: boolean;
+  highlightCurrentLayer: boolean;
   hasUnsavedChanges: boolean;
 }
 
@@ -80,6 +81,7 @@ export function createEditorSessionState(
     },
     showWorlds: overrides.showWorlds ?? false,
     autoMapWhileDrawing: overrides.autoMapWhileDrawing ?? false,
+    highlightCurrentLayer: overrides.highlightCurrentLayer ?? true,
     hasUnsavedChanges: overrides.hasUnsavedChanges ?? false,
     ...(overrides.activeMapId !== undefined ? { activeMapId: overrides.activeMapId } : {}),
     ...(overrides.activeLayerId !== undefined

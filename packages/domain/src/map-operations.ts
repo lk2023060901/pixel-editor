@@ -1,6 +1,10 @@
 import {
+  createGroupLayer,
+  createImageLayer,
   createObjectLayer,
   createTileLayer,
+  type GroupLayer,
+  type ImageLayer,
   type LayerDefinition,
   type ObjectLayer,
   type TileLayer
@@ -278,6 +282,43 @@ export function addTopLevelObjectLayer(
   name: string
 ): { map: EditorMap; layer: ObjectLayer } {
   const layer = createObjectLayer({
+    name
+  });
+
+  return {
+    map: {
+      ...map,
+      layers: [...map.layers, layer],
+      nextLayerOrder: map.nextLayerOrder + 1
+    },
+    layer
+  };
+}
+
+export function addTopLevelImageLayer(
+  map: EditorMap,
+  name: string
+): { map: EditorMap; layer: ImageLayer } {
+  const layer = createImageLayer({
+    name,
+    imagePath: ""
+  });
+
+  return {
+    map: {
+      ...map,
+      layers: [...map.layers, layer],
+      nextLayerOrder: map.nextLayerOrder + 1
+    },
+    layer
+  };
+}
+
+export function addTopLevelGroupLayer(
+  map: EditorMap,
+  name: string
+): { map: EditorMap; layer: GroupLayer } {
+  const layer = createGroupLayer({
     name
   });
 

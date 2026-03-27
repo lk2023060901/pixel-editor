@@ -25,7 +25,9 @@ export const defaultMapLayerNames = {
 
 export const layerNamePrefixes = {
   tile: "Tile Layer",
-  object: "Object Layer"
+  object: "Object Layer",
+  image: "Image Layer",
+  group: "Group Layer"
 } as const;
 
 export const objectNamePrefix = "Object";
@@ -41,6 +43,8 @@ export interface EditorNamingConfig {
   layerNamePrefixes: {
     tile: string;
     object: string;
+    image: string;
+    group: string;
   };
   objectNamePrefix: string;
   defaultWangSetName: string;

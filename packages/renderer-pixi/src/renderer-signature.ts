@@ -38,6 +38,15 @@ export interface TileOverlaySignatureInput {
   tileHeight: number;
 }
 
+export interface ImageLayerRenderSignatureInput {
+  imagePath: string;
+  opacity: number;
+  highlighted: boolean;
+  width: number | undefined;
+  height: number | undefined;
+  assetVersion: number;
+}
+
 export interface GridSignatureInput {
   showGrid: boolean;
   gridOriginX: number;
@@ -220,6 +229,19 @@ export function createProjectedObjectSelectionSignature(input: {
       input.objects.filter((object) => object.selected)
     )
   ].join("::");
+}
+
+export function createImageLayerRenderSignature(
+  input: ImageLayerRenderSignatureInput
+): string {
+  return [
+    input.imagePath,
+    input.opacity,
+    input.highlighted ? 1 : 0,
+    input.width ?? "",
+    input.height ?? "",
+    input.assetVersion
+  ].join(":");
 }
 
 export function createTileOverlayRenderSignature(

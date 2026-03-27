@@ -4,6 +4,8 @@ import {
   type HistoryCommand
 } from "@pixel-editor/command-engine";
 import {
+  addTopLevelGroupLayer,
+  addTopLevelImageLayer,
   addTopLevelObjectLayer,
   addTopLevelTileLayer,
   areTileCellsEqual,
@@ -143,6 +145,20 @@ function patchSessionActiveLayer(
 
   delete nextSession.activeLayerId;
   return nextSession;
+}
+
+function collectLayerTree(layers: readonly LayerDefinition[]): LayerDefinition[] {
+  const collected: LayerDefinition[] = [];
+
+  for (const layer of layers) {
+    collected.push(layer);
+
+    if (layer.kind === "group") {
+      collected.push(...collectLayerTree(layer.layers));
+    }
+  }
+
+  return collected;
 }
 
 export function buildDefaultMapDocument(
@@ -410,6 +426,20 @@ export function toggleAutoMapWhileDrawingCommand(): HistoryCommand<EditorWorkspa
   });
 }
 
+export function toggleHighlightCurrentLayerCommand(): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "session.toggleHighlightCurrentLayer",
+    description: "Toggle current layer highlight",
+    run: (state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        highlightCurrentLayer: !state.session.highlightCurrentLayer
+      }
+    })
+  });
+}
+
 export function updateMapDetailsCommand(
   mapId: MapId,
   patch: UpdateMapDetailsInput
@@ -425,6 +455,98 @@ export function updateMapDetailsCommand(
         hasUnsavedChanges: true
       }
     })
+  });
+}
+
+export function toggleOtherLayersVisibilityCommand(
+  mapId: MapId,
+  activeLayerId: LayerId
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "layer.toggleOtherVisibility",
+    description: `Toggle visibility for layers around ${activeLayerId}`,
+    run: (state) => {
+      const map = state.maps.find((entry) => entry.id === mapId);
+
+      if (!map) {
+        return state;
+      }
+
+      const otherLayers = collectLayerTree(map.layers).filter((layer) => layer.id !== activeLayerId);
+
+      if (otherLayers.length === 0) {
+        return state;
+      }
+
+      const nextVisible = !otherLayers.some((layer) => layer.visible);
+      const nextMap = otherLayers.reduce(
+        (currentMap, layer) =>
+          updateLayerInMap(currentMap, layer.id, (candidate) => ({
+            ...candidate,
+            visible: nextVisible
+          })),
+        map
+      );
+
+      if (nextMap === map) {
+        return state;
+      }
+
+      return {
+        ...state,
+        maps: state.maps.map((entry) => (entry.id === mapId ? nextMap : entry)),
+        session: {
+          ...state.session,
+          hasUnsavedChanges: true
+        }
+      };
+    }
+  });
+}
+
+export function toggleOtherLayersLockCommand(
+  mapId: MapId,
+  activeLayerId: LayerId
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "layer.toggleOtherLock",
+    description: `Toggle locks for layers around ${activeLayerId}`,
+    run: (state) => {
+      const map = state.maps.find((entry) => entry.id === mapId);
+
+      if (!map) {
+        return state;
+      }
+
+      const otherLayers = collectLayerTree(map.layers).filter((layer) => layer.id !== activeLayerId);
+
+      if (otherLayers.length === 0) {
+        return state;
+      }
+
+      const nextLocked = otherLayers.some((layer) => !layer.locked);
+      const nextMap = otherLayers.reduce(
+        (currentMap, layer) =>
+          updateLayerInMap(currentMap, layer.id, (candidate) => ({
+            ...candidate,
+            locked: nextLocked
+          })),
+        map
+      );
+
+      if (nextMap === map) {
+        return state;
+      }
+
+      return {
+        ...state,
+        maps: state.maps.map((entry) => (entry.id === mapId ? nextMap : entry)),
+        session: {
+          ...state.session,
+          hasUnsavedChanges: true
+        }
+      };
+    }
   });
 }
 
@@ -449,7 +571,7 @@ export function replaceMapDocumentCommand(
 
 export function addLayerCommand(
   mapId: MapId,
-  kind: "tile" | "object",
+  kind: "tile" | "object" | "image" | "group",
   name: string
 ): HistoryCommand<EditorWorkspaceState> {
   return createHistoryCommand({
@@ -463,7 +585,13 @@ export function addLayerCommand(
         }
 
         const result =
-          kind === "tile" ? addTopLevelTileLayer(map, name) : addTopLevelObjectLayer(map, name);
+          kind === "tile"
+            ? addTopLevelTileLayer(map, name)
+            : kind === "object"
+              ? addTopLevelObjectLayer(map, name)
+              : kind === "image"
+                ? addTopLevelImageLayer(map, name)
+                : addTopLevelGroupLayer(map, name);
         createdLayerId = result.layer.id;
         return result.map;
       });

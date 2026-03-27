@@ -146,14 +146,39 @@ function ToolbarIconButton(props: {
   );
 }
 
+function LayerStateButton(props: {
+  title: string;
+  selected?: boolean;
+  onClick?: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <button
+      aria-label={props.title}
+      className={`flex h-6 w-6 items-center justify-center transition ${
+        props.selected ? "bg-slate-700/90" : "hover:bg-slate-800/80"
+      }`}
+      title={props.title}
+      type="button"
+      onClick={props.onClick}
+    >
+      {props.children}
+    </button>
+  );
+}
+
 function NewLayerButton(props: {
   labels: {
     newLayer: string;
     tileLayer: string;
     objectLayer: string;
+    imageLayer: string;
+    groupLayer: string;
   };
   onAddTileLayer: () => void;
   onAddObjectLayer: () => void;
+  onAddImageLayer: () => void;
+  onAddGroupLayer: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -205,6 +230,30 @@ function NewLayerButton(props: {
             </span>
             <span>{props.labels.objectLayer}</span>
           </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+            onClick={() => {
+              setOpen(false);
+              props.onAddImageLayer();
+            }}
+          >
+            <span className="w-4">
+              <LayerKindIcon kind="image" />
+            </span>
+            <span>{props.labels.imageLayer}</span>
+          </button>
+          <button
+            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+            onClick={() => {
+              setOpen(false);
+              props.onAddGroupLayer();
+            }}
+          >
+            <span className="w-4">
+              <LayerKindIcon kind="group" />
+            </span>
+            <span>{props.labels.groupLayer}</span>
+          </button>
         </div>
       ) : null}
     </div>
@@ -214,46 +263,59 @@ function NewLayerButton(props: {
 function LayerRow(props: {
   layer: LayerDefinition;
   selected: boolean;
+  highlightCurrentLayer: boolean;
   visibleLabel: string;
   hiddenLabel: string;
   lockedLabel: string;
   unlockedLabel: string;
   onSelect: () => void;
+  onToggleVisibility: () => void;
+  onToggleLock: () => void;
 }) {
   return (
-    <button
+    <div
       className={`grid w-full grid-cols-[minmax(0,1fr)_24px_24px] items-center gap-1 border-b border-slate-800 px-2 py-1 text-left text-sm transition ${
         props.selected
           ? "bg-slate-800 text-slate-100"
           : "bg-slate-900 text-slate-300 hover:bg-slate-800/70"
       }`}
-      onClick={props.onSelect}
     >
-      <span className="flex min-w-0 items-center gap-2">
+      <button
+        className="flex min-w-0 items-center gap-2 text-left"
+        type="button"
+        onClick={props.onSelect}
+      >
         <LayerKindIcon kind={props.layer.kind} />
-        <span className={`truncate ${props.selected ? "font-semibold" : "font-normal"}`}>
+        <span
+          className={`truncate ${props.selected ? "font-semibold" : "font-normal"} ${
+            props.selected && props.highlightCurrentLayer ? "text-emerald-200" : ""
+          }`}
+        >
           {props.layer.name}
         </span>
-      </span>
-      <span
-        className="flex h-6 w-6 items-center justify-center"
+      </button>
+      <LayerStateButton
+        selected={!props.layer.visible}
         title={props.layer.visible ? props.visibleLabel : props.hiddenLabel}
+        onClick={props.onToggleVisibility}
       >
         <VisibilityIcon visible={props.layer.visible} />
-      </span>
-      <span
-        className="flex h-6 w-6 items-center justify-center"
+      </LayerStateButton>
+      <LayerStateButton
+        selected={props.layer.locked}
         title={props.layer.locked ? props.lockedLabel : props.unlockedLabel}
+        onClick={props.onToggleLock}
       >
         <LockIcon locked={props.layer.locked} />
-      </span>
-    </button>
+      </LayerStateButton>
+    </div>
   );
 }
 
 export interface LayersPanelProps {
   activeMap: EditorMap | undefined;
   activeLayerId: LayerId | undefined;
+  highlightCurrentLayer: boolean;
   store: EditorController;
   embedded?: boolean;
 }
@@ -261,6 +323,7 @@ export interface LayersPanelProps {
 function LayersPanelContent({
   activeMap,
   activeLayerId,
+  highlightCurrentLayer,
   store
 }: Omit<LayersPanelProps, "embedded">) {
   const { t } = useI18n();
@@ -269,6 +332,9 @@ function LayersPanelContent({
   const displayedLayers = activeMap ? [...activeMap.layers].reverse() : [];
   const hasActiveLayer = activeLayerIndex >= 0;
   const hasSiblingLayers = Boolean(activeMap && activeMap.layers.length > 1 && hasActiveLayer);
+  const otherLayers = activeMap?.layers.filter((layer) => layer.id !== activeLayerId) ?? [];
+  const otherLayersHidden = otherLayers.length > 0 && otherLayers.every((layer) => !layer.visible);
+  const otherLayersLocked = otherLayers.length > 0 && otherLayers.every((layer) => layer.locked);
 
   function addTileLayer(): void {
     startTransition(() => {
@@ -282,6 +348,18 @@ function LayersPanelContent({
     });
   }
 
+  function addImageLayer(): void {
+    startTransition(() => {
+      store.addImageLayer();
+    });
+  }
+
+  function addGroupLayer(): void {
+    startTransition(() => {
+      store.addGroupLayer();
+    });
+  }
+
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-900">
@@ -289,6 +367,7 @@ function LayersPanelContent({
           <LayerRow
             key={layer.id}
             hiddenLabel={t("layers.hidden")}
+            highlightCurrentLayer={highlightCurrentLayer}
             layer={layer}
             lockedLabel={t("layers.locked")}
             selected={layer.id === activeLayerId}
@@ -297,6 +376,16 @@ function LayersPanelContent({
             onSelect={() => {
               startTransition(() => {
                 store.setActiveLayer(layer.id);
+              });
+            }}
+            onToggleVisibility={() => {
+              startTransition(() => {
+                store.toggleLayerVisibility(layer.id);
+              });
+            }}
+            onToggleLock={() => {
+              startTransition(() => {
+                store.toggleLayerLock(layer.id);
               });
             }}
           />
@@ -311,9 +400,13 @@ function LayersPanelContent({
         <NewLayerButton
           labels={{
             newLayer: t("layers.newLayer"),
+            groupLayer: getLayerKindLabel("group", t),
+            imageLayer: getLayerKindLabel("image", t),
             objectLayer: getLayerKindLabel("object", t),
             tileLayer: getLayerKindLabel("tile", t)
           }}
+          onAddGroupLayer={addGroupLayer}
+          onAddImageLayer={addImageLayer}
           onAddObjectLayer={addObjectLayer}
           onAddTileLayer={addTileLayer}
         />
@@ -369,18 +462,39 @@ function LayersPanelContent({
         <div className="mx-1 h-4 w-px bg-slate-600" />
         <ToolbarIconButton
           disabled={!hasSiblingLayers}
+          active={otherLayersHidden}
           title={t("action.showHideOtherLayers")}
+          onClick={() => {
+            startTransition(() => {
+              store.toggleOtherLayersVisibility();
+            });
+          }}
         >
           <VisibilityIcon visible />
         </ToolbarIconButton>
         <ToolbarIconButton
           disabled={!hasSiblingLayers}
+          active={otherLayersLocked}
           title={t("action.lockUnlockOtherLayers")}
+          onClick={() => {
+            startTransition(() => {
+              store.toggleOtherLayersLock();
+            });
+          }}
         >
           <LockIcon locked />
         </ToolbarIconButton>
         <div className="min-w-0 flex-1" />
-        <ToolbarIconButton disabled title={t("action.highlightCurrentLayer")}>
+        <ToolbarIconButton
+          active={highlightCurrentLayer}
+          disabled={!activeLayerId}
+          title={t("action.highlightCurrentLayer")}
+          onClick={() => {
+            startTransition(() => {
+              store.toggleHighlightCurrentLayer();
+            });
+          }}
+        >
           <svg aria-hidden="true" className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 16 16">
             <path
               d="M8 2.5 9.7 6l3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5 6.3 6 8 2.5Z"

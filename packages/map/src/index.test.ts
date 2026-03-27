@@ -25,7 +25,10 @@ import {
   selectTileRegionCommand,
   setActiveStampCommand,
   setViewportZoomCommand,
+  toggleHighlightCurrentLayerCommand,
   toggleGridCommand,
+  toggleOtherLayersLockCommand,
+  toggleOtherLayersVisibilityCommand,
   upsertLayerPropertyCommand,
   upsertMapPropertyCommand,
   updateLayerDetailsCommand,
@@ -79,6 +82,20 @@ describe("map commands", () => {
     expect(history.state.session.viewport.zoom).toBe(2);
   });
 
+  it("toggles current layer highlighting in session state", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(toggleHighlightCurrentLayerCommand());
+
+    expect(history.state.session.highlightCurrentLayer).toBe(false);
+  });
+
   it("updates map details and manages layer order", () => {
     const workspace = createEditorWorkspaceState({
       project: createProject({
@@ -121,6 +138,46 @@ describe("map commands", () => {
       "Objects",
       "Ground"
     ]);
+  });
+
+  it("adds image and group layers through the map command API", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+
+    history.execute(addLayerCommand(mapId, "image", "Backdrop"));
+    history.execute(addLayerCommand(mapId, "group", "Gameplay"));
+
+    expect(history.state.maps[0]?.layers.slice(-2)).toMatchObject([
+      {
+        kind: "image",
+        name: "Backdrop",
+        imagePath: ""
+      },
+      {
+        kind: "group",
+        name: "Gameplay",
+        layers: []
+      }
+    ]);
+    expect(history.state.session.activeLayerId).toBe(history.state.maps[0]?.layers.at(-1)?.id);
   });
 
   it("updates active layer details", () => {
@@ -167,6 +224,55 @@ describe("map commands", () => {
       offsetX: 10,
       offsetY: -6
     });
+  });
+
+  it("toggles visibility and lock state for other layers", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(
+      createMapDocumentCommand({
+        name: "map-1",
+        orientation: "orthogonal",
+        width: 20,
+        height: 12,
+        tileWidth: 32,
+        tileHeight: 32
+      })
+    );
+
+    const mapId = history.state.maps[0]!.id;
+    const activeLayerId = history.state.maps[0]!.layers[0]!.id;
+
+    history.execute(addLayerCommand(mapId, "tile", "Decor"));
+    history.execute(toggleOtherLayersVisibilityCommand(mapId, activeLayerId));
+    history.execute(toggleOtherLayersLockCommand(mapId, activeLayerId));
+
+    expect(
+      history.state.maps[0]?.layers
+        .filter((layer) => layer.id !== activeLayerId)
+        .map((layer) => ({ visible: layer.visible, locked: layer.locked }))
+    ).toEqual([
+      { visible: false, locked: true },
+      { visible: false, locked: true }
+    ]);
+
+    history.execute(toggleOtherLayersVisibilityCommand(mapId, activeLayerId));
+    history.execute(toggleOtherLayersLockCommand(mapId, activeLayerId));
+
+    expect(
+      history.state.maps[0]?.layers
+        .filter((layer) => layer.id !== activeLayerId)
+        .map((layer) => ({ visible: layer.visible, locked: layer.locked }))
+    ).toEqual([
+      { visible: true, locked: false },
+      { visible: true, locked: false }
+    ]);
   });
 
   it("upserts and removes map and layer custom properties", () => {

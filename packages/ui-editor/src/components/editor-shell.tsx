@@ -325,10 +325,12 @@ export function EditorShell({ store }: EditorShellProps) {
       showGrid: snapshot.bootstrap.viewport.showGrid,
       showWorlds: snapshot.workspace.session.showWorlds,
       autoMapWhileDrawing: snapshot.workspace.session.autoMapWhileDrawing,
+      highlightCurrentLayer: snapshot.workspace.session.highlightCurrentLayer,
       hasProject: true,
       hasActiveMap: Boolean(activeMap),
       hasAutomappingRulesFile: Boolean(snapshot.workspace.project.automappingRulesFile),
       hasActiveLayer: Boolean(snapshot.workspace.session.activeLayerId),
+      hasSiblingLayers: Boolean(activeMap && activeMap.layers.length > 1 && activeLayerIndex >= 0),
       hasWorldContext: Boolean(worldContext),
       canMoveWorldMaps,
       canMoveLayerUp: Boolean(activeMap && activeLayerIndex > 0),
@@ -511,6 +513,11 @@ export function EditorShell({ store }: EditorShellProps) {
           store.toggleAutoMapWhileDrawing();
         });
         return;
+      case "highlight-current-layer":
+        startTransition(() => {
+          store.toggleHighlightCurrentLayer();
+        });
+        return;
       case "custom-types-editor":
         setCustomTypesEditorOpen((current) => !current);
         return;
@@ -547,9 +554,45 @@ export function EditorShell({ store }: EditorShellProps) {
           store.addObjectLayer();
         });
         return;
+      case "add-image-layer":
+        startTransition(() => {
+          store.addImageLayer();
+        });
+        return;
+      case "add-group-layer":
+        startTransition(() => {
+          store.addGroupLayer();
+        });
+        return;
       case "remove-layers":
         startTransition(() => {
           store.removeActiveLayer();
+        });
+        return;
+      case "show-hide-layers":
+        if (!snapshot.workspace.session.activeLayerId) {
+          return;
+        }
+        startTransition(() => {
+          store.toggleLayerVisibility(snapshot.workspace.session.activeLayerId!);
+        });
+        return;
+      case "lock-unlock-layers":
+        if (!snapshot.workspace.session.activeLayerId) {
+          return;
+        }
+        startTransition(() => {
+          store.toggleLayerLock(snapshot.workspace.session.activeLayerId!);
+        });
+        return;
+      case "show-hide-other-layers":
+        startTransition(() => {
+          store.toggleOtherLayersVisibility();
+        });
+        return;
+      case "lock-unlock-other-layers":
+        startTransition(() => {
+          store.toggleOtherLayersLock();
         });
         return;
       case "raise-layers":
@@ -581,6 +624,7 @@ export function EditorShell({ store }: EditorShellProps) {
       embedded
       activeMap={activeMap}
       activeLayerId={snapshot.workspace.session.activeLayerId}
+      highlightCurrentLayer={snapshot.workspace.session.highlightCurrentLayer}
       store={store}
     />
   );

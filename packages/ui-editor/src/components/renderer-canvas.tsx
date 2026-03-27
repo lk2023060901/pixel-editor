@@ -179,7 +179,8 @@ export function RendererCanvas({
       tilesets: deferredSnapshot.workspace.tilesets,
       viewport: deferredSnapshot.bootstrap.viewport,
       ...(deferredSnapshot.activeMap ? { map: deferredSnapshot.activeMap } : {}),
-      ...(deferredSnapshot.workspace.session.activeLayerId
+      ...(deferredSnapshot.workspace.session.highlightCurrentLayer &&
+      deferredSnapshot.workspace.session.activeLayerId
         ? { highlightedLayerId: deferredSnapshot.workspace.session.activeLayerId }
         : {}),
       ...(deferredSnapshot.workspace.session.selection.kind === "tile"

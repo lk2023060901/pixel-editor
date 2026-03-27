@@ -157,8 +157,11 @@ import {
   setActiveToolCommand,
   setShapeFillModeCommand,
   setViewportZoomCommand,
+  toggleHighlightCurrentLayerCommand,
   toggleAutoMapWhileDrawingCommand,
   toggleGridCommand,
+  toggleOtherLayersLockCommand,
+  toggleOtherLayersVisibilityCommand,
   upsertLayerPropertyCommand,
   upsertMapPropertyCommand,
   updateLayerDetailsCommand,
@@ -364,6 +367,11 @@ export interface EditorController {
   setActiveTool(tool: EditorToolId): void;
   toggleWorlds(): void;
   toggleAutoMapWhileDrawing(): void;
+  toggleHighlightCurrentLayer(): void;
+  toggleLayerVisibility(layerId: string): void;
+  toggleLayerLock(layerId: string): void;
+  toggleOtherLayersVisibility(): void;
+  toggleOtherLayersLock(): void;
   setShapeFillMode(mode: ShapeFillMode): void;
   setActiveStamp(stamp: TileStamp): void;
   selectObject(objectId: ObjectId): void;
@@ -447,6 +455,8 @@ export interface EditorController {
   removeSelectedObjectProperty(propertyName: string): void;
   addTileLayer(name?: string): void;
   addObjectLayer(name?: string): void;
+  addImageLayer(name?: string): void;
+  addGroupLayer(name?: string): void;
   removeActiveLayer(): void;
   moveActiveLayer(direction: "up" | "down"): void;
   beginCanvasStroke(x: number, y: number, modifiers?: CanvasGestureModifiers): void;
@@ -1913,6 +1923,28 @@ class InMemoryEditorController implements EditorController {
     };
   }
 
+  private resolveLayerInActiveMap(
+    layerId: string
+  ): { activeMap: EditorMap; layer: LayerDefinition } | undefined {
+    const state = this.history.state;
+    const activeMap = getActiveMap(state);
+
+    if (!activeMap) {
+      return undefined;
+    }
+
+    const layer = getLayerById(activeMap.layers, layerId as LayerId);
+
+    if (!layer) {
+      return undefined;
+    }
+
+    return {
+      activeMap,
+      layer
+    };
+  }
+
   private resolveSelectedTileContext():
     | {
         activeTileset: TilesetDefinition;
@@ -3007,6 +3039,60 @@ class InMemoryEditorController implements EditorController {
 
   toggleAutoMapWhileDrawing(): void {
     this.commit(toggleAutoMapWhileDrawingCommand());
+  }
+
+  toggleHighlightCurrentLayer(): void {
+    this.commit(toggleHighlightCurrentLayerCommand());
+  }
+
+  toggleLayerVisibility(layerId: string): void {
+    const resolved = this.resolveLayerInActiveMap(layerId);
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      updateLayerDetailsCommand(resolved.activeMap.id, resolved.layer.id, {
+        visible: !resolved.layer.visible
+      })
+    );
+  }
+
+  toggleLayerLock(layerId: string): void {
+    const resolved = this.resolveLayerInActiveMap(layerId);
+
+    if (!resolved) {
+      return;
+    }
+
+    this.commit(
+      updateLayerDetailsCommand(resolved.activeMap.id, resolved.layer.id, {
+        locked: !resolved.layer.locked
+      })
+    );
+  }
+
+  toggleOtherLayersVisibility(): void {
+    const activeMap = getActiveMap(this.history.state);
+    const activeLayer = getActiveLayer(this.history.state);
+
+    if (!activeMap || !activeLayer) {
+      return;
+    }
+
+    this.commit(toggleOtherLayersVisibilityCommand(activeMap.id, activeLayer.id));
+  }
+
+  toggleOtherLayersLock(): void {
+    const activeMap = getActiveMap(this.history.state);
+    const activeLayer = getActiveLayer(this.history.state);
+
+    if (!activeMap || !activeLayer) {
+      return;
+    }
+
+    this.commit(toggleOtherLayersLockCommand(activeMap.id, activeLayer.id));
   }
 
   setShapeFillMode(mode: ShapeFillMode): void {
@@ -4124,6 +4210,46 @@ class InMemoryEditorController implements EditorController {
         name ??
           createIndexedName(
             this.naming.layerNamePrefixes.object,
+            activeMap.layers.length + 1
+          )
+      )
+    );
+  }
+
+  addImageLayer(name?: string): void {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return;
+    }
+
+    this.commit(
+      addLayerCommand(
+        activeMap.id,
+        "image",
+        name ??
+          createIndexedName(
+            this.naming.layerNamePrefixes.image,
+            activeMap.layers.length + 1
+          )
+      )
+    );
+  }
+
+  addGroupLayer(name?: string): void {
+    const activeMap = getActiveMap(this.history.state);
+
+    if (!activeMap) {
+      return;
+    }
+
+    this.commit(
+      addLayerCommand(
+        activeMap.id,
+        "group",
+        name ??
+          createIndexedName(
+            this.naming.layerNamePrefixes.group,
             activeMap.layers.length + 1
           )
       )

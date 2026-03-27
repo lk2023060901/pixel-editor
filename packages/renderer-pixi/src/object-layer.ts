@@ -1,6 +1,5 @@
 import type {
   EditorMap,
-  LayerDefinition,
   LayerId,
   MapObject,
   ObjectId,
@@ -8,6 +7,12 @@ import type {
   ObjectLayer
 } from "@pixel-editor/domain";
 import { translateMapObject, updateMapObject } from "@pixel-editor/domain";
+
+import { collectRenderableLayers } from "./layer-composition";
+import {
+  worldLengthToScreenHeight,
+  worldLengthToScreenWidth
+} from "./projection-utils";
 
 export interface ObjectProjectionGeometry {
   tileWidth: number;
@@ -64,12 +69,6 @@ export type ObjectTransformPreview =
       height: number;
     };
 
-interface RenderableObjectLayer {
-  layer: ObjectLayer;
-  opacity: number;
-  highlighted: boolean;
-}
-
 function worldToScreenX(
   worldX: number,
   map: EditorMap,
@@ -94,22 +93,6 @@ function worldToScreenY(
     (worldY / map.settings.tileHeight) * geometry.tileHeight -
     viewport.originY
   );
-}
-
-function worldLengthToScreenWidth(
-  worldWidth: number,
-  map: EditorMap,
-  geometry: ObjectProjectionGeometry
-): number {
-  return (worldWidth / map.settings.tileWidth) * geometry.tileWidth;
-}
-
-function worldLengthToScreenHeight(
-  worldHeight: number,
-  map: EditorMap,
-  geometry: ObjectProjectionGeometry
-): number {
-  return (worldHeight / map.settings.tileHeight) * geometry.tileHeight;
 }
 
 function computeWorldToScreenScale(
@@ -170,48 +153,6 @@ function distanceToSegment(
   return Math.hypot(point.x - closestX, point.y - closestY);
 }
 
-function collectRenderableObjectLayers(
-  layers: LayerDefinition[],
-  highlightedLayerId?: LayerId,
-  inheritedVisible = true,
-  inheritedOpacity = 1
-): RenderableObjectLayer[] {
-  const renderableLayers: RenderableObjectLayer[] = [];
-
-  for (const layer of layers) {
-    const isVisible = inheritedVisible && layer.visible;
-    const nextOpacity = inheritedOpacity * layer.opacity;
-
-    if (!isVisible) {
-      continue;
-    }
-
-    if (layer.kind === "group") {
-      renderableLayers.push(
-        ...collectRenderableObjectLayers(
-          layer.layers,
-          highlightedLayerId,
-          isVisible,
-          nextOpacity
-        )
-      );
-      continue;
-    }
-
-    if (layer.kind !== "object") {
-      continue;
-    }
-
-    renderableLayers.push({
-      layer,
-      opacity: nextOpacity,
-      highlighted: layer.id === highlightedLayerId
-    });
-  }
-
-  return renderableLayers;
-}
-
 function orderLayerObjects(layer: ObjectLayer): MapObject[] {
   if (layer.drawOrder === "index") {
     return [...layer.objects];
@@ -227,16 +168,126 @@ function projectObjectPoints(
   object: MapObject,
   map: EditorMap,
   geometry: ObjectProjectionGeometry,
-  viewport: ObjectProjectionViewport
+  viewport: ObjectProjectionViewport,
+  screenOffsetX: number,
+  screenOffsetY: number
 ): ProjectedPoint[] | undefined {
   if (!object.points?.length) {
     return undefined;
   }
 
   return object.points.map((point) => ({
-    x: worldToScreenX(object.x + point.x, map, geometry, viewport),
-    y: worldToScreenY(object.y + point.y, map, geometry, viewport)
+    x: worldToScreenX(object.x + point.x, map, geometry, viewport) + screenOffsetX,
+    y: worldToScreenY(object.y + point.y, map, geometry, viewport) + screenOffsetY
   }));
+}
+
+export function projectObjectLayer(input: {
+  map: EditorMap;
+  layer: ObjectLayer;
+  geometry: ObjectProjectionGeometry;
+  viewport: ObjectProjectionViewport;
+  opacity: number;
+  highlighted: boolean;
+  offsetX?: number;
+  offsetY?: number;
+  selectedObjectIds?: ReadonlySet<ObjectId> | ObjectId[];
+  objectTransformPreview?: ObjectTransformPreview;
+}): ProjectedMapObject[] {
+  const selectedObjectIds =
+    input.selectedObjectIds instanceof Set
+      ? input.selectedObjectIds
+      : new Set(input.selectedObjectIds ?? []);
+  const movedObjectIds =
+    input.objectTransformPreview?.kind === "move"
+      ? new Set(input.objectTransformPreview.objectIds)
+      : undefined;
+  const projectedObjects: ProjectedMapObject[] = [];
+  const screenOffsetX = worldLengthToScreenWidth(
+    input.offsetX ?? 0,
+    input.map,
+    input.geometry
+  );
+  const screenOffsetY = worldLengthToScreenHeight(
+    input.offsetY ?? 0,
+    input.map,
+    input.geometry
+  );
+
+  for (const object of orderLayerObjects(input.layer)) {
+    if (!object.visible) {
+      continue;
+    }
+
+    const projectedSource =
+      input.objectTransformPreview?.kind === "move" && movedObjectIds?.has(object.id)
+        ? translateMapObject(
+            object,
+            input.objectTransformPreview.deltaX,
+            input.objectTransformPreview.deltaY
+          )
+        : input.objectTransformPreview?.kind === "resize" &&
+            input.objectTransformPreview.objectId === object.id
+          ? updateMapObject(object, {
+              x: input.objectTransformPreview.x,
+              y: input.objectTransformPreview.y,
+              width: input.objectTransformPreview.width,
+              height: input.objectTransformPreview.height
+            })
+        : object;
+
+    const screenPoints = projectObjectPoints(
+      projectedSource,
+      input.map,
+      input.geometry,
+      input.viewport,
+      screenOffsetX,
+      screenOffsetY
+    );
+
+    projectedObjects.push({
+      objectId: object.id,
+      layerId: input.layer.id,
+      name: projectedSource.name,
+      shape: projectedSource.shape,
+      opacity: input.opacity,
+      highlighted: input.highlighted,
+      selected: selectedObjectIds.has(projectedSource.id),
+      screenX:
+        worldToScreenX(projectedSource.x, input.map, input.geometry, input.viewport) +
+        screenOffsetX,
+      screenY:
+        worldToScreenY(projectedSource.y, input.map, input.geometry, input.viewport) +
+        screenOffsetY,
+      screenWidth: worldLengthToScreenWidth(
+        projectedSource.width,
+        input.map,
+        input.geometry
+      ),
+      screenHeight: worldLengthToScreenHeight(
+        projectedSource.height,
+        input.map,
+        input.geometry
+      ),
+      ...(projectedSource.tile?.gid !== undefined
+        ? { tileGid: projectedSource.tile.gid }
+        : {}),
+      ...(projectedSource.text
+        ? {
+            textContent: projectedSource.text.content,
+            textColor: projectedSource.text.color,
+            textFontFamily: projectedSource.text.fontFamily,
+            textPixelSize:
+              projectedSource.text.pixelSize *
+              computeWorldToScreenScale(input.map, input.geometry),
+            textWrap: projectedSource.text.wrap
+          }
+        : {}),
+      ...(screenPoints ? { screenPoints } : {})
+    });
+  }
+
+  return projectedObjects;
 }
 
 export function collectProjectedMapObjects(input: {
@@ -248,92 +299,29 @@ export function collectProjectedMapObjects(input: {
   objectTransformPreview?: ObjectTransformPreview;
 }): ProjectedMapObject[] {
   const selectedObjectIds = new Set(input.selectedObjectIds ?? []);
-  const movedObjectIds =
-    input.objectTransformPreview?.kind === "move"
-      ? new Set(input.objectTransformPreview.objectIds)
-      : undefined;
   const projectedObjects: ProjectedMapObject[] = [];
 
-  for (const entry of collectRenderableObjectLayers(
-    input.map.layers,
-    input.highlightedLayerId
-    )) {
-    for (const object of orderLayerObjects(entry.layer)) {
-      if (!object.visible) {
-        continue;
-      }
+  for (const entry of collectRenderableLayers(input.map.layers, input.highlightedLayerId)) {
+    if (entry.kind !== "object") {
+      continue;
+    }
 
-      const projectedSource =
-        input.objectTransformPreview?.kind === "move" && movedObjectIds?.has(object.id)
-          ? translateMapObject(
-              object,
-              input.objectTransformPreview.deltaX,
-              input.objectTransformPreview.deltaY
-            )
-          : input.objectTransformPreview?.kind === "resize" &&
-              input.objectTransformPreview.objectId === object.id
-            ? updateMapObject(object, {
-                x: input.objectTransformPreview.x,
-                y: input.objectTransformPreview.y,
-                width: input.objectTransformPreview.width,
-                height: input.objectTransformPreview.height
-              })
-          : object;
-
-      const screenPoints = projectObjectPoints(
-        projectedSource,
-        input.map,
-        input.geometry,
-        input.viewport
-      );
-
-      projectedObjects.push({
-        objectId: object.id,
-        layerId: entry.layer.id,
-        name: projectedSource.name,
-        shape: projectedSource.shape,
+    projectedObjects.push(
+      ...projectObjectLayer({
+        map: input.map,
+        layer: entry.layer,
+        geometry: input.geometry,
+        viewport: input.viewport,
         opacity: entry.opacity,
         highlighted: entry.highlighted,
-        selected: selectedObjectIds.has(projectedSource.id),
-        screenX: worldToScreenX(
-          projectedSource.x,
-          input.map,
-          input.geometry,
-          input.viewport
-        ),
-        screenY: worldToScreenY(
-          projectedSource.y,
-          input.map,
-          input.geometry,
-          input.viewport
-        ),
-        screenWidth: worldLengthToScreenWidth(
-          projectedSource.width,
-          input.map,
-          input.geometry
-        ),
-        screenHeight: worldLengthToScreenHeight(
-          projectedSource.height,
-          input.map,
-          input.geometry
-        ),
-        ...(projectedSource.tile?.gid !== undefined
-          ? { tileGid: projectedSource.tile.gid }
-          : {}),
-        ...(projectedSource.text
-          ? {
-              textContent: projectedSource.text.content,
-              textColor: projectedSource.text.color,
-              textFontFamily: projectedSource.text.fontFamily,
-              textPixelSize:
-                projectedSource.text.pixelSize *
-                computeWorldToScreenScale(input.map, input.geometry),
-              textWrap: projectedSource.text.wrap
-            }
-          : {}),
-        ...(screenPoints ? { screenPoints } : {})
-      });
-    }
+        offsetX: entry.offsetX,
+        offsetY: entry.offsetY,
+        selectedObjectIds,
+        ...(input.objectTransformPreview !== undefined
+          ? { objectTransformPreview: input.objectTransformPreview }
+          : {})
+      })
+    );
   }
 
   return projectedObjects;

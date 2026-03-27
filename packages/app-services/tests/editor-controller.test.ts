@@ -63,6 +63,71 @@ describe("editor controller", () => {
     });
   });
 
+  it("toggles layer visibility, locks, other-layer state, and highlight state", () => {
+    const store = createTestEditorStore("demo");
+    const activeMap = store.getSnapshot().activeMap!;
+    const groundLayer = activeMap.layers[0]!;
+    const objectsLayer = activeMap.layers[1]!;
+
+    store.toggleLayerVisibility(objectsLayer.id);
+    store.toggleLayerLock(objectsLayer.id);
+    store.toggleOtherLayersVisibility();
+    store.toggleOtherLayersLock();
+    store.toggleHighlightCurrentLayer();
+
+    const snapshot = store.getSnapshot();
+    const nextGroundLayer = snapshot.activeMap!.layers.find((layer) => layer.id === groundLayer.id)!;
+    const nextObjectsLayer = snapshot.activeMap!.layers.find((layer) => layer.id === objectsLayer.id)!;
+
+    expect(nextGroundLayer).toMatchObject({
+      visible: true,
+      locked: false
+    });
+    expect(nextObjectsLayer).toMatchObject({
+      visible: true,
+      locked: false
+    });
+    expect(snapshot.workspace.session.highlightCurrentLayer).toBe(false);
+
+    store.toggleOtherLayersVisibility();
+    store.toggleOtherLayersLock();
+
+    const toggledSnapshot = store.getSnapshot();
+    const hiddenObjectsLayer = toggledSnapshot.activeMap!.layers.find(
+      (layer) => layer.id === objectsLayer.id
+    )!;
+
+    expect(hiddenObjectsLayer).toMatchObject({
+      visible: false,
+      locked: true
+    });
+  });
+
+  it("creates image and group layers through the controller", () => {
+    const store = createTestEditorStore("demo");
+    const beforeCount = store.getSnapshot().activeMap!.layers.length;
+
+    store.addImageLayer();
+    store.addGroupLayer();
+
+    const snapshot = store.getSnapshot();
+    const addedLayers = snapshot.activeMap!.layers.slice(beforeCount);
+
+    expect(addedLayers).toMatchObject([
+      {
+        kind: "image",
+        name: "Image Layer 3",
+        imagePath: ""
+      },
+      {
+        kind: "group",
+        name: "Group Layer 4",
+        layers: []
+      }
+    ]);
+    expect(snapshot.activeLayer?.kind).toBe("group");
+  });
+
   it("replaces project property types and migrates renamed references", () => {
     const biomeType = createEnumPropertyTypeDefinition({
       name: "Biome",
@@ -2247,7 +2312,9 @@ describe("editor controller", () => {
           },
           layerNamePrefixes: {
             tile: "图块层",
-            object: "对象层"
+            object: "对象层",
+            image: "图像层",
+            group: "分组层"
           },
           objectNamePrefix: "对象",
           defaultWangSetName: "未命名集合"
@@ -2265,12 +2332,16 @@ describe("editor controller", () => {
 
     store.addTileLayer();
     store.addObjectLayer();
+    store.addImageLayer();
+    store.addGroupLayer();
 
     expect(store.getSnapshot().activeMap?.layers.map((layer) => layer.name)).toEqual([
       "地面",
       "对象",
       "图块层 3",
-      "对象层 4"
+      "对象层 4",
+      "图像层 5",
+      "分组层 6"
     ]);
 
     const objectLayer = store

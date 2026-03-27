@@ -152,10 +152,12 @@ export interface TiledMenuContext {
   showGrid: boolean;
   showWorlds: boolean;
   autoMapWhileDrawing: boolean;
+  highlightCurrentLayer: boolean;
   hasProject: boolean;
   hasActiveMap: boolean;
   hasAutomappingRulesFile: boolean;
   hasActiveLayer: boolean;
+  hasSiblingLayers: boolean;
   hasWorldContext: boolean;
   canMoveWorldMaps: boolean;
   canMoveLayerUp: boolean;
@@ -359,7 +361,9 @@ export function getTiledMainMenus(
       }),
       menuAction("enable-parallax", t("action.enableParallax"), { implemented: false }),
       menuAction("highlight-current-layer", t("action.highlightCurrentLayer"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.hasActiveLayer,
+        checked: context.highlightCurrentLayer,
         shortcut: "H"
       }),
       menuAction("highlight-hovered-object", t("action.highlightHoveredObject"), {
@@ -468,8 +472,14 @@ export function getTiledMainMenus(
           implemented: true,
           disabled: !context.hasActiveMap
         }),
-        menuAction("add-image-layer", t("action.addImageLayer"), { implemented: false }),
-        menuAction("add-group-layer", t("action.addGroupLayer"), { implemented: false }),
+        menuAction("add-image-layer", t("action.addImageLayer"), {
+          implemented: true,
+          disabled: !context.hasActiveMap
+        }),
+        menuAction("add-group-layer", t("action.addGroupLayer"), {
+          implemented: true,
+          disabled: !context.hasActiveMap
+        }),
         menuSeparator,
         menuAction("layer-via-copy", t("action.layerViaCopy"), {
           implemented: false,
@@ -518,19 +528,23 @@ export function getTiledMainMenus(
       }),
       menuSeparator,
       menuAction("show-hide-layers", t("action.showHideLayers"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.hasActiveLayer,
         shortcut: "Ctrl+H"
       }),
       menuAction("lock-unlock-layers", t("action.lockUnlockLayers"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.hasActiveLayer,
         shortcut: "Ctrl+L"
       }),
       menuAction("show-hide-other-layers", t("action.showHideOtherLayers"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.hasSiblingLayers,
         shortcut: "Ctrl+Shift+H"
       }),
       menuAction("lock-unlock-other-layers", t("action.lockUnlockOtherLayers"), {
-        implemented: false,
+        implemented: true,
+        disabled: !context.hasSiblingLayers,
         shortcut: "Ctrl+Shift+L"
       }),
       menuSeparator,

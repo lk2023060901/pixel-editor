@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   createMap,
+  createGroupLayer,
   createMapObject,
   createObjectLayer
 } from "@pixel-editor/domain";
@@ -333,6 +334,61 @@ describe("object layer projection", () => {
       textFontFamily: "Fira Code",
       textPixelSize: 36,
       textWrap: true
+    });
+  });
+
+  it("applies inherited group opacity and offsets to projected objects", () => {
+    const object = createMapObject({
+      name: "Marker",
+      shape: "rectangle",
+      x: 32,
+      y: 64,
+      width: 16,
+      height: 16
+    });
+    const objectLayer = createObjectLayer({
+      name: "Objects",
+      opacity: 0.8,
+      objects: [object]
+    });
+    const groupLayer = createGroupLayer({
+      name: "Shifted",
+      opacity: 0.5,
+      offsetX: 16,
+      offsetY: 8,
+      layers: [objectLayer]
+    });
+    const map = createMap({
+      name: "map-1",
+      orientation: "orthogonal",
+      width: 10,
+      height: 10,
+      tileWidth: 32,
+      tileHeight: 32,
+      layers: [groupLayer]
+    });
+
+    const projectedObjects = collectProjectedMapObjects({
+      map,
+      geometry: {
+        tileWidth: 64,
+        tileHeight: 64,
+        gridOriginX: 0,
+        gridOriginY: 0
+      },
+      viewport: {
+        originX: 0,
+        originY: 0
+      }
+    });
+
+    expect(projectedObjects[0]).toMatchObject({
+      objectId: object.id,
+      opacity: 0.4,
+      screenX: 96,
+      screenY: 144,
+      screenWidth: 32,
+      screenHeight: 32
     });
   });
 });

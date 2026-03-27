@@ -67,13 +67,13 @@ Last updated: 2026-03-27
 | REN-009 | 渲染 | Hexagonal 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 hex side length |
 | REN-010 | 渲染 | Oblique 渲染与拾取 | REN-005, DOM-002 | 未开始 | 覆盖 skewx/skewy |
 | REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state、shape-aware canvas picking、keyed object scene cache / redraw 基础、runtime tile object 贴图解析、text style fidelity 基础、selection bounds / transform handles 可视反馈，以及单对象 resize handles 的 preview/commit；rotate 与多选缩放待补 |
-| REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 未开始 | 覆盖层级组合 |
+| REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 开发中 | 已接入基于 layer tree 顺序的统一内容合成，支持 group visibility/opacity/offset 继承下的 tile/object/image 基础渲染与 image layer 纹理加载；repeat/parallax/tint/blend 等更完整视觉语义待补 |
 | REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 未开始 | 必须对齐 Tiled 图层视觉语义 |
 | REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |
 | UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现 Tiled 风格的 editor shell：左侧 `Project / Properties` 双 dock、右侧双 dock stack 与底部 status bar 骨架，去除 news 按钮；UI shell 仍仅通过注入的 `EditorController` 通信 |
 | UI-002 | Web 壳 | 项目路由与编辑页入口 | FND-004 | 开发中 | 已实现 `/projects/[projectId]` 页面与 web-host 装配层，当前从 `examples/` 加载示例项目 seed，UI 不再直接绑定 demo store |
 | UI-003 | Web 壳 | Toolbar 与工具切换 | UI-001, SES-003 | 开发中 | 已按 Tiled 的 main/tools/tool-options 三段结构重建顶部 toolbar，并按 `mainwindow.ui` / `mainwindow.cpp` 接入 File/Edit/View/World/Map/Layer/Project/Help 菜单层级、可见性、文案与快捷键展示；现有工具切换、New split button 与 shape fill tool options 已接通，未实现动作仍保留禁用占位 |
-| UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已收敛为 Tiled 风格的 layer dock：反向层级列表、图层类型图标、visible/locked 状态列与底部工具条；当前已接通选择、新建、删除、重排，visibility/lock/duplicate/highlight 交互待后续 `LYR-003` 补齐 |
+| UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已收敛为 Tiled 风格的 layer dock：反向层级列表、图层类型图标、visible/locked 状态列与底部工具条；当前已接通选择、新建、删除、重排、行内 visibility/lock 切换、other layers 切换与 current layer highlight 开关，duplicate 等剩余动作待补 |
 | UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已接入 Map / Layer / Object 基础 inspector 编辑与 primitive + enum + class + object reference custom properties editor，并将左侧 Properties 收成连续 property rows、移除分段 Apply、改为字段 blur/change 即提交的 controller/command 链路；Custom Properties 已补齐紧凑列表、底部工具条、单项选择与内联新增/重命名编辑，更完整的 property browser 细节待补 |
 | UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
 | UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动；检索与属性面板待补 |
@@ -108,9 +108,9 @@ Last updated: 2026-03-27
 | TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 已完成 | 已接入 Tiled 风格的 tile animation editor 对话框，支持 frame 列表、拖拽重排、duration 应用与 tileset 选帧，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 已完成 | 已接入独立 tile collision editor 对话框，支持 collision object 的创建、列表选择、画布拖拽移动、层级调整、基础属性与自定义属性编辑，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
 | TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 已完成 | 已接入 tileset 级 Wang set 数据/命令/控制器链路，支持 Terrain Sets dock 的创建、重命名、类型切换、删除，以及菜单/tileset 工具条入口，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
-| LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 未开始 | 包含 repeatx/repeaty |
-| LYR-002 | 高级图层 | Group Layer | DOM-003, REN-012 | 未开始 | 树形组织与继承属性 |
-| LYR-003 | 高级图层 | Offset / Opacity / Visibility / Lock | DOM-003, UI-004 | 未开始 | 图层基础展示控制 |
+| LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level image layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，并接通基础 renderer；`imagePath/repeatx/repeaty` 细节编辑与更完整视觉语义待补 |
+| LYR-002 | 高级图层 | Group Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level group layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，并接通基础 group compositing / inherited visibility+opacity+offset renderer 语义；嵌套树编辑与 child layer 组织 UI 待补 |
+| LYR-003 | 高级图层 | Offset / Opacity / Visibility / Lock | DOM-003, UI-004 | 开发中 | 已接通 layer details 的 offset/opacity/visibility/lock command 链路、Properties Inspector 编辑、Layers dock 行内切换、other layers toggle 与 current layer highlight 开关，并让 canvas renderer 反映基础 offset/opacity/group inheritance；更完整的 lock 语义与 repeat/parallax 等深层联动待补 |
 | LYR-004 | 高级图层 | Tint Color | LYR-001, LYR-002, REN-013 | 未开始 | 递归影响 child layers |
 | LYR-005 | 高级图层 | Blend Mode | LYR-001, LYR-002, REN-013 | 未开始 | 对齐 Tiled 支持列表 |
 | LYR-006 | 高级图层 | Parallax | LYR-001, LYR-002, REN-013 | 未开始 | map parallax origin + layer factors |

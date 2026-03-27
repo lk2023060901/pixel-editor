@@ -123,6 +123,8 @@ export {
 } from "./layer";
 export { createMap, type CreateMapInput, type EditorMap, type MapOrientation, type MapRenderOrder, type MapSettings } from "./map";
 export {
+  addTopLevelGroupLayer,
+  addTopLevelImageLayer,
   addTopLevelObjectLayer,
   addTopLevelTileLayer,
   getLayerById,
