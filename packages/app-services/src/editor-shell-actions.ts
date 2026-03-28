@@ -36,11 +36,41 @@ export interface ProjectDockActivationStore {
   focusTilesetsPanel(): void;
 }
 
+export type EditorShellSurfaceAction =
+  | Exclude<EditorShellLocalAction, "export-as-image">
+  | "open-save-template-dialog"
+  | "close-save-template-dialog"
+  | "close-custom-types-editor"
+  | "close-project-properties"
+  | "close-tile-animation-editor"
+  | "close-tile-collision-editor";
+
+export interface EditorShellSurfaceStore {
+  toggleCustomTypesEditor(): void;
+  closeCustomTypesEditor(): void;
+  toggleProjectProperties(): void;
+  closeProjectProperties(): void;
+  openSaveTemplateDialog(): void;
+  closeSaveTemplateDialog(): void;
+  openTileAnimationEditor(): void;
+  closeTileAnimationEditor(): void;
+  openTileCollisionEditor(): void;
+  closeTileCollisionEditor(): void;
+  focusTerrainSetsPanel(): void;
+}
+
 export type ProjectDockActivationPlan =
   | { kind: "noop" }
   | {
       kind: "transition";
       run: (store: ProjectDockActivationStore) => void;
+    };
+
+export type EditorShellSurfaceActionPlan =
+  | { kind: "noop" }
+  | {
+      kind: "transition";
+      run: (store: EditorShellSurfaceStore) => void;
     };
 
 export function createEditorShellActionPlan(input: {
@@ -325,5 +355,91 @@ export function createProjectDockActivationPlan(input: {
           store.setActiveTemplate(activation.documentId);
         }
       };
+  }
+}
+
+export function createEditorShellSurfaceActionPlan(
+  action: EditorShellSurfaceAction
+): EditorShellSurfaceActionPlan {
+  switch (action) {
+    case "toggle-custom-types-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.toggleCustomTypesEditor();
+        }
+      };
+    case "close-custom-types-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.closeCustomTypesEditor();
+        }
+      };
+    case "toggle-project-properties":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.toggleProjectProperties();
+        }
+      };
+    case "close-project-properties":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.closeProjectProperties();
+        }
+      };
+    case "open-save-template-dialog":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.openSaveTemplateDialog();
+        }
+      };
+    case "close-save-template-dialog":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.closeSaveTemplateDialog();
+        }
+      };
+    case "open-tile-animation-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.openTileAnimationEditor();
+        }
+      };
+    case "close-tile-animation-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.closeTileAnimationEditor();
+        }
+      };
+    case "open-tile-collision-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.openTileCollisionEditor();
+        }
+      };
+    case "close-tile-collision-editor":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.closeTileCollisionEditor();
+        }
+      };
+    case "focus-terrain-sets":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.focusTerrainSetsPanel();
+        }
+      };
+    default:
+      return { kind: "noop" };
   }
 }

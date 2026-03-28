@@ -2,65 +2,15 @@
 
 import type {
   EditorStatusBarLayerOption,
+  EditorStatusBarPresentation,
   EditorStatusBarViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  deriveEditorStatusBarPresentation,
+  resolveEditorStatusBarZoomDraft
 } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { useEffect, useState } from "react";
-
-const TILED_ZOOM_FACTORS = [
-  0.015625,
-  0.03125,
-  0.0625,
-  0.125,
-  0.25,
-  0.33,
-  0.5,
-  0.75,
-  1,
-  1.5,
-  2,
-  3,
-  4,
-  5.5,
-  8,
-  11,
-  16,
-  23,
-  32,
-  45,
-  64,
-  90,
-  128,
-  180,
-  256
-] as const;
-
-const layerKindIconUrls: Record<NonNullable<EditorStatusBarViewState["activeLayerKind"]>, string> = {
-  tile: "/vendor/tiled-statusbar/layer-tile.png",
-  object: "/vendor/tiled-statusbar/layer-object.png",
-  image: "/vendor/tiled-statusbar/layer-image.png",
-  group: "/vendor/tiled-statusbar/layer-tile.png"
-};
-
-function formatZoom(scale: number): string {
-  return `${Math.round(scale * 100)} %`;
-}
-
-function parseZoom(value: string): number | undefined {
-  const match = /^\s*(\d+(?:\.\d+)?)\s*%?\s*$/.exec(value);
-
-  if (!match) {
-    return undefined;
-  }
-
-  const zoom = Number.parseFloat(match[1] ?? "");
-
-  if (!Number.isFinite(zoom)) {
-    return undefined;
-  }
-
-  return zoom / 100;
-}
 
 export interface EditorStatusBarProps {
   viewState: EditorStatusBarViewState;
@@ -73,26 +23,28 @@ export interface EditorStatusBarProps {
 
 export function EditorStatusBar(props: EditorStatusBarProps) {
   const { t } = useI18n();
-  const [zoomDraft, setZoomDraft] = useState(() => formatZoom(props.viewState.zoom));
+  const presentation: EditorStatusBarPresentation = deriveEditorStatusBarPresentation(
+    props.viewState
+  );
+  const [zoomDraft, setZoomDraft] = useState(() => presentation.zoomDraft);
 
   useEffect(() => {
-    setZoomDraft(formatZoom(props.viewState.zoom));
-  }, [props.viewState.zoom]);
-
-  const activeLayerIcon =
-    props.viewState.activeLayerKind !== undefined
-      ? layerKindIconUrls[props.viewState.activeLayerKind]
-      : layerKindIconUrls.tile;
+    setZoomDraft(presentation.zoomDraft);
+  }, [presentation.zoomDraft]);
 
   function commitZoomDraft(): void {
-    const zoom = parseZoom(zoomDraft);
+    const resolution = resolveEditorStatusBarZoomDraft({
+      draft: zoomDraft,
+      fallbackZoom: props.viewState.zoom
+    });
 
-    if (zoom === undefined) {
-      setZoomDraft(formatZoom(props.viewState.zoom));
+    setZoomDraft(resolution.nextDraft);
+
+    if (resolution.zoom === undefined) {
       return;
     }
 
-    props.onZoomChange(zoom);
+    props.onZoomChange(resolution.zoom);
   }
 
   return (
@@ -159,7 +111,7 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
               alt=""
               className="pointer-events-none absolute left-2 top-1/2 h-4 w-4 -translate-y-1/2 object-contain"
               draggable={false}
-              src={activeLayerIcon}
+              src={presentation.activeLayerIconUrl}
             />
             <select
               className="h-7 min-w-[176px] rounded-sm border border-slate-600 bg-slate-700/50 pl-8 pr-6 text-sm text-slate-100 outline-none transition focus:border-slate-400"
@@ -210,8 +162,8 @@ export function EditorStatusBar(props: EditorStatusBarProps) {
               }}
             />
             <datalist id="editor-status-bar-zoom-options">
-              {TILED_ZOOM_FACTORS.map((zoom) => (
-                <option key={zoom} value={formatZoom(zoom)} />
+              {presentation.zoomOptions.map((zoomOption) => (
+                <option key={zoomOption} value={zoomOption} />
               ))}
             </datalist>
           </div>

@@ -64,3 +64,43 @@ export {
   type TilesetsPanelTilesetItemViewState,
   type TilesetsPanelViewState
 } from "./ui-models";
+export {
+  deriveEditorStatusBarPresentation,
+  formatEditorStatusBarZoom,
+  parseEditorStatusBarZoom,
+  resolveEditorStatusBarLayerIconUrl,
+  resolveEditorStatusBarZoomDraft,
+  tiledZoomFactors,
+  type EditorStatusBarPresentation,
+  type EditorStatusBarZoomDraftResolution
+} from "./editor-status-bar";
+export {
+  createWorldContextOverlayClickPlan,
+  createWorldContextOverlayCommitPlan,
+  createWorldContextOverlayPointerDownPlan,
+  deriveWorldContextOverlayMapPresentation,
+  shouldStartWorldContextOverlayDrag,
+  type WorldContextOverlayClickPlan,
+  type WorldContextOverlayCommitPlan,
+  type WorldContextOverlayDragState,
+  type WorldContextOverlayMapPresentation,
+  type WorldContextOverlayPointerDownPlan
+} from "./world-context-overlay-interactions";
+export {
+  createRendererCanvasModifierSyncPlan,
+  createRendererCanvasObjectGestureCompletionPlan,
+  createRendererCanvasPointerDownPlan,
+  createRendererCanvasPointerMovePlan,
+  resolveRendererCanvasStatusInfo,
+  type RendererCanvasMapPoint,
+  type RendererCanvasModifierSyncPlan,
+  type RendererCanvasObjectGestureCompletionPlan,
+  type RendererCanvasObjectResizeHandle,
+  type RendererCanvasPendingObjectGestureState,
+  type RendererCanvasPendingObjectMoveGestureState,
+  type RendererCanvasPendingObjectResizeGestureState,
+  type RendererCanvasPickResult,
+  type RendererCanvasPointerDownPlan,
+  type RendererCanvasPointerMovePlan,
+  type RendererCanvasTileCoordinate
+} from "./renderer-canvas-interactions";

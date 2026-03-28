@@ -1,4 +1,35 @@
 export {
+  defaultEditorShellLowerRightDockTabId,
+  defaultEditorShellUpperRightDockTabId,
+  deriveEditorShellChromePresentation,
+  editorShellLowerRightDockPanelIds,
+  editorShellLowerRightDockTabIds,
+  editorShellUpperRightDockPanelIds,
+  editorShellUpperRightDockTabIds,
+  getEditorShellLowerRightDockTabs,
+  getEditorShellUpperRightDockTabs,
+  resolveEditorShellDockPanel,
+  type EditorShellChromeConfig,
+  type EditorShellChromePresentation,
+  type EditorShellDockTab,
+  type EditorShellLowerRightDockPanelId,
+  type EditorShellLowerRightDockTabId,
+  type EditorShellUpperRightDockPanelId,
+  type EditorShellUpperRightDockTabId
+} from "./editor-shell-chrome";
+export {
+  deriveEditorShellOverlaysPresentation,
+  type EditorShellOverlaysPresentation,
+  type EditorShellOverlaysState
+} from "./editor-shell-overlays";
+export {
+  resolveEditorShellNewMenuOpen,
+  resolveEditorShellOpenMenuId,
+  resolveEditorShellSaveTemplateDialogOpen,
+  type EditorShellMenuTransition,
+  type EditorShellNewMenuTransition
+} from "./editor-shell-local-state";
+export {
   deriveEditorShellDialogsViewState,
   deriveEditorShellChromeViewState,
   deriveEditorShellViewState,
@@ -13,9 +44,13 @@ export {
 } from "./ui-models";
 export {
   createEditorShellActionPlan,
+  createEditorShellSurfaceActionPlan,
   createProjectDockActivationPlan,
   type EditorShellActionPlan,
   type EditorShellLocalAction,
+  type EditorShellSurfaceAction,
+  type EditorShellSurfaceActionPlan,
+  type EditorShellSurfaceStore,
   type ProjectDockActivationPlan,
   type ProjectDockActivationStore
 } from "./editor-shell-actions";

@@ -1,12 +1,9 @@
 "use client";
 
 import type {
-  EditorStatusBarViewState,
-  IssuesPanelViewState,
-  TileAnimationEditorViewState,
-  TileCollisionEditorViewState
-} from "@pixel-editor/app-services/ui";
-import type { EditorShellStore, EditorShellDialogsViewState, EditorShellViewState } from "@pixel-editor/app-services/ui-shell";
+  EditorShellOverlaysPresentation,
+  EditorShellStore
+} from "@pixel-editor/app-services/ui-shell";
 
 import type { EditorRenderBridge } from "../render-bridge";
 
@@ -21,18 +18,7 @@ import { TileCollisionEditorDialog } from "./tile-collision-editor-dialog";
 export interface EditorShellOverlaysProps {
   store: EditorShellStore;
   renderBridge: EditorRenderBridge;
-  statusInfo: string;
-  shellViewState: EditorShellViewState;
-  shellDialogsViewState: EditorShellDialogsViewState;
-  issuesPanelViewState: IssuesPanelViewState;
-  statusBarViewState: EditorStatusBarViewState;
-  tileAnimationEditorViewState: TileAnimationEditorViewState | undefined;
-  tileCollisionEditorViewState: TileCollisionEditorViewState | undefined;
-  tileAnimationEditorOpen: boolean;
-  tileCollisionEditorOpen: boolean;
-  customTypesEditorOpen: boolean;
-  projectPropertiesOpen: boolean;
-  saveTemplateDialogOpen: boolean;
+  presentation: EditorShellOverlaysPresentation;
   onClearIssues: IssuesPanelProps["onClear"];
   onCloseIssues: IssuesPanelProps["onClose"];
   onToggleIssues: EditorStatusBarProps["onToggleIssues"];
@@ -48,17 +34,17 @@ export interface EditorShellOverlaysProps {
 export function EditorShellOverlays(props: EditorShellOverlaysProps) {
   return (
     <>
-      {props.shellDialogsViewState.issuesPanelOpen ? (
+      {props.presentation.issuesPanel ? (
         <IssuesPanel
-          viewState={props.issuesPanelViewState}
+          viewState={props.presentation.issuesPanel.viewState}
           onClear={props.onClearIssues}
           onClose={props.onCloseIssues}
         />
       ) : null}
 
       <EditorStatusBar
-        statusInfo={props.statusInfo}
-        viewState={props.statusBarViewState}
+        statusInfo={props.presentation.statusBar.statusInfo}
+        viewState={props.presentation.statusBar.viewState}
         onLayerChange={props.onLayerChange}
         onZoomChange={props.onZoomChange}
         {...(props.onToggleIssues === undefined
@@ -66,38 +52,38 @@ export function EditorShellOverlays(props: EditorShellOverlaysProps) {
           : { onToggleIssues: props.onToggleIssues })}
       />
 
-      {props.tileAnimationEditorOpen && props.tileAnimationEditorViewState ? (
+      {props.presentation.tileAnimationEditor ? (
         <TileAnimationEditorDialog
           store={props.store}
-          viewState={props.tileAnimationEditorViewState}
+          viewState={props.presentation.tileAnimationEditor.viewState}
           onClose={props.onCloseTileAnimationEditor}
         />
       ) : null}
-      {props.customTypesEditorOpen ? (
+      {props.presentation.customTypesEditor ? (
         <ProjectPropertyTypesEditorDialog
-          propertyTypes={props.shellDialogsViewState.projectPropertyTypes}
+          propertyTypes={props.presentation.customTypesEditor.propertyTypes}
           store={props.store}
           onClose={props.onCloseCustomTypesEditor}
         />
       ) : null}
-      {props.projectPropertiesOpen ? (
+      {props.presentation.projectProperties ? (
         <ProjectPropertiesDialog
-          project={props.shellDialogsViewState.project}
+          project={props.presentation.projectProperties.project}
           store={props.store}
           onClose={props.onCloseProjectProperties}
         />
       ) : null}
-      {props.tileCollisionEditorOpen && props.tileCollisionEditorViewState ? (
+      {props.presentation.tileCollisionEditor ? (
         <TileCollisionEditorDialog
           renderBridge={props.renderBridge}
           store={props.store}
-          viewState={props.tileCollisionEditorViewState}
+          viewState={props.presentation.tileCollisionEditor.viewState}
           onClose={props.onCloseTileCollisionEditor}
         />
       ) : null}
-      {props.saveTemplateDialogOpen && props.shellViewState.activeObject ? (
+      {props.presentation.saveTemplateDialog ? (
         <SaveTemplateDialog
-          objectName={props.shellViewState.activeObject.name}
+          objectName={props.presentation.saveTemplateDialog.objectName}
           store={props.store}
           onClose={props.onCloseSaveTemplateDialog}
         />

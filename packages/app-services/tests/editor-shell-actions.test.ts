@@ -8,10 +8,11 @@ import {
 } from "../src";
 import {
   createEditorShellActionPlan,
+  createEditorShellSurfaceActionPlan,
   createProjectDockActivationPlan,
   type EditorShellActionStore
 } from "../src/ui-shell";
-import type { ProjectDockActivationStore } from "../src/ui-shell";
+import type { EditorShellSurfaceStore, ProjectDockActivationStore } from "../src/ui-shell";
 
 describe("editor shell actions", () => {
   it("creates a transition plan for store-backed layer actions", () => {
@@ -46,6 +47,34 @@ describe("editor shell actions", () => {
       kind: "local",
       action: "open-tile-collision-editor"
     });
+  });
+
+  it("creates surface plans for UI-only shell actions through a narrow store API", () => {
+    const plan = createEditorShellSurfaceActionPlan("focus-terrain-sets");
+
+    expect(plan.kind).toBe("transition");
+
+    if (plan.kind !== "transition") {
+      return;
+    }
+
+    const surfaceStore: EditorShellSurfaceStore = {
+      toggleCustomTypesEditor: vi.fn(),
+      closeCustomTypesEditor: vi.fn(),
+      toggleProjectProperties: vi.fn(),
+      closeProjectProperties: vi.fn(),
+      openSaveTemplateDialog: vi.fn(),
+      closeSaveTemplateDialog: vi.fn(),
+      openTileAnimationEditor: vi.fn(),
+      closeTileAnimationEditor: vi.fn(),
+      openTileCollisionEditor: vi.fn(),
+      closeTileCollisionEditor: vi.fn(),
+      focusTerrainSetsPanel: vi.fn()
+    };
+
+    plan.run(surfaceStore);
+
+    expect(surfaceStore.focusTerrainSetsPanel).toHaveBeenCalledOnce();
   });
 
   it("returns noop when world tool is unavailable", () => {

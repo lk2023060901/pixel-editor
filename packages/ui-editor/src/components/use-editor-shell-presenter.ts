@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  deriveEditorShellOverlaysPresentation,
   type EditorShellActionStore,
   type EditorShellCanvasInteractionStore,
   type EditorShellDocumentNavigationStore,
@@ -60,7 +61,6 @@ export function useEditorShellPresenter(input: UseEditorShellPresenterInput) {
     t: input.t,
     shellChromeViewState: chrome.shellChromeViewState,
     mapImageExportViewState: derived.view.mapImageExportViewState,
-    openMenuId: local.state.openMenuId,
     setOpenMenuId: local.setters.setOpenMenuId,
     setNewMenuOpen: newMenu.setters.setNewMenuOpen,
     setCustomTypesEditorOpen: local.setters.setCustomTypesEditorOpen,
@@ -99,6 +99,22 @@ export function useEditorShellPresenter(input: UseEditorShellPresenterInput) {
     miniMapStore,
     setStatusInfo: local.setters.setStatusInfo
   });
+  const overlayPresentation = deriveEditorShellOverlaysPresentation({
+    shellViewState: derived.view.shellViewState,
+    shellDialogsViewState: derived.view.shellDialogsViewState,
+    issuesPanelViewState: derived.view.issuesPanelViewState,
+    statusBarViewState: derived.view.statusBarViewState,
+    tileAnimationEditorViewState: derived.view.tileAnimationEditorViewState,
+    tileCollisionEditorViewState: derived.view.tileCollisionEditorViewState,
+    overlaysState: {
+      statusInfo: local.state.statusInfo,
+      tileAnimationEditorOpen: local.state.tileAnimationEditorOpen,
+      tileCollisionEditorOpen: local.state.tileCollisionEditorOpen,
+      customTypesEditorOpen: local.state.customTypesEditorOpen,
+      projectPropertiesOpen: local.state.projectPropertiesOpen,
+      saveTemplateDialogOpen: local.state.saveTemplateDialogOpen
+    }
+  });
 
   return {
     refs: {
@@ -110,7 +126,8 @@ export function useEditorShellPresenter(input: UseEditorShellPresenterInput) {
     },
     view: {
       ...derived.view,
-      shellChromeViewState: chrome.shellChromeViewState
+      shellChromeViewState: chrome.shellChromeViewState,
+      overlayPresentation
     },
     chrome: chrome.chrome,
     menuActions,

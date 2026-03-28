@@ -2,19 +2,19 @@
 
 import type { ProjectTreeAssetNode } from "@pixel-editor/app-services/ui";
 import {
+  type EditorShellLowerRightDockTabId,
+  type EditorShellUpperRightDockTabId,
   type EditorShellDocumentNavigationStore,
   type EditorShellFileActionsStore,
+  createEditorShellSurfaceActionPlan,
   createProjectDockActivationPlan,
+  editorShellLowerRightDockTabIds,
   type ProjectDockActivationStore,
+  type EditorShellSurfaceStore,
   type EditorShellTemplateActionsStore
 } from "@pixel-editor/app-services/ui-shell";
 import type { Dispatch, SetStateAction } from "react";
 import { startTransition } from "react";
-
-import type {
-  LowerRightDockTabId,
-  UpperRightDockTabId
-} from "./use-editor-shell-local-state";
 
 type ProjectDockAsset = ProjectTreeAssetNode["asset"];
 
@@ -23,14 +23,50 @@ export function useEditorShellDockDialogActions(input: {
   fileActionsStore: EditorShellFileActionsStore;
   documentNavigationStore: EditorShellDocumentNavigationStore;
   snapshot: Parameters<typeof createProjectDockActivationPlan>[0]["snapshot"];
-  setUpperRightDockTab: Dispatch<SetStateAction<UpperRightDockTabId>>;
-  setLowerRightDockTab: Dispatch<SetStateAction<LowerRightDockTabId>>;
+  setUpperRightDockTab: Dispatch<SetStateAction<EditorShellUpperRightDockTabId>>;
+  setLowerRightDockTab: Dispatch<SetStateAction<EditorShellLowerRightDockTabId>>;
   setSaveTemplateDialogOpen: Dispatch<SetStateAction<boolean>>;
   setTileAnimationEditorOpen: Dispatch<SetStateAction<boolean>>;
   setTileCollisionEditorOpen: Dispatch<SetStateAction<boolean>>;
   setCustomTypesEditorOpen: Dispatch<SetStateAction<boolean>>;
   setProjectPropertiesOpen: Dispatch<SetStateAction<boolean>>;
 }) {
+  const surfaceStore: EditorShellSurfaceStore = {
+    toggleCustomTypesEditor() {
+      input.setCustomTypesEditorOpen((current) => !current);
+    },
+    closeCustomTypesEditor() {
+      input.setCustomTypesEditorOpen(false);
+    },
+    toggleProjectProperties() {
+      input.setProjectPropertiesOpen((current) => !current);
+    },
+    closeProjectProperties() {
+      input.setProjectPropertiesOpen(false);
+    },
+    openSaveTemplateDialog() {
+      input.setSaveTemplateDialogOpen(true);
+    },
+    closeSaveTemplateDialog() {
+      input.setSaveTemplateDialogOpen(false);
+    },
+    openTileAnimationEditor() {
+      input.setTileAnimationEditorOpen(true);
+    },
+    closeTileAnimationEditor() {
+      input.setTileAnimationEditorOpen(false);
+    },
+    openTileCollisionEditor() {
+      input.setTileCollisionEditorOpen(true);
+    },
+    closeTileCollisionEditor() {
+      input.setTileCollisionEditorOpen(false);
+    },
+    focusTerrainSetsPanel() {
+      input.setLowerRightDockTab(editorShellLowerRightDockTabIds.terrainSets);
+    }
+  };
+
   function handleProjectDockAssetActivate(asset: ProjectDockAsset): void {
     const plan = createProjectDockActivationPlan({
       snapshot: input.snapshot,
@@ -44,11 +80,23 @@ export function useEditorShellDockDialogActions(input: {
     const store: ProjectDockActivationStore = {
       ...input.documentNavigationStore,
       focusTilesetsPanel() {
-        input.setLowerRightDockTab("tilesets");
+        input.setLowerRightDockTab(editorShellLowerRightDockTabIds.tilesets);
       }
     };
 
     plan.run(store);
+  }
+
+  function runSurfaceAction(
+    action: Parameters<typeof createEditorShellSurfaceActionPlan>[0]
+  ): void {
+    const plan = createEditorShellSurfaceActionPlan(action);
+
+    if (plan.kind !== "transition") {
+      return;
+    }
+
+    plan.run(surfaceStore);
   }
 
   return {
@@ -74,7 +122,7 @@ export function useEditorShellDockDialogActions(input: {
         });
       },
       onSaveAsTemplate() {
-        input.setSaveTemplateDialogOpen(true);
+        runSurfaceAction("open-save-template-dialog");
       }
     },
     tilesetActions: {
@@ -82,30 +130,30 @@ export function useEditorShellDockDialogActions(input: {
         void input.fileActionsStore.exportActiveTilesetAsJson();
       },
       onOpenTileAnimationEditor() {
-        input.setTileAnimationEditorOpen(true);
+        runSurfaceAction("open-tile-animation-editor");
       },
       onCloseTileAnimationEditor() {
-        input.setTileAnimationEditorOpen(false);
+        runSurfaceAction("close-tile-animation-editor");
       },
       onOpenTileCollisionEditor() {
-        input.setTileCollisionEditorOpen(true);
+        runSurfaceAction("open-tile-collision-editor");
       },
       onCloseTileCollisionEditor() {
-        input.setTileCollisionEditorOpen(false);
+        runSurfaceAction("close-tile-collision-editor");
       },
       onOpenTerrainSets() {
-        input.setLowerRightDockTab("terrain-sets");
+        runSurfaceAction("focus-terrain-sets");
       }
     },
     dialogActions: {
       onCloseCustomTypesEditor() {
-        input.setCustomTypesEditorOpen(false);
+        runSurfaceAction("close-custom-types-editor");
       },
       onCloseProjectProperties() {
-        input.setProjectPropertiesOpen(false);
+        runSurfaceAction("close-project-properties");
       },
       onCloseSaveTemplateDialog() {
-        input.setSaveTemplateDialogOpen(false);
+        runSurfaceAction("close-save-template-dialog");
       }
     }
   };

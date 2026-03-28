@@ -111,18 +111,7 @@ export function EditorShell({ store, renderBridge }: EditorShellProps) {
         <EditorShellOverlays
           store={store}
           renderBridge={renderBridge}
-          statusInfo={state.statusInfo}
-          shellViewState={view.shellViewState}
-          shellDialogsViewState={view.shellDialogsViewState}
-          issuesPanelViewState={view.issuesPanelViewState}
-          statusBarViewState={view.statusBarViewState}
-          tileAnimationEditorViewState={view.tileAnimationEditorViewState}
-          tileCollisionEditorViewState={view.tileCollisionEditorViewState}
-          tileAnimationEditorOpen={state.tileAnimationEditorOpen}
-          tileCollisionEditorOpen={state.tileCollisionEditorOpen}
-          customTypesEditorOpen={state.customTypesEditorOpen}
-          projectPropertiesOpen={state.projectPropertiesOpen}
-          saveTemplateDialogOpen={state.saveTemplateDialogOpen}
+          presentation={view.overlayPresentation}
           onClearIssues={issuesActions.onClear}
           onCloseIssues={issuesActions.onClose}
           onToggleIssues={statusBarActions.onToggleIssues}

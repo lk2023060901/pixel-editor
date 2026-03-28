@@ -1,7 +1,15 @@
 "use client";
 
 import type {
+  RendererCanvasPendingObjectGestureState,
   RendererCanvasViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  createRendererCanvasModifierSyncPlan,
+  createRendererCanvasObjectGestureCompletionPlan,
+  createRendererCanvasPointerDownPlan,
+  createRendererCanvasPointerMovePlan,
+  resolveRendererCanvasStatusInfo
 } from "@pixel-editor/app-services/ui";
 import type { EditorShellCanvasInteractionStore } from "@pixel-editor/app-services/ui-shell";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -62,34 +70,6 @@ export interface RendererCanvasProps {
   onWorldMapMove?: (worldId: string, fileName: string, x: number, y: number) => void;
 }
 
-const OBJECT_DRAG_START_DISTANCE = 4;
-
-interface PendingObjectDragState {
-  kind: "move";
-  pointerId: number;
-  objectId: RendererCanvasObjectId;
-  startClientX: number;
-  startClientY: number;
-  startWorldX: number;
-  startWorldY: number;
-  lastWorldX: number;
-  lastWorldY: number;
-  dragging: boolean;
-}
-
-interface PendingObjectResizeState {
-  kind: "resize";
-  pointerId: number;
-  objectId: RendererCanvasObjectId;
-  handle: RendererCanvasObjectResizeHandle;
-  lastWorldX: number;
-  lastWorldY: number;
-}
-
-type PendingObjectGestureState =
-  | PendingObjectDragState
-  | PendingObjectResizeState;
-
 export function RendererCanvas({
   renderBridge,
   viewState,
@@ -120,7 +100,8 @@ export function RendererCanvas({
   const deferredViewState = useDeferredValue(viewState);
   const isStrokeActiveRef = useRef(false);
   const lastPickedTileRef = useRef<{ x: number; y: number } | undefined>(undefined);
-  const pendingObjectGestureRef = useRef<PendingObjectGestureState | undefined>(undefined);
+  const pendingObjectGestureRef =
+    useRef<RendererCanvasPendingObjectGestureState | undefined>(undefined);
   const lastStatusInfoRef = useRef("");
   const [hostSize, setHostSize] = useState({ width: 0, height: 0 });
 
@@ -242,23 +223,14 @@ export function RendererCanvas({
   }
 
   function readStatusInfo(clientX: number, clientY: number): string {
-    const tile = pickTile(clientX, clientY);
-
-    if (!tile) {
-      return "";
-    }
-
-    if (viewState.activeTool !== "object-select") {
-      return `${tile.x}, ${tile.y}`;
-    }
-
-    const mapPoint = locateMapPoint(clientX, clientY);
-
-    if (!mapPoint) {
-      return `${tile.x}, ${tile.y}`;
-    }
-
-    return `${tile.x}, ${tile.y} (${Math.round(mapPoint.worldX)}, ${Math.round(mapPoint.worldY)})`;
+    return resolveRendererCanvasStatusInfo({
+      activeTool: viewState.activeTool,
+      tile: pickTile(clientX, clientY),
+      mapPoint:
+        viewState.activeTool === "object-select"
+          ? locateMapPoint(clientX, clientY)
+          : undefined
+    });
   }
 
   function finishStroke(pointerId?: number): void {
@@ -292,63 +264,46 @@ export function RendererCanvas({
     }
 
     pendingObjectGestureRef.current = undefined;
+    const location =
+      input.clientX !== undefined && input.clientY !== undefined
+        ? locateMapPoint(input.clientX, input.clientY)
+        : undefined;
+    const plan = createRendererCanvasObjectGestureCompletionPlan({
+      pendingGesture: pending,
+      selectedObjectIds: viewState.selectedObjectIds,
+      mapPoint: location
+    });
 
-    if (pending.kind === "resize") {
-      if (
-        input.clientX !== undefined &&
-        input.clientY !== undefined
-      ) {
-        const location = locateMapPoint(input.clientX, input.clientY);
-
-        if (location) {
+    switch (plan.kind) {
+      case "object-resize":
+        if (plan.commitLocation) {
           onObjectResize?.(
-            location.worldX,
-            location.worldY,
+            plan.commitLocation.worldX,
+            plan.commitLocation.worldY,
             readObjectResizeModifiers({
               ctrlKey: input.ctrlKey ?? false
             })
           );
         }
-      }
-
-      onObjectResizeEnd?.();
-
-      if (
-        input.pointerId !== undefined &&
-        hostRef.current?.hasPointerCapture(input.pointerId)
-      ) {
-        hostRef.current.releasePointerCapture(input.pointerId);
-      }
-
-      return;
-    }
-
-    if (
-      pending.dragging &&
-      input.clientX !== undefined &&
-      input.clientY !== undefined
-    ) {
-      const location = locateMapPoint(input.clientX, input.clientY);
-
-      if (location) {
-        onObjectMove?.(
-          location.worldX,
-          location.worldY,
-          readObjectMoveModifiers({
-            ctrlKey: input.ctrlKey ?? false
-          })
-        );
-      }
-    }
-
-    if (pending.dragging) {
-      onObjectMoveEnd?.();
-    } else {
-      const alreadySelected = viewState.selectedObjectIds.includes(pending.objectId);
-
-      if (!alreadySelected) {
-        onObjectSelect?.(pending.objectId);
-      }
+        onObjectResizeEnd?.();
+        break;
+      case "object-move":
+        if (plan.commitLocation) {
+          onObjectMove?.(
+            plan.commitLocation.worldX,
+            plan.commitLocation.worldY,
+            readObjectMoveModifiers({
+              ctrlKey: input.ctrlKey ?? false
+            })
+          );
+        }
+        onObjectMoveEnd?.();
+        break;
+      case "select-object":
+        onObjectSelect?.(plan.objectId);
+        break;
+      case "noop":
+        break;
     }
 
     if (
@@ -367,150 +322,112 @@ export function RendererCanvas({
         if (event.button !== 0) {
           return;
         }
+        const plan = createRendererCanvasPointerDownPlan({
+          activeTool: viewState.activeTool,
+          selectedObjectIds: viewState.selectedObjectIds,
+          pointerId: event.pointerId,
+          clientX: event.clientX,
+          clientY: event.clientY,
+          pickResult:
+            viewState.activeTool === "object-select"
+              ? rendererRef.current.pick(event.clientX, event.clientY, {
+                  mode: "object"
+                })
+              : { kind: "none" },
+          mapPoint:
+            viewState.activeTool === "object-select"
+              ? locateMapPoint(event.clientX, event.clientY)
+              : undefined,
+          tile:
+            viewState.activeTool === "object-select" || viewState.activeTool === "world-tool"
+              ? undefined
+              : pickTile(event.clientX, event.clientY),
+          canStartStroke: onStrokeStart !== undefined,
+          canStartObjectResize: onObjectResizeStart !== undefined
+        });
 
-        if (viewState.activeTool === "world-tool") {
-          hostRef.current?.focus();
-          return;
-        }
-
-        if (viewState.activeTool === "object-select") {
-          const result = rendererRef.current.pick(event.clientX, event.clientY, {
-            mode: "object"
-          });
-
-          if (result.kind === "object-handle") {
-            if (result.handle === "rotate") {
-              hostRef.current?.focus();
-              return;
-            }
-
-            if (
-              viewState.selectedObjectIds.length !== 1 ||
-              !onObjectResizeStart
-            ) {
-              return;
-            }
-
-            const location = locateMapPoint(event.clientX, event.clientY);
-
-            if (!location) {
-              return;
-            }
-
-            pendingObjectGestureRef.current = {
-              kind: "resize",
-              pointerId: event.pointerId,
-              objectId: viewState.selectedObjectIds[0]!,
-              handle: result.handle,
-              lastWorldX: location.worldX,
-              lastWorldY: location.worldY
-            };
+        switch (plan.kind) {
+          case "focus":
+            hostRef.current?.focus();
+            return;
+          case "object-resize":
+            pendingObjectGestureRef.current = plan.pendingGesture;
             hostRef.current?.focus();
             hostRef.current?.setPointerCapture(event.pointerId);
-            onObjectResizeStart(
-              viewState.selectedObjectIds[0]!,
-              result.handle,
-              location.worldX,
-              location.worldY,
+            onObjectResizeStart?.(
+              plan.pendingGesture.objectId,
+              plan.pendingGesture.handle,
+              plan.pendingGesture.lastWorldX,
+              plan.pendingGesture.lastWorldY,
               readObjectResizeModifiers(event)
             );
             return;
-          }
-
-          if (result.kind !== "object") {
+          case "object-move":
+            pendingObjectGestureRef.current = plan.pendingGesture;
+            hostRef.current?.focus();
+            hostRef.current?.setPointerCapture(event.pointerId);
             return;
-          }
-
-          const location = locateMapPoint(event.clientX, event.clientY);
-
-          if (!location) {
+          case "stroke":
+            isStrokeActiveRef.current = true;
+            lastPickedTileRef.current = plan.tile;
+            hostRef.current?.focus();
+            hostRef.current?.setPointerCapture(event.pointerId);
+            onStrokeStart?.(plan.tile.x, plan.tile.y, readModifiers(event));
             return;
-          }
-
-          pendingObjectGestureRef.current = {
-            kind: "move",
-            pointerId: event.pointerId,
-            objectId: result.objectId,
-            startClientX: event.clientX,
-            startClientY: event.clientY,
-            startWorldX: location.worldX,
-            startWorldY: location.worldY,
-            lastWorldX: location.worldX,
-            lastWorldY: location.worldY,
-            dragging: false
-          };
-          hostRef.current?.focus();
-          hostRef.current?.setPointerCapture(event.pointerId);
-          return;
+          case "noop":
+            return;
         }
-
-        if (!onStrokeStart) {
-          return;
-        }
-
-        const coordinate = pickTile(event.clientX, event.clientY);
-
-        if (!coordinate) {
-          return;
-        }
-
-        isStrokeActiveRef.current = true;
-        lastPickedTileRef.current = coordinate;
-        hostRef.current?.focus();
-        hostRef.current?.setPointerCapture(event.pointerId);
-        onStrokeStart(coordinate.x, coordinate.y, readModifiers(event));
       }}
       onPointerMove={(event) => {
         publishStatusInfo(readStatusInfo(event.clientX, event.clientY));
 
         if (viewState.activeTool === "object-select") {
           const pending = pendingObjectGestureRef.current;
+          const plan = createRendererCanvasPointerMovePlan({
+            activeTool: viewState.activeTool,
+            pendingGesture: pending,
+            mapPoint: locateMapPoint(event.clientX, event.clientY),
+            clientX: event.clientX,
+            clientY: event.clientY,
+            canStartObjectMove: onObjectMoveStart !== undefined
+          });
 
-          if (!pending) {
-            return;
-          }
+          switch (plan.kind) {
+            case "object-resize":
+              if (pending?.kind !== "resize") {
+                return;
+              }
 
-          const location = locateMapPoint(event.clientX, event.clientY);
-
-          if (!location) {
-            return;
-          }
-
-          if (pending.kind === "resize") {
-            pending.lastWorldX = location.worldX;
-            pending.lastWorldY = location.worldY;
-            onObjectResize?.(
-              location.worldX,
-              location.worldY,
-              readObjectResizeModifiers(event)
-            );
-            return;
-          }
-
-          if (!pending.dragging) {
-            const deltaX = event.clientX - pending.startClientX;
-            const deltaY = event.clientY - pending.startClientY;
-
-            if (
-              Math.hypot(deltaX, deltaY) < OBJECT_DRAG_START_DISTANCE ||
-              !onObjectMoveStart
-            ) {
+              pending.lastWorldX = plan.worldX;
+              pending.lastWorldY = plan.worldY;
+              onObjectResize?.(
+                plan.worldX,
+                plan.worldY,
+                readObjectResizeModifiers(event)
+              );
               return;
-            }
+            case "object-move":
+              if (pending?.kind !== "move") {
+                return;
+              }
 
-            pending.dragging = true;
-            onObjectMoveStart(
-              pending.objectId,
-              pending.startWorldX,
-              pending.startWorldY,
-              readObjectMoveModifiers(event)
-            );
+              if (plan.startDragging) {
+                pending.dragging = true;
+                onObjectMoveStart?.(
+                  pending.objectId,
+                  pending.startWorldX,
+                  pending.startWorldY,
+                  readObjectMoveModifiers(event)
+                );
+              }
+
+              pending.lastWorldX = plan.worldX;
+              pending.lastWorldY = plan.worldY;
+              onObjectMove?.(plan.worldX, plan.worldY, readObjectMoveModifiers(event));
+              return;
+            case "noop":
+              return;
           }
-
-          pending.lastWorldX = location.worldX;
-          pending.lastWorldY = location.worldY;
-          onObjectMove?.(location.worldX, location.worldY, readObjectMoveModifiers(event));
-          return;
         }
 
         if (!isStrokeActiveRef.current || !onStrokeMove) {
@@ -549,31 +466,24 @@ export function RendererCanvas({
         finishStroke();
       }}
       onKeyDown={(event) => {
-        const pending = pendingObjectGestureRef.current;
+        const plan = createRendererCanvasModifierSyncPlan({
+          activeTool: viewState.activeTool,
+          pendingGesture: pendingObjectGestureRef.current
+        });
 
-        if (
-          viewState.activeTool === "object-select" &&
-          pending?.kind === "move" &&
-          pending.dragging
-        ) {
-          onObjectMove?.(
-            pending.lastWorldX,
-            pending.lastWorldY,
-            readObjectMoveModifiers(event)
-          );
-          return;
-        }
-
-        if (
-          viewState.activeTool === "object-select" &&
-          pending?.kind === "resize"
-        ) {
-          onObjectResize?.(
-            pending.lastWorldX,
-            pending.lastWorldY,
-            readObjectResizeModifiers(event)
-          );
-          return;
+        switch (plan.kind) {
+          case "object-move":
+            onObjectMove?.(plan.worldX, plan.worldY, readObjectMoveModifiers(event));
+            return;
+          case "object-resize":
+            onObjectResize?.(
+              plan.worldX,
+              plan.worldY,
+              readObjectResizeModifiers(event)
+            );
+            return;
+          case "noop":
+            break;
         }
 
         if (!isStrokeActiveRef.current || !onStrokeMove || !lastPickedTileRef.current) {
@@ -587,31 +497,24 @@ export function RendererCanvas({
         );
       }}
       onKeyUp={(event) => {
-        const pending = pendingObjectGestureRef.current;
+        const plan = createRendererCanvasModifierSyncPlan({
+          activeTool: viewState.activeTool,
+          pendingGesture: pendingObjectGestureRef.current
+        });
 
-        if (
-          viewState.activeTool === "object-select" &&
-          pending?.kind === "move" &&
-          pending.dragging
-        ) {
-          onObjectMove?.(
-            pending.lastWorldX,
-            pending.lastWorldY,
-            readObjectMoveModifiers(event)
-          );
-          return;
-        }
-
-        if (
-          viewState.activeTool === "object-select" &&
-          pending?.kind === "resize"
-        ) {
-          onObjectResize?.(
-            pending.lastWorldX,
-            pending.lastWorldY,
-            readObjectResizeModifiers(event)
-          );
-          return;
+        switch (plan.kind) {
+          case "object-move":
+            onObjectMove?.(plan.worldX, plan.worldY, readObjectMoveModifiers(event));
+            return;
+          case "object-resize":
+            onObjectResize?.(
+              plan.worldX,
+              plan.worldY,
+              readObjectResizeModifiers(event)
+            );
+            return;
+          case "noop":
+            break;
         }
 
         if (!isStrokeActiveRef.current || !onStrokeMove || !lastPickedTileRef.current) {

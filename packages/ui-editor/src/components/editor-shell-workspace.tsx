@@ -1,5 +1,7 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import type {
   LayersPanelViewState,
   MiniMapPanelViewState,
@@ -10,13 +12,22 @@ import type {
   TerrainSetsPanelViewState,
   TilesetsPanelViewState
 } from "@pixel-editor/app-services/ui";
-import type { EditorShellStore, EditorShellViewState } from "@pixel-editor/app-services/ui-shell";
+import type {
+  EditorShellDockTab,
+  EditorShellLowerRightDockPanelId,
+  EditorShellLowerRightDockTabId,
+  EditorShellStore,
+  EditorShellUpperRightDockPanelId,
+  EditorShellUpperRightDockTabId,
+  EditorShellViewState
+} from "@pixel-editor/app-services/ui-shell";
+import { resolveEditorShellDockPanel as resolveDockPanel } from "@pixel-editor/app-services/ui-shell";
 import type { TranslationFn } from "@pixel-editor/i18n";
 
 import type { EditorRenderBridge } from "../render-bridge";
 
 import { DockPanel } from "./dock-panel";
-import { DockStack, type DockStackTab } from "./dock-stack";
+import { DockStack } from "./dock-stack";
 import { LayersPanel } from "./layers-panel";
 import { MiniMapPanel } from "./mini-map-panel";
 import { ObjectsPanel } from "./objects-panel";
@@ -25,19 +36,20 @@ import { PropertiesInspector } from "./properties-inspector";
 import { RendererCanvas, type RendererCanvasProps } from "./renderer-canvas";
 import { TerrainSetsPanel } from "./terrain-sets-panel";
 import { TilesetsPanel } from "./tilesets-panel";
-import type {
-  LowerRightDockTabId,
-  UpperRightDockTabId
-} from "./use-editor-shell-local-state";
-
 export interface EditorShellWorkspaceProps {
   store: EditorShellStore;
   renderBridge: EditorRenderBridge;
   t: TranslationFn;
-  upperRightDockTab: UpperRightDockTabId;
-  lowerRightDockTab: LowerRightDockTabId;
-  upperRightDockTabs: DockStackTab<UpperRightDockTabId>[];
-  lowerRightDockTabs: DockStackTab<LowerRightDockTabId>[];
+  upperRightDockTab: EditorShellUpperRightDockTabId;
+  lowerRightDockTab: EditorShellLowerRightDockTabId;
+  upperRightDockTabs: EditorShellDockTab<
+    EditorShellUpperRightDockTabId,
+    EditorShellUpperRightDockPanelId
+  >[];
+  lowerRightDockTabs: EditorShellDockTab<
+    EditorShellLowerRightDockTabId,
+    EditorShellLowerRightDockPanelId
+  >[];
   shellViewState: EditorShellViewState;
   projectDockViewState: ProjectDockViewState;
   propertiesInspectorViewState: PropertiesInspectorViewState;
@@ -49,8 +61,8 @@ export interface EditorShellWorkspaceProps {
   tilesetsPanelViewState: TilesetsPanelViewState;
   onMiniMapNavigate: (originX: number, originY: number) => void;
   onProjectAssetActivate: ProjectDockProps["onAssetActivate"];
-  onUpperRightDockTabChange: (tabId: UpperRightDockTabId) => void;
-  onLowerRightDockTabChange: (tabId: LowerRightDockTabId) => void;
+  onUpperRightDockTabChange: (tabId: EditorShellUpperRightDockTabId) => void;
+  onLowerRightDockTabChange: (tabId: EditorShellLowerRightDockTabId) => void;
   onDetachTemplateInstances: () => void;
   onReplaceWithTemplate: () => void;
   onResetTemplateInstances: () => void;
@@ -75,12 +87,13 @@ export interface EditorShellWorkspaceProps {
 }
 
 export function EditorShellWorkspace(props: EditorShellWorkspaceProps) {
-  let upperRightDockContent = (
-    <LayersPanel embedded store={props.store} viewState={props.layersPanelViewState} />
-  );
-
-  if (props.upperRightDockTab === "objects") {
-    upperRightDockContent = (
+  const upperRightPanelId = resolveDockPanel(props.upperRightDockTabs, props.upperRightDockTab);
+  const lowerRightPanelId = resolveDockPanel(props.lowerRightDockTabs, props.lowerRightDockTab);
+  const upperRightDockContentByPanel: Record<EditorShellUpperRightDockPanelId, ReactNode> = {
+    "layers-panel": (
+      <LayersPanel embedded store={props.store} viewState={props.layersPanelViewState} />
+    ),
+    "objects-panel": (
       <ObjectsPanel
         embedded
         viewState={props.objectsPanelViewState}
@@ -90,26 +103,25 @@ export function EditorShellWorkspace(props: EditorShellWorkspaceProps) {
         onSaveAsTemplate={props.onSaveAsTemplate}
         store={props.store}
       />
-    );
-  } else if (props.upperRightDockTab === "mini-map") {
-    upperRightDockContent = (
+    ),
+    "mini-map-panel": (
       <MiniMapPanel
         embedded
         renderBridge={props.renderBridge}
         viewState={props.miniMapPanelViewState}
         onNavigate={props.onMiniMapNavigate}
       />
-    );
-  }
-
-  const lowerRightDockContent =
-    props.lowerRightDockTab === "terrain-sets" ? (
+    )
+  };
+  const lowerRightDockContentByPanel: Record<EditorShellLowerRightDockPanelId, ReactNode> = {
+    "terrain-sets-panel": (
       <TerrainSetsPanel
         embedded
         store={props.store}
         viewState={props.terrainSetsPanelViewState}
       />
-    ) : (
+    ),
+    "tilesets-panel": (
       <TilesetsPanel
         embedded
         onOpenTileAnimationEditor={props.onOpenTileAnimationEditor}
@@ -119,7 +131,10 @@ export function EditorShellWorkspace(props: EditorShellWorkspaceProps) {
         store={props.store}
         viewState={props.tilesetsPanelViewState}
       />
-    );
+    )
+  };
+  const upperRightDockContent = upperRightDockContentByPanel[upperRightPanelId];
+  const lowerRightDockContent = lowerRightDockContentByPanel[lowerRightPanelId];
 
   return (
     <div className="grid min-h-0 flex-1 grid-cols-[250px_280px_minmax(0,1fr)_360px] gap-px bg-slate-700">

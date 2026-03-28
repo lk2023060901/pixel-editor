@@ -2,15 +2,21 @@
 
 import type {
   WorldMapDragPreview,
-  WorldContextOverlayMapItemViewState,
+  WorldContextOverlayDragState,
+  WorldContextOverlayMapPresentation,
   WorldContextOverlayViewState
 } from "@pixel-editor/app-services/ui";
-import { resolveWorldMapDragPreview as resolveWorldMapDragPreviewHelper } from "@pixel-editor/app-services/ui";
+import {
+  createWorldContextOverlayClickPlan,
+  createWorldContextOverlayCommitPlan,
+  createWorldContextOverlayPointerDownPlan,
+  deriveWorldContextOverlayMapPresentation,
+  resolveWorldMapDragPreview as resolveWorldMapDragPreviewHelper,
+  shouldStartWorldContextOverlayDrag
+} from "@pixel-editor/app-services/ui";
 import { useRef, useState } from "react";
 
 import type { EditorRenderBridge } from "../render-bridge";
-
-const DRAG_START_DISTANCE = 4;
 
 interface WorldContextOverlayProps {
   viewState: WorldContextOverlayViewState;
@@ -22,14 +28,6 @@ interface WorldContextOverlayProps {
   onStatusInfoChange?: ((statusInfo: string) => void) | undefined;
 }
 
-interface WorldMapDragState {
-  pointerId: number;
-  map: WorldContextOverlayMapItemViewState;
-  startClientX: number;
-  startClientY: number;
-  moved: boolean;
-}
-
 export function WorldContextOverlay({
   viewState,
   renderBridge,
@@ -39,7 +37,7 @@ export function WorldContextOverlay({
   onMoveWorldMap,
   onStatusInfoChange
 }: WorldContextOverlayProps) {
-  const dragStateRef = useRef<WorldMapDragState | undefined>(undefined);
+  const dragStateRef = useRef<WorldContextOverlayDragState | undefined>(undefined);
   const [preview, setPreview] = useState<{ fileName: string; x: number; y: number } | undefined>(
     undefined
   );
@@ -81,7 +79,7 @@ export function WorldContextOverlay({
   }
 
   function readDragPreview(
-    dragState: WorldMapDragState,
+    dragState: WorldContextOverlayDragState,
     event: { clientX: number; clientY: number; ctrlKey: boolean }
   ): WorldMapDragPreview {
     return resolveWorldMapDragPreviewHelper({
@@ -105,15 +103,15 @@ export function WorldContextOverlay({
     dragStateRef.current = undefined;
     const nextPosition = readDragPreview(dragState, event);
 
-    if (dragState.moved) {
-      onMoveWorldMap?.(
-        dragState.map.worldId,
-        dragState.map.fileName,
-        nextPosition.x,
-        nextPosition.y
-      );
-    } else if (dragState.map.mapId !== undefined && dragState.map.canActivate) {
-      onActivateMap?.(dragState.map.mapId);
+    const plan = createWorldContextOverlayCommitPlan({
+      dragState,
+      position: nextPosition
+    });
+
+    if (plan.kind === "move") {
+      onMoveWorldMap?.(plan.worldId, plan.fileName, plan.x, plan.y);
+    } else if (plan.kind === "activate") {
+      onActivateMap?.(plan.mapId);
     }
 
     clearPreview();
@@ -122,16 +120,20 @@ export function WorldContextOverlay({
   return (
     <div className="pointer-events-none absolute inset-0 overflow-hidden">
       {projectedMaps.map((mapEntry) => {
-        const isDraggable = viewState.activeTool === "world-tool" && viewState.modifiable;
+        const presentation: WorldContextOverlayMapPresentation =
+          deriveWorldContextOverlayMapPresentation({
+            viewState,
+            map: mapEntry
+          });
 
         return (
           <button
             key={mapEntry.fileName}
             className={`pointer-events-auto absolute overflow-hidden border text-left transition ${
-              mapEntry.active
+              presentation.appearance === "active"
                 ? "border-emerald-400/90 bg-emerald-500/10 shadow-[0_0_0_1px_rgba(16,185,129,0.25)]"
                 : "border-slate-500/80 bg-slate-950/60 hover:border-slate-300/80"
-            } ${mapEntry.canActivate || isDraggable ? "cursor-pointer" : "cursor-default"}`}
+            } ${presentation.cursor === "pointer" ? "cursor-pointer" : "cursor-default"}`}
             style={{
               left: `${mapEntry.screenRect.left}px`,
               top: `${mapEntry.screenRect.top}px`,
@@ -139,26 +141,30 @@ export function WorldContextOverlay({
               height: `${Math.max(mapEntry.screenRect.height, 18)}px`
             }}
             onClick={() => {
-              if (viewState.activeTool === "world-tool") {
-                return;
-              }
+              const plan = createWorldContextOverlayClickPlan({
+                presentation,
+                map: mapEntry
+              });
 
-              if (mapEntry.mapId !== undefined && mapEntry.canActivate) {
-                onActivateMap?.(mapEntry.mapId);
+              if (plan.kind === "activate") {
+                onActivateMap?.(plan.mapId);
               }
             }}
             onPointerDown={(event) => {
-              if (!isDraggable || event.button !== 0) {
+              const plan = createWorldContextOverlayPointerDownPlan({
+                presentation,
+                map: mapEntry,
+                button: event.button,
+                pointerId: event.pointerId,
+                clientX: event.clientX,
+                clientY: event.clientY
+              });
+
+              if (plan.kind !== "drag") {
                 return;
               }
 
-              dragStateRef.current = {
-                pointerId: event.pointerId,
-                map: mapEntry,
-                startClientX: event.clientX,
-                startClientY: event.clientY,
-                moved: false
-              };
+              dragStateRef.current = plan.dragState;
               event.currentTarget.setPointerCapture(event.pointerId);
               event.preventDefault();
               event.stopPropagation();
@@ -174,12 +180,15 @@ export function WorldContextOverlay({
                 return;
               }
 
-              const pointerDelta = Math.hypot(
-                event.clientX - dragState.startClientX,
-                event.clientY - dragState.startClientY
-              );
-
-              if (!dragState.moved && pointerDelta >= DRAG_START_DISTANCE) {
+              if (
+                !dragState.moved &&
+                shouldStartWorldContextOverlayDrag({
+                  startClientX: dragState.startClientX,
+                  startClientY: dragState.startClientY,
+                  clientX: event.clientX,
+                  clientY: event.clientY
+                })
+              ) {
                 dragState.moved = true;
               }
 

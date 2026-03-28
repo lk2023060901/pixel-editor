@@ -3,10 +3,16 @@
 import type { MapImageExportViewState } from "@pixel-editor/app-services/ui";
 import {
   createEditorShellActionPlan,
+  createEditorShellSurfaceActionPlan,
+  editorShellLowerRightDockTabIds,
+  resolveEditorShellNewMenuOpen,
+  resolveEditorShellOpenMenuId,
   type EditorShellActionPlan,
   type EditorShellActionStore,
   type EditorShellChromeViewState,
+  type EditorShellLowerRightDockTabId,
   type EditorShellFileActionsStore,
+  type EditorShellSurfaceStore,
   type ToolbarActionSpec
 } from "@pixel-editor/app-services/ui-shell";
 import type { TranslationFn } from "@pixel-editor/i18n";
@@ -14,9 +20,6 @@ import type { Dispatch, SetStateAction } from "react";
 import { startTransition } from "react";
 
 import type { EditorRenderBridge } from "../render-bridge";
-
-import type { LowerRightDockTabId } from "./use-editor-shell-local-state";
-
 export function useEditorShellMenuActions(input: {
   actionStore: EditorShellActionStore;
   fileActionsStore: EditorShellFileActionsStore;
@@ -24,15 +27,50 @@ export function useEditorShellMenuActions(input: {
   t: TranslationFn;
   shellChromeViewState: EditorShellChromeViewState;
   mapImageExportViewState: MapImageExportViewState | undefined;
-  openMenuId: string | null;
   setOpenMenuId: Dispatch<SetStateAction<string | null>>;
   setNewMenuOpen: Dispatch<SetStateAction<boolean>>;
   setCustomTypesEditorOpen: Dispatch<SetStateAction<boolean>>;
   setProjectPropertiesOpen: Dispatch<SetStateAction<boolean>>;
   setTileAnimationEditorOpen: Dispatch<SetStateAction<boolean>>;
   setTileCollisionEditorOpen: Dispatch<SetStateAction<boolean>>;
-  setLowerRightDockTab: Dispatch<SetStateAction<LowerRightDockTabId>>;
+  setLowerRightDockTab: Dispatch<SetStateAction<EditorShellLowerRightDockTabId>>;
 }) {
+  const surfaceStore: EditorShellSurfaceStore = {
+    toggleCustomTypesEditor() {
+      input.setCustomTypesEditorOpen((current) => !current);
+    },
+    closeCustomTypesEditor() {
+      input.setCustomTypesEditorOpen(false);
+    },
+    toggleProjectProperties() {
+      input.setProjectPropertiesOpen((current) => !current);
+    },
+    closeProjectProperties() {
+      input.setProjectPropertiesOpen(false);
+    },
+    openSaveTemplateDialog() {
+      return;
+    },
+    closeSaveTemplateDialog() {
+      return;
+    },
+    openTileAnimationEditor() {
+      input.setTileAnimationEditorOpen(true);
+    },
+    closeTileAnimationEditor() {
+      input.setTileAnimationEditorOpen(false);
+    },
+    openTileCollisionEditor() {
+      input.setTileCollisionEditorOpen(true);
+    },
+    closeTileCollisionEditor() {
+      input.setTileCollisionEditorOpen(false);
+    },
+    focusTerrainSetsPanel() {
+      input.setLowerRightDockTab(editorShellLowerRightDockTabIds.terrainSets);
+    }
+  };
+
   async function handleExportAsImage(): Promise<void> {
     if (!input.mapImageExportViewState) {
       return;
@@ -54,6 +92,18 @@ export function useEditorShellMenuActions(input: {
     }
   }
 
+  function runSurfaceAction(
+    action: Parameters<typeof createEditorShellSurfaceActionPlan>[0]
+  ): void {
+    const plan = createEditorShellSurfaceActionPlan(action);
+
+    if (plan.kind !== "transition") {
+      return;
+    }
+
+    plan.run(surfaceStore);
+  }
+
   function executeActionPlan(plan: EditorShellActionPlan): void {
     switch (plan.kind) {
       case "transition":
@@ -65,26 +115,13 @@ export function useEditorShellMenuActions(input: {
         void plan.run(input.actionStore);
         return;
       case "local":
-        switch (plan.action) {
-          case "export-as-image":
-            void handleExportAsImage();
-            return;
-          case "toggle-custom-types-editor":
-            input.setCustomTypesEditorOpen((current) => !current);
-            return;
-          case "toggle-project-properties":
-            input.setProjectPropertiesOpen((current) => !current);
-            return;
-          case "open-tile-animation-editor":
-            input.setTileAnimationEditorOpen(true);
-            return;
-          case "open-tile-collision-editor":
-            input.setTileCollisionEditorOpen(true);
-            return;
-          case "focus-terrain-sets":
-            input.setLowerRightDockTab("terrain-sets");
-            return;
+        if (plan.action === "export-as-image") {
+          void handleExportAsImage();
+          return;
         }
+
+        runSurfaceAction(plan.action);
+        return;
       case "noop":
         return;
     }
@@ -114,28 +151,77 @@ export function useEditorShellMenuActions(input: {
 
   return {
     onMenuButtonClick(menuId: string) {
-      input.setOpenMenuId((current) => (current === menuId ? null : menuId));
+      input.setOpenMenuId((current) =>
+        resolveEditorShellOpenMenuId({
+          openMenuId: current,
+          transition: {
+            kind: "toggle-button",
+            menuId
+          }
+        })
+      );
     },
     onMenuPointerEnter(menuId: string) {
-      if (input.openMenuId !== null) {
-        input.setOpenMenuId(menuId);
-      }
+      input.setOpenMenuId((current) =>
+        resolveEditorShellOpenMenuId({
+          openMenuId: current,
+          transition: {
+            kind: "pointer-enter",
+            menuId
+          }
+        })
+      );
     },
     onCloseMenu() {
-      input.setOpenMenuId(null);
+      input.setOpenMenuId((current) =>
+        resolveEditorShellOpenMenuId({
+          openMenuId: current,
+          transition: {
+            kind: "close"
+          }
+        })
+      );
     },
     onNewMenuBlur() {
-      input.setNewMenuOpen(false);
+      input.setNewMenuOpen((current) =>
+        resolveEditorShellNewMenuOpen({
+          open: current,
+          transition: {
+            kind: "close"
+          }
+        })
+      );
     },
     onToggleNewMenu() {
-      input.setNewMenuOpen((current) => !current);
+      input.setNewMenuOpen((current) =>
+        resolveEditorShellNewMenuOpen({
+          open: current,
+          transition: {
+            kind: "toggle"
+          }
+        })
+      );
     },
     onNewActionPrimaryClick(action: ToolbarActionSpec) {
       handleToolbarAction(action);
-      input.setNewMenuOpen(false);
+      input.setNewMenuOpen((current) =>
+        resolveEditorShellNewMenuOpen({
+          open: current,
+          transition: {
+            kind: "close"
+          }
+        })
+      );
     },
     onNewMenuItem(menuItemId: string) {
-      input.setNewMenuOpen(false);
+      input.setNewMenuOpen((current) =>
+        resolveEditorShellNewMenuOpen({
+          open: current,
+          transition: {
+            kind: "close"
+          }
+        })
+      );
       executeActionPlan(buildShellActionPlan(menuItemId));
     },
     onMenuAction(actionId: string) {

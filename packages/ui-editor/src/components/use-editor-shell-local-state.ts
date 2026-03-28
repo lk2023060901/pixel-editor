@@ -1,16 +1,30 @@
 "use client";
 
+import type {
+  EditorShellLowerRightDockTabId,
+  EditorShellUpperRightDockTabId
+} from "@pixel-editor/app-services/ui-shell";
+import {
+  defaultEditorShellLowerRightDockTabId,
+  defaultEditorShellUpperRightDockTabId,
+  resolveEditorShellOpenMenuId,
+  resolveEditorShellSaveTemplateDialogOpen
+} from "@pixel-editor/app-services/ui-shell";
 import type { Dispatch, SetStateAction } from "react";
 import { useEffect, useRef, useState } from "react";
 
-export type UpperRightDockTabId = "layers" | "objects" | "mini-map";
-export type LowerRightDockTabId = "terrain-sets" | "tilesets";
+export type UpperRightDockTabId = EditorShellUpperRightDockTabId;
+export type LowerRightDockTabId = EditorShellLowerRightDockTabId;
 
 export function useEditorShellLocalState(input: {
   hasActiveObject: boolean;
 }) {
-  const [upperRightDockTab, setUpperRightDockTab] = useState<UpperRightDockTabId>("layers");
-  const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>("tilesets");
+  const [upperRightDockTab, setUpperRightDockTab] = useState<UpperRightDockTabId>(
+    defaultEditorShellUpperRightDockTabId
+  );
+  const [lowerRightDockTab, setLowerRightDockTab] = useState<LowerRightDockTabId>(
+    defaultEditorShellLowerRightDockTabId
+  );
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
   const [customTypesEditorOpen, setCustomTypesEditorOpen] = useState(false);
   const [projectPropertiesOpen, setProjectPropertiesOpen] = useState(false);
@@ -26,11 +40,17 @@ export function useEditorShellLocalState(input: {
     }
 
     function handlePointerDown(event: PointerEvent): void {
-      if (menuBarRef.current?.contains(event.target as Node)) {
-        return;
-      }
+      const nextOpenMenuId = resolveEditorShellOpenMenuId({
+        openMenuId,
+        transition: {
+          kind: "pointer-down",
+          pointerWithinMenuBar: menuBarRef.current?.contains(event.target as Node) ?? false
+        }
+      });
 
-      setOpenMenuId(null);
+      if (nextOpenMenuId !== openMenuId) {
+        setOpenMenuId(nextOpenMenuId);
+      }
     }
 
     document.addEventListener("pointerdown", handlePointerDown);
@@ -40,11 +60,14 @@ export function useEditorShellLocalState(input: {
   }, [openMenuId]);
 
   useEffect(() => {
-    if (!saveTemplateDialogOpen || input.hasActiveObject) {
-      return;
-    }
+    const nextSaveTemplateDialogOpen = resolveEditorShellSaveTemplateDialogOpen({
+      open: saveTemplateDialogOpen,
+      hasActiveObject: input.hasActiveObject
+    });
 
-    setSaveTemplateDialogOpen(false);
+    if (nextSaveTemplateDialogOpen !== saveTemplateDialogOpen) {
+      setSaveTemplateDialogOpen(nextSaveTemplateDialogOpen);
+    }
   }, [input.hasActiveObject, saveTemplateDialogOpen]);
 
   return {
