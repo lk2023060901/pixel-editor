@@ -1,23 +1,22 @@
 "use client";
 
 import {
+  createTileCollisionCanvasObjectTransformPreview,
+  createTileCollisionCanvasPointerDownPlan,
+  createTileCollisionCanvasPointerMovePlan,
+  createTileCollisionCanvasPointerUpPlan,
+  defaultTileCollisionCanvasDimensions,
+  deriveTileCollisionCanvasLayout,
+  type TileCollisionCanvasDragState,
   type TileCollisionCanvasViewState
 } from "@pixel-editor/app-services/ui";
 import { useMemo, useState } from "react";
 
-import type {
-  EditorRenderBridge,
-  EditorRenderObjectTransformPreview,
-  EditorRenderProjectedMapObject
-} from "../render-bridge";
+import type { EditorRenderBridge, EditorRenderProjectedMapObject } from "../render-bridge";
 
 import { buildTileVisualStyle } from "./tileset-view-helpers";
 
 type CollisionCanvasObjectId = TileCollisionCanvasViewState["objects"][number]["id"];
-
-const CANVAS_WIDTH = 360;
-const CANVAS_HEIGHT = 360;
-const CANVAS_PADDING = 24;
 
 function renderProjectedObject(object: EditorRenderProjectedMapObject) {
   const stroke = object.selected ? "#38bdf8" : "#f8fafc";
@@ -116,42 +115,21 @@ export function TileCollisionCanvas(props: {
     deltaY: number
   ) => void;
 }) {
-  const [dragState, setDragState] = useState<
-    | {
-        pointerId: number;
-        objectIds: CollisionCanvasObjectId[];
-        startLocalX: number;
-        startLocalY: number;
-        deltaX: number;
-        deltaY: number;
-      }
-    | undefined
-  >();
-  const scale = Math.min(
-    (CANVAS_WIDTH - CANVAS_PADDING * 2) / props.viewState.tileWidth,
-    (CANVAS_HEIGHT - CANVAS_PADDING * 2) / props.viewState.tileHeight
-  );
-  const tileWidth = props.viewState.tileWidth * scale;
-  const tileHeight = props.viewState.tileHeight * scale;
-  const originX = Math.round((CANVAS_WIDTH - tileWidth) * 0.5);
-  const originY = Math.round((CANVAS_HEIGHT - tileHeight) * 0.5);
-  const objectTransformPreview: EditorRenderObjectTransformPreview | undefined = dragState
-    ? {
-        kind: "move",
-        objectIds: dragState.objectIds,
-        deltaX: dragState.deltaX,
-        deltaY: dragState.deltaY
-      }
-    : undefined;
+  const [dragState, setDragState] = useState<TileCollisionCanvasDragState | undefined>();
+  const layout = deriveTileCollisionCanvasLayout({
+    viewState: props.viewState,
+    dimensions: defaultTileCollisionCanvasDimensions
+  });
+  const objectTransformPreview = createTileCollisionCanvasObjectTransformPreview(dragState);
   const projectedObjects = useMemo(
     () => {
       const input = {
         map: props.viewState.previewMap,
         geometry: {
-          tileWidth,
-          tileHeight,
-          gridOriginX: originX,
-          gridOriginY: originY
+          tileWidth: layout.tileWidth,
+          tileHeight: layout.tileHeight,
+          gridOriginX: layout.originX,
+          gridOriginY: layout.originY
         },
         viewport: {
           originX: 0,
@@ -171,16 +149,16 @@ export function TileCollisionCanvas(props: {
     },
     [
       objectTransformPreview,
-      originX,
-      originY,
+      layout.originX,
+      layout.originY,
       props.renderBridge,
       props.viewState.previewMap,
       props.selectedObjectIds,
-      tileHeight,
-      tileWidth
+      layout.tileHeight,
+      layout.tileWidth
     ]
   );
-  const tileBackgroundStyle = buildTileVisualStyle(props.viewState.tilePreview, scale);
+  const tileBackgroundStyle = buildTileVisualStyle(props.viewState.tilePreview, layout.scale);
 
   function toLocalPoint(target: HTMLDivElement, clientX: number, clientY: number) {
     const bounds = target.getBoundingClientRect();
@@ -193,71 +171,87 @@ export function TileCollisionCanvas(props: {
 
   return (
     <div
-      className="relative h-[360px] w-[360px] border border-slate-700 bg-slate-950"
+      className="relative border border-slate-700 bg-slate-950"
+      style={{
+        width: `${layout.canvasWidth}px`,
+        height: `${layout.canvasHeight}px`
+      }}
       onPointerDown={(event) => {
         const point = toLocalPoint(event.currentTarget, event.clientX, event.clientY);
-        const objectId = props.renderBridge.pickProjectedObject(projectedObjects, point.x, point.y);
+        const plan = createTileCollisionCanvasPointerDownPlan({
+          pointerId: event.pointerId,
+          point,
+          pickedObjectId: props.renderBridge.pickProjectedObject(projectedObjects, point.x, point.y),
+          selectedObjectIds: props.selectedObjectIds
+        });
 
-        if (!objectId) {
+        if (plan.kind === "clear-selection") {
           props.onSelectionChange([]);
           return;
         }
 
-        const nextSelection = props.selectedObjectIds.includes(objectId)
-          ? [...props.selectedObjectIds]
-          : [objectId];
-
-        props.onSelectionChange(nextSelection);
+        props.onSelectionChange(plan.nextSelectedObjectIds);
         event.currentTarget.setPointerCapture(event.pointerId);
-        setDragState({
-          pointerId: event.pointerId,
-          objectIds: nextSelection,
-          startLocalX: point.x,
-          startLocalY: point.y,
-          deltaX: 0,
-          deltaY: 0
-        });
+        setDragState(plan.dragState);
       }}
       onPointerMove={(event) => {
-        if (!dragState || dragState.pointerId !== event.pointerId) {
+        const plan = createTileCollisionCanvasPointerMovePlan({
+          dragState,
+          pointerId: event.pointerId,
+          point: toLocalPoint(event.currentTarget, event.clientX, event.clientY),
+          scale: layout.scale
+        });
+
+        if (plan.kind !== "drag") {
           return;
         }
 
-        const point = toLocalPoint(event.currentTarget, event.clientX, event.clientY);
-
-        setDragState({
-          ...dragState,
-          deltaX: Math.round((point.x - dragState.startLocalX) / scale),
-          deltaY: Math.round((point.y - dragState.startLocalY) / scale)
-        });
+        setDragState(plan.dragState);
       }}
       onPointerUp={(event) => {
-        if (!dragState || dragState.pointerId !== event.pointerId) {
+        const plan = createTileCollisionCanvasPointerUpPlan({
+          dragState,
+          pointerId: event.pointerId
+        });
+
+        if (plan.kind !== "finish-drag") {
           return;
         }
 
         event.currentTarget.releasePointerCapture(event.pointerId);
 
-        if (dragState.deltaX !== 0 || dragState.deltaY !== 0) {
-          props.onMoveCommit(dragState.objectIds, dragState.deltaX, dragState.deltaY);
+        if (plan.commit) {
+          props.onMoveCommit(
+            plan.commit.objectIds,
+            plan.commit.deltaX,
+            plan.commit.deltaY
+          );
         }
 
         setDragState(undefined);
       }}
     >
-      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(51,65,85,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(51,65,85,0.22)_1px,transparent_1px)] bg-[size:24px_24px]" />
+      <div
+        className="absolute inset-0 bg-[linear-gradient(to_right,rgba(51,65,85,0.22)_1px,transparent_1px),linear-gradient(to_bottom,rgba(51,65,85,0.22)_1px,transparent_1px)]"
+        style={{
+          backgroundSize: `${layout.canvasPadding}px ${layout.canvasPadding}px`
+        }}
+      />
       <div
         className="absolute border border-slate-600 bg-slate-900"
         style={{
-          left: `${originX}px`,
-          top: `${originY}px`,
-          width: `${tileWidth}px`,
-          height: `${tileHeight}px`
+          left: `${layout.originX}px`,
+          top: `${layout.originY}px`,
+          width: `${layout.tileWidth}px`,
+          height: `${layout.tileHeight}px`
         }}
       >
         <div className="h-full w-full" style={tileBackgroundStyle} />
       </div>
-      <svg className="absolute inset-0 h-full w-full" viewBox={`0 0 ${CANVAS_WIDTH} ${CANVAS_HEIGHT}`}>
+      <svg
+        className="absolute inset-0 h-full w-full"
+        viewBox={`0 0 ${layout.canvasWidth} ${layout.canvasHeight}`}
+      >
         {projectedObjects.map(renderProjectedObject)}
       </svg>
     </div>

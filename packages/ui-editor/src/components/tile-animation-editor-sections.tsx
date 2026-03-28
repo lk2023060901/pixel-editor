@@ -1,7 +1,15 @@
 "use client";
 
 import {
-  getTileViewZoomOptionItems,
+  createTileAnimationFrameListActionPlan,
+  createTileAnimationSourceTilesActionPlan,
+  tileAnimationFrameListActionIds,
+  tileAnimationSourceTilesActionIds,
+  type TileAnimationEditorHeaderPresentation,
+  type TileAnimationFrameListStore,
+  type TileAnimationFrameListPresentation,
+  type TileAnimationSourceTilesStore,
+  type TileAnimationSourceTilesPresentation,
   type TileAnimationEditorViewState
 } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -14,14 +22,13 @@ type TileAnimationSourceTileViewState = TileAnimationEditorViewState["sourceTile
 
 export function TileAnimationEditorHeader(props: {
   frameDurationText: string;
-  selectedFrameIndex: number | null;
+  presentation: TileAnimationEditorHeaderPresentation;
   zoom: number;
   onApplyFrameDuration: () => void;
   onFrameDurationTextChange: (value: string) => void;
   onZoomChange: (zoom: number) => void;
 }) {
   const { t } = useI18n();
-  const zoomOptions = getTileViewZoomOptionItems();
 
   return (
     <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-2 text-sm">
@@ -46,7 +53,7 @@ export function TileAnimationEditorHeader(props: {
       <span className="text-xs text-slate-400">{t("tileAnimationEditor.ms")}</span>
       <button
         className="h-8 border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 transition hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={props.selectedFrameIndex === null}
+        disabled={props.presentation.applyFrameDurationDisabled}
         type="button"
         onClick={props.onApplyFrameDuration}
       >
@@ -60,7 +67,7 @@ export function TileAnimationEditorHeader(props: {
           props.onZoomChange(Number(event.target.value));
         }}
       >
-        {zoomOptions.map((option) => (
+        {props.presentation.zoomOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>
@@ -71,17 +78,12 @@ export function TileAnimationEditorHeader(props: {
 }
 
 export function TileAnimationFrameList(props: {
-  dragFrameIndex: number | null;
-  frames: readonly TileAnimationFrameViewState[];
-  selectedFrameIndex: number | null;
-  onDropFrameAt: (frameIndex: number) => void;
-  onEndFrameDrag: () => void;
-  onSelectFrame: (frameIndex: number) => void;
-  onStartFrameDrag: (frameIndex: number) => void;
+  presentation: TileAnimationFrameListPresentation;
+  store: TileAnimationFrameListStore;
 }) {
   const { t } = useI18n();
 
-  if (!props.frames.length) {
+  if (props.presentation.kind === "empty") {
     return (
       <div className="flex h-full items-center justify-center px-4 text-center text-sm text-slate-400">
         {t("tileAnimationEditor.noFrames")}
@@ -89,32 +91,71 @@ export function TileAnimationFrameList(props: {
     );
   }
 
+  const presentation = props.presentation;
+
   return (
     <div className="divide-y divide-slate-800">
-      {props.frames.map((frame, frameIndex) => {
-        const isSelected = props.selectedFrameIndex === frameIndex;
-
+      {presentation.items.map((frame) => {
         return (
           <button
-            key={`${frameIndex}:${frame.tileId}:${frame.durationMs}`}
-            draggable
+            key={frame.key}
+            draggable={frame.draggable}
             className={`flex w-full items-center gap-3 px-3 py-2 text-left transition ${
-              isSelected ? "bg-slate-800 text-slate-50" : "text-slate-200 hover:bg-slate-900"
+              frame.isSelected ? "bg-slate-800 text-slate-50" : "text-slate-200 hover:bg-slate-900"
             }`}
             type="button"
             onClick={() => {
-              props.onSelectFrame(frameIndex);
+              const plan = createTileAnimationFrameListActionPlan({
+                actionId: tileAnimationFrameListActionIds.selectFrame,
+                frameIndex: frame.frameIndex
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
             }}
             onDragStart={() => {
-              props.onStartFrameDrag(frameIndex);
+              const plan = createTileAnimationFrameListActionPlan({
+                actionId: tileAnimationFrameListActionIds.startFrameDrag,
+                frameIndex: frame.frameIndex
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
             }}
-            onDragEnd={props.onEndFrameDrag}
+            onDragEnd={() => {
+              const plan = createTileAnimationFrameListActionPlan({
+                actionId: tileAnimationFrameListActionIds.endFrameDrag,
+                hasDraggingFrame: presentation.hasDraggingFrame
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
+            }}
             onDragOver={(event) => {
+              if (frame.dropDisabled) {
+                return;
+              }
+
               event.preventDefault();
             }}
             onDrop={(event) => {
+              if (frame.dropDisabled) {
+                return;
+              }
+
               event.preventDefault();
-              props.onDropFrameAt(frameIndex);
+              const plan = createTileAnimationFrameListActionPlan({
+                actionId: tileAnimationFrameListActionIds.dropFrameAt,
+                frameIndex: frame.frameIndex,
+                dropDisabled: frame.dropDisabled
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
             }}
           >
             <TilePreview viewState={frame.preview} />
@@ -149,45 +190,52 @@ export function TileAnimationPreviewPanel(props: {
 }
 
 export function TileAnimationSourceTilesPanel(props: {
-  imageColumns: number | undefined;
-  sourceLocalId: number | null;
-  sourceTiles: readonly TileAnimationSourceTileViewState[];
-  tileHeight: number;
-  tileWidth: number;
-  tilesetId: string;
-  tilesetKind: TileAnimationEditorViewState["tilesetKind"];
+  presentation: TileAnimationSourceTilesPresentation;
+  store: TileAnimationSourceTilesStore;
   zoom: number;
-  onAddFrame: (localId: number) => void;
-  onSelectSourceTile: (localId: number) => void;
 }) {
-  if (props.tilesetKind === "image" && props.imageColumns) {
+  const presentation = props.presentation;
+
+  if (presentation.kind === "image-grid") {
     return (
       <div
         className="inline-grid border border-slate-500/20 bg-transparent"
         style={{
-          gridTemplateColumns: `repeat(${props.imageColumns}, ${props.tileWidth * props.zoom}px)`,
-          gridAutoRows: `${props.tileHeight * props.zoom}px`
+          gridTemplateColumns: `repeat(${presentation.imageColumns}, ${presentation.tileWidth * props.zoom}px)`,
+          gridAutoRows: `${presentation.tileHeight * props.zoom}px`
         }}
       >
-        {props.sourceTiles.map((tile) => {
-          const isSelected = props.sourceLocalId === tile.localId;
-
+        {presentation.items.map((tile) => {
           return (
             <button
-              key={`${props.tilesetId}:${tile.localId}`}
+              key={tile.key}
               className={`relative border border-slate-500/10 bg-transparent ${
-                isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
+                tile.isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
               }`}
               style={{
-                width: `${props.tileWidth * props.zoom}px`,
-                height: `${props.tileHeight * props.zoom}px`
+                width: `${presentation.tileWidth * props.zoom}px`,
+                height: `${presentation.tileHeight * props.zoom}px`
               }}
               type="button"
               onClick={() => {
-                props.onSelectSourceTile(tile.localId);
+                const plan = createTileAnimationSourceTilesActionPlan({
+                  actionId: tileAnimationSourceTilesActionIds.selectSourceTile,
+                  localId: tile.localId
+                });
+
+                if (plan.kind === "transition") {
+                  plan.run(props.store);
+                }
               }}
               onDoubleClick={() => {
-                props.onAddFrame(tile.localId);
+                const plan = createTileAnimationSourceTilesActionPlan({
+                  actionId: tileAnimationSourceTilesActionIds.addFrame,
+                  localId: tile.localId
+                });
+
+                if (plan.kind === "transition") {
+                  plan.run(props.store);
+                }
               }}
             >
               <span className="block" style={buildTileVisualStyle(tile.preview, props.zoom)} />
@@ -200,21 +248,33 @@ export function TileAnimationSourceTilesPanel(props: {
 
   return (
     <div className="flex flex-wrap items-start gap-1">
-      {props.sourceTiles.map((tile) => {
-        const isSelected = props.sourceLocalId === tile.localId;
-
+      {presentation.items.map((tile) => {
         return (
           <button
-            key={`${props.tilesetId}:${tile.localId}`}
+            key={tile.key}
             className={`flex items-center justify-center border bg-slate-900/20 p-1 ${
-              isSelected ? "ring-2 ring-blue-500 ring-inset" : "border-slate-500/20"
+              tile.isSelected ? "ring-2 ring-blue-500 ring-inset" : "border-slate-500/20"
             }`}
             type="button"
             onClick={() => {
-              props.onSelectSourceTile(tile.localId);
+              const plan = createTileAnimationSourceTilesActionPlan({
+                actionId: tileAnimationSourceTilesActionIds.selectSourceTile,
+                localId: tile.localId
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
             }}
             onDoubleClick={() => {
-              props.onAddFrame(tile.localId);
+              const plan = createTileAnimationSourceTilesActionPlan({
+                actionId: tileAnimationSourceTilesActionIds.addFrame,
+                localId: tile.localId
+              });
+
+              if (plan.kind === "transition") {
+                plan.run(props.store);
+              }
             }}
           >
             <span className="block" style={buildTileVisualStyle(tile.preview, props.zoom)} />

@@ -1,6 +1,13 @@
 "use client";
 
 import {
+  createTileAnimationEditorKeyDownActionPlan,
+  deriveTileAnimationEditorHeaderPresentation,
+  deriveTileAnimationFrameListPresentation,
+  deriveTileAnimationSourceTilesPresentation,
+  type TileAnimationEditorDialogStore,
+  type TileAnimationFrameListStore,
+  type TileAnimationSourceTilesStore,
   type TileAnimationEditorViewState
 } from "@pixel-editor/app-services/ui";
 import type { TileAnimationEditorStore } from "@pixel-editor/app-services/ui-store";
@@ -36,6 +43,32 @@ export function TileAnimationEditorDialog(props: {
     store: props.store,
     viewState: props.viewState
   });
+  const headerPresentation = deriveTileAnimationEditorHeaderPresentation({
+    selectedFrameIndex: state.selectedFrameIndex
+  });
+  const frameListPresentation = deriveTileAnimationFrameListPresentation({
+    frames: state.frames,
+    selectedFrameIndex: state.selectedFrameIndex,
+    dragFrameIndex: state.dragFrameIndex
+  });
+  const sourceTilesPresentation = deriveTileAnimationSourceTilesPresentation({
+    viewState: props.viewState,
+    sourceLocalId: state.sourceLocalId
+  });
+  const frameListStore: TileAnimationFrameListStore = {
+    selectFrame: state.actions.selectFrame,
+    startFrameDrag: state.actions.startFrameDrag,
+    endFrameDrag: state.actions.endFrameDrag,
+    reorderFrameAt: state.actions.reorderFrameAt
+  };
+  const sourceTilesStore: TileAnimationSourceTilesStore = {
+    selectSourceTile: state.actions.selectSourceTile,
+    addFrame: state.actions.addFrame
+  };
+  const dialogStore: TileAnimationEditorDialogStore = {
+    closeDialog: props.onClose,
+    removeSelectedFrame: state.actions.removeSelectedFrame
+  };
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -51,24 +84,21 @@ export function TileAnimationEditorDialog(props: {
         aria-modal="true"
         aria-label={t("action.tileAnimationEditor")}
         onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            props.onClose();
-            return;
-          }
+          const plan = createTileAnimationEditorKeyDownActionPlan({
+            key: event.key,
+            selectedFrameIndex: state.selectedFrameIndex,
+            isEditableTarget: isEditableElement(event.target)
+          });
 
-          if (
-            (event.key === "Delete" || event.key === "Backspace") &&
-            !isEditableElement(event.target)
-          ) {
+          if (plan.kind === "transition") {
             event.preventDefault();
-            state.actions.removeSelectedFrame();
+            plan.run(dialogStore);
           }
         }}
       >
         <TileAnimationEditorHeader
           frameDurationText={state.frameDurationText}
-          selectedFrameIndex={state.selectedFrameIndex}
+          presentation={headerPresentation}
           zoom={state.zoom}
           onApplyFrameDuration={state.actions.applyFrameDuration}
           onFrameDurationTextChange={state.setters.setFrameDurationText}
@@ -79,13 +109,8 @@ export function TileAnimationEditorDialog(props: {
           <div className="grid min-h-0 grid-rows-[minmax(0,1fr)_160px] border-r border-slate-700">
             <div className="min-h-0 overflow-auto bg-slate-950">
               <TileAnimationFrameList
-                dragFrameIndex={state.dragFrameIndex}
-                frames={state.frames}
-                selectedFrameIndex={state.selectedFrameIndex}
-                onDropFrameAt={state.actions.reorderFrameAt}
-                onEndFrameDrag={state.actions.endFrameDrag}
-                onSelectFrame={state.actions.selectFrame}
-                onStartFrameDrag={state.actions.startFrameDrag}
+                presentation={frameListPresentation}
+                store={frameListStore}
               />
             </div>
 
@@ -96,16 +121,9 @@ export function TileAnimationEditorDialog(props: {
 
           <div className="min-h-0 overflow-auto bg-[#b8b8b8] p-3">
             <TileAnimationSourceTilesPanel
-              imageColumns={props.viewState.imageColumns}
-              sourceLocalId={state.sourceLocalId}
-              sourceTiles={props.viewState.sourceTiles}
-              tileHeight={props.viewState.tileHeight}
-              tileWidth={props.viewState.tileWidth}
-              tilesetId={props.viewState.tilesetId}
-              tilesetKind={props.viewState.tilesetKind}
+              presentation={sourceTilesPresentation}
+              store={sourceTilesStore}
               zoom={state.zoom}
-              onAddFrame={state.actions.addFrame}
-              onSelectSourceTile={state.actions.selectSourceTile}
             />
           </div>
         </div>

@@ -1,7 +1,11 @@
 "use client";
 
 import {
-  getTileViewZoomOptionItems,
+  type TilesetsPanelActiveStampPresentation,
+  type TilesetsPanelPalettePresentation,
+  type TilesetsPanelTileGridPresentation,
+  type TilesetsPanelToolbarActionId,
+  type TilesetsPanelToolbarPresentation,
   type TilesetsPanelViewState
 } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -12,9 +16,6 @@ import { TilePreview } from "./tile-preview";
 import { buildTileVisualStyle } from "./tileset-view-helpers";
 
 type TilesetListItem = TilesetsPanelViewState["availableTilesets"][number];
-type TileEntry = TilesetsPanelViewState["activeTileEntries"][number];
-type StampSummary = TilesetsPanelViewState["stampSummary"];
-
 export function TilesetsListSection(props: {
   tilesets: readonly TilesetListItem[];
   onActivateTileset: (tilesetId: string) => void;
@@ -53,42 +54,41 @@ export function TilesetsListSection(props: {
 }
 
 export function TilesetActiveStampCard(props: {
-  selectedLocalId: number | null;
-  selectedTileClassName: string | undefined;
-  selectedTilePreview: TilesetsPanelViewState["selectedTilePreview"];
-  stampSummary: StampSummary;
+  presentation: TilesetsPanelActiveStampPresentation;
 }) {
   const { t } = useI18n();
+  const selectedTile = props.presentation.selectedTile;
+  const stampSummary = props.presentation.summary;
 
   return (
     <div className="mt-4 rounded-xl border border-slate-800 bg-slate-900/60 px-3 py-3 text-sm text-slate-300">
       <div className="flex items-center justify-between gap-3">
         <span>{t("tilesets.activeStamp")}</span>
         <span>
-          {props.stampSummary.kind === "pattern"
+          {stampSummary.kind === "pattern"
             ? t("tilesets.patternSummary", {
-                width: props.stampSummary.width,
-                height: props.stampSummary.height
+                width: stampSummary.width,
+                height: stampSummary.height
               })
-            : props.stampSummary.kind === "tile"
+            : stampSummary.kind === "tile"
               ? t("tilesets.stampTileSummary", {
-                  gid: props.stampSummary.gid,
-                  localId: props.stampSummary.localId,
-                  tilesetName: props.stampSummary.tilesetName
+                  gid: stampSummary.gid,
+                  localId: stampSummary.localId,
+                  tilesetName: stampSummary.tilesetName
                 })
               : t("common.none")}
         </span>
       </div>
-      {props.selectedLocalId !== null ? (
+      {selectedTile ? (
         <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-800 bg-slate-950/70 px-3 py-3">
-          {props.selectedTilePreview ? <TilePreview viewState={props.selectedTilePreview} /> : null}
+          {selectedTile.preview ? <TilePreview viewState={selectedTile.preview} /> : null}
           <div>
             <p className="text-xs tracking-[0.18em] text-slate-500 uppercase">
               {t("tilesets.selectedTile")}
             </p>
             <p className="mt-1 text-sm text-slate-100">
-              #{props.selectedLocalId}
-              {props.selectedTileClassName ? ` · ${props.selectedTileClassName}` : ""}
+              #{selectedTile.localId}
+              {selectedTile.className ? ` · ${selectedTile.className}` : ""}
             </p>
           </div>
         </div>
@@ -98,21 +98,24 @@ export function TilesetActiveStampCard(props: {
 }
 
 export function TilesetsPanelTileGrid(props: {
-  activeTilesetId: string;
-  tileEntries: readonly TileEntry[];
+  presentation: TilesetsPanelTileGridPresentation;
   onSelectTile: (localId: number) => void;
 }) {
+  if (props.presentation.kind === "none") {
+    return null;
+  }
+
   return (
     <div className="mt-4 grid grid-cols-4 gap-2">
-      {props.tileEntries.map((tileEntry) => (
+      {props.presentation.items.map((tileEntry) => (
         <button
-          key={`${props.activeTilesetId}:${tileEntry.localId}`}
+          key={tileEntry.key}
           className={`flex aspect-square flex-col items-center justify-center rounded-xl border text-xs transition ${
             tileEntry.isSelected
               ? "border-emerald-400 bg-emerald-500/10 text-emerald-100"
               : "border-slate-700 bg-slate-900/70 text-slate-200 hover:border-slate-500"
           }`}
-          disabled={tileEntry.preview.gid === undefined}
+          disabled={tileEntry.disabled}
           onClick={() => {
             props.onSelectTile(tileEntry.localId);
           }}
@@ -200,44 +203,34 @@ export function TilesetsDockTabs(props: {
 }
 
 export function TilesetsDockTilePalette(props: {
-  activeImageColumns: number | undefined;
-  activeTileEntries: readonly TileEntry[];
-  activeTileHeight: number | undefined;
-  activeTileWidth: number | undefined;
-  activeTilesetId: string | undefined;
-  activeTilesetKind: TilesetsPanelViewState["activeTilesetKind"];
+  presentation: TilesetsPanelPalettePresentation;
   zoom: number;
   onSelectTile: (localId: number) => void;
 }) {
-  if (
-    !props.activeTilesetId ||
-    props.activeTileWidth === undefined ||
-    props.activeTileHeight === undefined
-  ) {
+  const presentation = props.presentation;
+
+  if (presentation.kind === "none") {
     return null;
   }
 
-  const activeTileWidth = props.activeTileWidth;
-  const activeTileHeight = props.activeTileHeight;
-
-  if (props.activeTilesetKind === "image" && props.activeImageColumns) {
+  if (presentation.kind === "image-grid") {
     return (
       <div
         className="inline-grid border border-slate-500/20 bg-transparent"
         style={{
-          gridTemplateColumns: `repeat(${props.activeImageColumns}, ${activeTileWidth * props.zoom}px)`,
-          gridAutoRows: `${activeTileHeight * props.zoom}px`
+          gridTemplateColumns: `repeat(${presentation.imageColumns}, ${presentation.tileWidth * props.zoom}px)`,
+          gridAutoRows: `${presentation.tileHeight * props.zoom}px`
         }}
       >
-        {props.activeTileEntries.map((tileEntry) => (
+        {presentation.activeTileEntries.map((tileEntry) => (
           <button
-            key={`${props.activeTilesetId}:${tileEntry.localId}`}
+            key={`${presentation.activeTilesetId}:${tileEntry.localId}`}
             className={`relative border border-slate-500/10 bg-transparent ${
               tileEntry.isSelected ? "z-10 ring-2 ring-blue-500 ring-inset" : ""
             }`}
             style={{
-              width: `${activeTileWidth * props.zoom}px`,
-              height: `${activeTileHeight * props.zoom}px`
+              width: `${presentation.tileWidth * props.zoom}px`,
+              height: `${presentation.tileHeight * props.zoom}px`
             }}
             onClick={() => {
               props.onSelectTile(tileEntry.localId);
@@ -252,9 +245,9 @@ export function TilesetsDockTilePalette(props: {
 
   return (
     <div className="flex flex-wrap items-start gap-1">
-      {props.activeTileEntries.map((tileEntry) => (
+      {presentation.activeTileEntries.map((tileEntry) => (
         <button
-          key={`${props.activeTilesetId}:${tileEntry.localId}`}
+          key={`${presentation.activeTilesetId}:${tileEntry.localId}`}
           className={`flex items-center justify-center border bg-slate-900/20 p-1 ${
             tileEntry.isSelected ? "ring-2 ring-blue-500 ring-inset" : "border-slate-500/20"
           }`}
@@ -270,21 +263,20 @@ export function TilesetsDockTilePalette(props: {
 }
 
 export function TilesetsDockToolbar(props: {
-  activeTilesetId: string | undefined;
-  selectedLocalId: number | null;
+  presentation: TilesetsPanelToolbarPresentation;
   zoom: number;
   setZoom: (zoom: number) => void;
-  onExportJson?: (() => void) | undefined;
-  onOpenTileAnimationEditor?: (() => void) | undefined;
-  onOpenTileCollisionEditor?: (() => void) | undefined;
-  onOpenTerrainSets?: (() => void) | undefined;
+  onAction: (actionId: TilesetsPanelToolbarActionId) => void;
 }) {
-  const { t } = useI18n();
-  const zoomOptions = getTileViewZoomOptionItems();
-
   return (
     <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-2 py-1">
-      <TilesetDockToolbarButton title={t("action.newTileset")}>
+      <TilesetDockToolbarButton
+        disabled={props.presentation.actionItems[0]?.disabled}
+        title={props.presentation.actionItems[0]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[0]!.actionId);
+        }}
+      >
         <TilesetDockIcon>
           <path d="M4 2.5h5l2.5 2.5v8H4z" />
           <path d="M9 2.5V5h2.5" />
@@ -292,7 +284,13 @@ export function TilesetsDockToolbar(props: {
           <path d="M6 9h4" />
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
-      <TilesetDockToolbarButton title={t("action.addExternalTileset")}>
+      <TilesetDockToolbarButton
+        disabled={props.presentation.actionItems[1]?.disabled}
+        title={props.presentation.actionItems[1]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[1]!.actionId);
+        }}
+      >
         <TilesetDockIcon>
           <path d="M3 8h6" />
           <path d="M7 4l4 4-4 4" />
@@ -300,9 +298,11 @@ export function TilesetsDockToolbar(props: {
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
       <TilesetDockToolbarButton
-        disabled={!props.activeTilesetId || !props.onExportJson}
-        title={t("action.export")}
-        onClick={props.onExportJson}
+        disabled={props.presentation.actionItems[2]?.disabled}
+        title={props.presentation.actionItems[2]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[2]!.actionId);
+        }}
       >
         <TilesetDockIcon>
           <path d="M7 8h6" />
@@ -310,7 +310,13 @@ export function TilesetsDockToolbar(props: {
           <path d="M2.5 3.5h2v9h-2z" />
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
-      <TilesetDockToolbarButton title={t("action.tilesetProperties")}>
+      <TilesetDockToolbarButton
+        disabled={props.presentation.actionItems[3]?.disabled}
+        title={props.presentation.actionItems[3]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[3]!.actionId);
+        }}
+      >
         <TilesetDockIcon>
           <path d="M3 4.5h10" />
           <path d="M3 8h10" />
@@ -320,7 +326,13 @@ export function TilesetsDockToolbar(props: {
           <circle cx="8" cy="11.5" r="1" fill="currentColor" stroke="none" />
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
-      <TilesetDockToolbarButton title={t("action.rearrangeTiles")}>
+      <TilesetDockToolbarButton
+        disabled={props.presentation.actionItems[4]?.disabled}
+        title={props.presentation.actionItems[4]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[4]!.actionId);
+        }}
+      >
         <TilesetDockIcon>
           <path d="M3 5.5h8" />
           <path d="M9 3l2 2.5L9 8" />
@@ -329,9 +341,11 @@ export function TilesetsDockToolbar(props: {
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
       <TilesetDockToolbarButton
-        disabled={!props.activeTilesetId || !props.onOpenTerrainSets}
-        title={t("action.editWangSets")}
-        onClick={props.onOpenTerrainSets}
+        disabled={props.presentation.actionItems[5]?.disabled}
+        title={props.presentation.actionItems[5]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[5]!.actionId);
+        }}
       >
         <TilesetDockIcon>
           <path d="M3 12.5h10" />
@@ -343,9 +357,11 @@ export function TilesetsDockToolbar(props: {
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
       <TilesetDockToolbarButton
-        disabled={props.selectedLocalId === null || !props.onOpenTileCollisionEditor}
-        title={t("action.editCollision")}
-        onClick={props.onOpenTileCollisionEditor}
+        disabled={props.presentation.actionItems[6]?.disabled}
+        title={props.presentation.actionItems[6]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[6]!.actionId);
+        }}
       >
         <TilesetDockIcon>
           <rect x="3" y="4" width="4" height="8" rx="0.8" />
@@ -353,9 +369,11 @@ export function TilesetsDockToolbar(props: {
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
       <TilesetDockToolbarButton
-        disabled={props.selectedLocalId === null || !props.onOpenTileAnimationEditor}
-        title={t("action.tileAnimationEditor")}
-        onClick={props.onOpenTileAnimationEditor}
+        disabled={props.presentation.actionItems[7]?.disabled}
+        title={props.presentation.actionItems[7]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[7]!.actionId);
+        }}
       >
         <TilesetDockIcon>
           <rect x="2.5" y="3" width="3.5" height="10" rx="0.75" />
@@ -363,7 +381,13 @@ export function TilesetsDockToolbar(props: {
           <path d="M9.5 5.5l2.5 2-2.5 2z" fill="currentColor" stroke="none" />
         </TilesetDockIcon>
       </TilesetDockToolbarButton>
-      <TilesetDockToolbarButton title={t("action.removeTiles")}>
+      <TilesetDockToolbarButton
+        disabled={props.presentation.actionItems[8]?.disabled}
+        title={props.presentation.actionItems[8]?.title ?? ""}
+        onClick={() => {
+          props.onAction(props.presentation.actionItems[8]!.actionId);
+        }}
+      >
         <TilesetDockIcon>
           <path d="M4.5 5.5h7" />
           <path d="M6 5.5V4h4v1.5" />
@@ -380,7 +404,7 @@ export function TilesetsDockToolbar(props: {
           props.setZoom(Number(event.target.value));
         }}
       >
-        {zoomOptions.map((option) => (
+        {props.presentation.zoomOptions.map((option) => (
           <option key={option.value} value={option.value}>
             {option.label}
           </option>

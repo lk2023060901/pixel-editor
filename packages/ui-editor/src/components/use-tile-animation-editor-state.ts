@@ -2,6 +2,7 @@
 
 import {
   createTileAnimationEditorLocalState,
+  defaultTileAnimationEditorZoom,
   deriveTileAnimationEditorSelection,
   resolveTileAnimationAddFrame,
   resolveTileAnimationFrameDurationCommit,
@@ -19,7 +20,7 @@ export function useTileAnimationEditorState(props: {
   store: TileAnimationEditorStore;
   viewState: TileAnimationEditorViewState;
 }) {
-  const [zoom, setZoom] = useState<number>(1);
+  const [zoom, setZoom] = useState<number>(defaultTileAnimationEditorZoom);
   const [sourceLocalId, setSourceLocalId] = useState<number | null>(() =>
     createTileAnimationEditorLocalState({
       selectedLocalId: props.viewState.selectedLocalId,

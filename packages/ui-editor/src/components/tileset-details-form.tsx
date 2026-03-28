@@ -85,37 +85,37 @@ export function TilesetDetailsForm(props: {
         <TextField
           label={t("common.name")}
           value={draft.name}
-          onChange={(value) => {
-            setDraft((current) => ({ ...current, name: value }));
+          onChange={(value: string) => {
+            setDraft((current: TilesetDetailsDraft) => ({ ...current, name: value }));
           }}
         />
         <div className="grid grid-cols-2 gap-3">
           <NumberField
             label={t("common.tileWidth")}
             value={draft.tileWidth}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileWidth: value }));
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({ ...current, tileWidth: value }));
             }}
           />
           <NumberField
             label={t("common.tileHeight")}
             value={draft.tileHeight}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileHeight: value }));
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({ ...current, tileHeight: value }));
             }}
           />
           <NumberField
             label={t("tilesetDetails.tileOffsetX")}
             value={draft.tileOffsetX}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileOffsetX: value }));
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({ ...current, tileOffsetX: value }));
             }}
           />
           <NumberField
             label={t("tilesetDetails.tileOffsetY")}
             value={draft.tileOffsetY}
-            onChange={(value) => {
-              setDraft((current) => ({ ...current, tileOffsetY: value }));
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({ ...current, tileOffsetY: value }));
             }}
           />
         </div>
@@ -124,8 +124,8 @@ export function TilesetDetailsForm(props: {
             label={t("tilesetDetails.objectAlignment")}
             value={draft.objectAlignment}
             options={objectAlignmentOptions}
-            onChange={(value) => {
-              setDraft((current) => ({
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({
                 ...current,
                 objectAlignment: value as TilesetObjectAlignment
               }));
@@ -135,8 +135,8 @@ export function TilesetDetailsForm(props: {
             label={t("tilesetDetails.renderSize")}
             value={draft.tileRenderSize}
             options={tileRenderSizeOptions}
-            onChange={(value) => {
-              setDraft((current) => ({
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({
                 ...current,
                 tileRenderSize: value as TilesetTileRenderSize
               }));
@@ -146,8 +146,8 @@ export function TilesetDetailsForm(props: {
             label={t("tilesetDetails.fillMode")}
             value={draft.fillMode}
             options={fillModeOptions}
-            onChange={(value) => {
-              setDraft((current) => ({
+            onChange={(value: string) => {
+              setDraft((current: TilesetDetailsDraft) => ({
                 ...current,
                 fillMode: value as TilesetFillMode
               }));
@@ -160,44 +160,44 @@ export function TilesetDetailsForm(props: {
             <TextField
               label={t("common.imagePath")}
               value={draft.imagePath}
-              onChange={(value) => {
-                setDraft((current) => ({ ...current, imagePath: value }));
+              onChange={(value: string) => {
+                setDraft((current: TilesetDetailsDraft) => ({ ...current, imagePath: value }));
               }}
             />
             <div className="grid grid-cols-2 gap-3">
               <NumberField
                 label={t("common.imageWidth")}
                 value={draft.imageWidth}
-                onChange={(value) => {
-                  setDraft((current) => ({ ...current, imageWidth: value }));
+                onChange={(value: string) => {
+                  setDraft((current: TilesetDetailsDraft) => ({ ...current, imageWidth: value }));
                 }}
               />
               <NumberField
                 label={t("common.imageHeight")}
                 value={draft.imageHeight}
-                onChange={(value) => {
-                  setDraft((current) => ({ ...current, imageHeight: value }));
+                onChange={(value: string) => {
+                  setDraft((current: TilesetDetailsDraft) => ({ ...current, imageHeight: value }));
                 }}
               />
               <NumberField
                 label={t("common.margin")}
                 value={draft.margin}
-                onChange={(value) => {
-                  setDraft((current) => ({ ...current, margin: value }));
+                onChange={(value: string) => {
+                  setDraft((current: TilesetDetailsDraft) => ({ ...current, margin: value }));
                 }}
               />
               <NumberField
                 label={t("common.spacing")}
                 value={draft.spacing}
-                onChange={(value) => {
-                  setDraft((current) => ({ ...current, spacing: value }));
+                onChange={(value: string) => {
+                  setDraft((current: TilesetDetailsDraft) => ({ ...current, spacing: value }));
                 }}
               />
               <NumberField
                 label={t("common.columns")}
                 value={draft.columns}
-                onChange={(value) => {
-                  setDraft((current) => ({ ...current, columns: value }));
+                onChange={(value: string) => {
+                  setDraft((current: TilesetDetailsDraft) => ({ ...current, columns: value }));
                 }}
               />
             </div>

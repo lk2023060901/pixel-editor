@@ -1,19 +1,28 @@
 "use client";
 
 import type {
-  LayersPanelLayerItemViewState,
+  LayersPanelActionId,
+  LayersPanelIconKey,
+  LayersPanelLayerRowPresentation,
+  LayersPanelNewLayerItem,
   LayersPanelViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  createLayersPanelActionPlan,
+  deriveLayersPanelLayerRowsPresentation,
+  deriveLayersPanelToolbarPresentation,
+  layersPanelActionIds,
+  resolveLayersPanelNewLayerMenuOpen,
 } from "@pixel-editor/app-services/ui";
 import type { LayersPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import type { ReactNode } from "react";
 import { startTransition, useState } from "react";
 
-import { getLayerKindLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
 
-function LayerKindIcon(props: { kind: LayersPanelLayerItemViewState["kind"] }) {
-  if (props.kind === "object") {
+function LayerKindIcon(props: { iconKey: LayersPanelIconKey }) {
+  if (props.iconKey === "object-layer") {
     return (
       <svg
         aria-hidden="true"
@@ -26,7 +35,7 @@ function LayerKindIcon(props: { kind: LayersPanelLayerItemViewState["kind"] }) {
     );
   }
 
-  if (props.kind === "image") {
+  if (props.iconKey === "image-layer") {
     return (
       <svg
         aria-hidden="true"
@@ -41,7 +50,7 @@ function LayerKindIcon(props: { kind: LayersPanelLayerItemViewState["kind"] }) {
     );
   }
 
-  if (props.kind === "group") {
+  if (props.iconKey === "group-layer") {
     return (
       <svg
         aria-hidden="true"
@@ -171,17 +180,9 @@ function LayerStateButton(props: {
 }
 
 function NewLayerButton(props: {
-  labels: {
-    newLayer: string;
-    tileLayer: string;
-    objectLayer: string;
-    imageLayer: string;
-    groupLayer: string;
-  };
-  onAddTileLayer: () => void;
-  onAddObjectLayer: () => void;
-  onAddImageLayer: () => void;
-  onAddGroupLayer: () => void;
+  title: string;
+  items: readonly LayersPanelNewLayerItem[];
+  onAction: (actionId: LayersPanelActionId) => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -189,18 +190,25 @@ function NewLayerButton(props: {
     <div
       className="relative"
       onBlur={(event) => {
-        if (event.currentTarget.contains(event.relatedTarget as Node | null)) {
-          return;
-        }
-
-        setOpen(false);
+        setOpen((current) =>
+          resolveLayersPanelNewLayerMenuOpen({
+            open: current,
+            action: "blur-menu",
+            relatedTargetInside: event.currentTarget.contains(event.relatedTarget as Node | null)
+          })
+        );
       }}
     >
       <ToolbarIconButton
         active={open}
-        title={props.labels.newLayer}
+        title={props.title}
         onClick={() => {
-          setOpen((current) => !current);
+          setOpen((current) =>
+            resolveLayersPanelNewLayerMenuOpen({
+              open: current,
+              action: "toggle-menu"
+            })
+          );
         }}
       >
         <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
@@ -209,67 +217,77 @@ function NewLayerButton(props: {
       </ToolbarIconButton>
       {open ? (
         <div className="absolute bottom-7 left-0 z-20 min-w-[148px] border border-slate-700 bg-slate-900 py-1 shadow-[0_12px_32px_rgba(2,6,23,0.6)]">
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-            onClick={() => {
-              setOpen(false);
-              props.onAddTileLayer();
-            }}
-          >
-            <span className="w-4">
-              <LayerKindIcon kind="tile" />
-            </span>
-            <span>{props.labels.tileLayer}</span>
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-            onClick={() => {
-              setOpen(false);
-              props.onAddObjectLayer();
-            }}
-          >
-            <span className="w-4">
-              <LayerKindIcon kind="object" />
-            </span>
-            <span>{props.labels.objectLayer}</span>
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-            onClick={() => {
-              setOpen(false);
-              props.onAddImageLayer();
-            }}
-          >
-            <span className="w-4">
-              <LayerKindIcon kind="image" />
-            </span>
-            <span>{props.labels.imageLayer}</span>
-          </button>
-          <button
-            className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
-            onClick={() => {
-              setOpen(false);
-              props.onAddGroupLayer();
-            }}
-          >
-            <span className="w-4">
-              <LayerKindIcon kind="group" />
-            </span>
-            <span>{props.labels.groupLayer}</span>
-          </button>
+          {props.items.map((item) => (
+            <button
+              key={item.actionId}
+              className="flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-slate-200 transition hover:bg-slate-800"
+              onClick={() => {
+                setOpen((current) =>
+                  resolveLayersPanelNewLayerMenuOpen({
+                    open: current,
+                    action: "close-menu"
+                  })
+                );
+                props.onAction(item.actionId);
+              }}
+            >
+              <span className="w-4">
+                <LayerKindIcon iconKey={item.iconKey} />
+              </span>
+              <span>{item.label}</span>
+            </button>
+          ))}
         </div>
       ) : null}
     </div>
   );
 }
 
+function renderToolbarActionIcon(iconKey: LayersPanelIconKey) {
+  switch (iconKey) {
+    case "raise-layers":
+      return (
+        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
+          <path d="M8 3 4.5 6.5M8 3l3.5 3.5M8 3v10" stroke="currentColor" />
+        </svg>
+      );
+    case "lower-layers":
+      return (
+        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
+          <path d="M8 13 4.5 9.5M8 13l3.5-3.5M8 13V3" stroke="currentColor" />
+        </svg>
+      );
+    case "duplicate-layers":
+      return (
+        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
+          <rect x="5" y="4" width="7" height="7" stroke="currentColor" />
+          <rect x="3" y="6" width="7" height="7" stroke="currentColor" />
+        </svg>
+      );
+    case "remove-layers":
+      return (
+        <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
+          <path d="M3.5 4.5h9M6.5 4.5v7M9.5 4.5v7M5 4.5V3.5h6v1M4.5 4.5l.5 8h6l.5-8" stroke="currentColor" />
+        </svg>
+      );
+    case "show-hide-other-layers":
+      return <VisibilityIcon visible />;
+    case "lock-unlock-other-layers":
+      return <LockIcon locked />;
+    case "highlight-current-layer":
+      return (
+        <svg aria-hidden="true" className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 16 16">
+          <path
+            d="M8 2.5 9.7 6l3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5 6.3 6 8 2.5Z"
+            stroke="currentColor"
+          />
+        </svg>
+      );
+  }
+}
+
 function LayerRow(props: {
-  layer: LayersPanelLayerItemViewState;
-  highlightCurrentLayer: boolean;
-  visibleLabel: string;
-  hiddenLabel: string;
-  lockedLabel: string;
-  unlockedLabel: string;
+  presentation: LayersPanelLayerRowPresentation;
   onSelect: () => void;
   onToggleVisibility: () => void;
   onToggleLock: () => void;
@@ -277,7 +295,7 @@ function LayerRow(props: {
   return (
     <div
       className={`grid w-full grid-cols-[minmax(0,1fr)_24px_24px] items-center gap-1 border-b border-slate-800 px-2 py-1 text-left text-sm transition ${
-        props.layer.isSelected
+        props.presentation.isSelected
           ? "bg-slate-800 text-slate-100"
           : "bg-slate-900 text-slate-300 hover:bg-slate-800/70"
       }`}
@@ -287,28 +305,28 @@ function LayerRow(props: {
         type="button"
         onClick={props.onSelect}
       >
-        <LayerKindIcon kind={props.layer.kind} />
+        <LayerKindIcon iconKey={props.presentation.iconKey} />
         <span
-          className={`truncate ${props.layer.isSelected ? "font-semibold" : "font-normal"} ${
-            props.layer.isSelected && props.highlightCurrentLayer ? "text-emerald-200" : ""
+          className={`truncate ${props.presentation.isSelected ? "font-semibold" : "font-normal"} ${
+            props.presentation.highlightName ? "text-emerald-200" : ""
           }`}
         >
-          {props.layer.name}
+          {props.presentation.name}
         </span>
       </button>
       <LayerStateButton
-        selected={!props.layer.visible}
-        title={props.layer.visible ? props.visibleLabel : props.hiddenLabel}
+        selected={!props.presentation.visible}
+        title={props.presentation.visibilityTitle}
         onClick={props.onToggleVisibility}
       >
-        <VisibilityIcon visible={props.layer.visible} />
+        <VisibilityIcon visible={props.presentation.visible} />
       </LayerStateButton>
       <LayerStateButton
-        selected={props.layer.locked}
-        title={props.layer.locked ? props.lockedLabel : props.unlockedLabel}
+        selected={props.presentation.locked}
+        title={props.presentation.lockTitle}
         onClick={props.onToggleLock}
       >
-        <LockIcon locked={props.layer.locked} />
+        <LockIcon locked={props.presentation.locked} />
       </LayerStateButton>
     </div>
   );
@@ -322,57 +340,39 @@ export interface LayersPanelProps {
 
 function LayersPanelContent({ viewState, store }: Omit<LayersPanelProps, "embedded">) {
   const { t } = useI18n();
+  const rowsPresentation = deriveLayersPanelLayerRowsPresentation({ viewState, t });
+  const toolbarPresentation = deriveLayersPanelToolbarPresentation({ viewState, t });
 
-  function addTileLayer(): void {
-    startTransition(() => {
-      store.addTileLayer();
+  function executeAction(actionId: LayersPanelActionId, layerId?: LayersPanelLayerRowPresentation["layerId"]): void {
+    const plan = createLayersPanelActionPlan({
+      actionId,
+      ...(layerId === undefined ? {} : { layerId })
     });
-  }
 
-  function addObjectLayer(): void {
-    startTransition(() => {
-      store.addObjectLayer();
-    });
-  }
+    if (plan.kind !== "transition") {
+      return;
+    }
 
-  function addImageLayer(): void {
     startTransition(() => {
-      store.addImageLayer();
-    });
-  }
-
-  function addGroupLayer(): void {
-    startTransition(() => {
-      store.addGroupLayer();
+      plan.run(store);
     });
   }
 
   return (
     <div className="flex h-full min-h-0 flex-col">
       <div className="min-h-0 flex-1 overflow-y-auto bg-slate-900">
-        {viewState.layers.map((layer) => (
+        {rowsPresentation.map((row) => (
           <LayerRow
-            key={layer.id}
-            hiddenLabel={t("layers.hidden")}
-            highlightCurrentLayer={viewState.highlightCurrentLayer}
-            layer={layer}
-            lockedLabel={t("layers.locked")}
-            unlockedLabel={t("layers.unlocked")}
-            visibleLabel={t("layers.visible")}
+            key={row.layerId}
+            presentation={row}
             onSelect={() => {
-              startTransition(() => {
-                store.setActiveLayer(layer.id);
-              });
+              executeAction(layersPanelActionIds.selectLayer, row.layerId);
             }}
             onToggleVisibility={() => {
-              startTransition(() => {
-                store.toggleLayerVisibility(layer.id);
-              });
+              executeAction(layersPanelActionIds.toggleLayerVisibility, row.layerId);
             }}
             onToggleLock={() => {
-              startTransition(() => {
-                store.toggleLayerLock(layer.id);
-              });
+              executeAction(layersPanelActionIds.toggleLayerLock, row.layerId);
             }}
           />
         ))}
@@ -384,106 +384,33 @@ function LayersPanelContent({ viewState, store }: Omit<LayersPanelProps, "embedd
 
       <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-1 py-1">
         <NewLayerButton
-          labels={{
-            newLayer: t("layers.newLayer"),
-            groupLayer: getLayerKindLabel("group", t),
-            imageLayer: getLayerKindLabel("image", t),
-            objectLayer: getLayerKindLabel("object", t),
-            tileLayer: getLayerKindLabel("tile", t)
-          }}
-          onAddGroupLayer={addGroupLayer}
-          onAddImageLayer={addImageLayer}
-          onAddObjectLayer={addObjectLayer}
-          onAddTileLayer={addTileLayer}
+          items={toolbarPresentation.newLayerItems}
+          title={toolbarPresentation.newLayerTitle}
+          onAction={executeAction}
         />
-        <ToolbarIconButton
-          disabled={!viewState.canMoveActiveLayerUp}
-          title={t("action.raiseLayers")}
-          onClick={() => {
-            startTransition(() => {
-              store.moveActiveLayer("up");
-            });
-          }}
-        >
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
-            <path d="M8 3 4.5 6.5M8 3l3.5 3.5M8 3v10" stroke="currentColor" />
-          </svg>
-        </ToolbarIconButton>
-        <ToolbarIconButton
-          disabled={!viewState.canMoveActiveLayerDown}
-          title={t("action.lowerLayers")}
-          onClick={() => {
-            startTransition(() => {
-              store.moveActiveLayer("down");
-            });
-          }}
-        >
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
-            <path d="M8 13 4.5 9.5M8 13l3.5-3.5M8 13V3" stroke="currentColor" />
-          </svg>
-        </ToolbarIconButton>
-        <ToolbarIconButton disabled title={t("action.duplicateLayers")}>
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
-            <rect x="5" y="4" width="7" height="7" stroke="currentColor" />
-            <rect x="3" y="6" width="7" height="7" stroke="currentColor" />
-          </svg>
-        </ToolbarIconButton>
-        <ToolbarIconButton
-          disabled={!viewState.hasActiveLayer}
-          title={t("action.removeLayers")}
-          onClick={() => {
-            startTransition(() => {
-              store.removeActiveLayer();
-            });
-          }}
-        >
-          <svg aria-hidden="true" className="h-4 w-4" fill="none" viewBox="0 0 16 16">
-            <path d="M3.5 4.5h9M6.5 4.5v7M9.5 4.5v7M5 4.5V3.5h6v1M4.5 4.5l.5 8h6l.5-8" stroke="currentColor" />
-          </svg>
-        </ToolbarIconButton>
-        <div className="mx-1 h-4 w-px bg-slate-600" />
-        <ToolbarIconButton
-          disabled={!viewState.hasSiblingLayers}
-          active={viewState.otherLayersHidden}
-          title={t("action.showHideOtherLayers")}
-          onClick={() => {
-            startTransition(() => {
-              store.toggleOtherLayersVisibility();
-            });
-          }}
-        >
-          <VisibilityIcon visible />
-        </ToolbarIconButton>
-        <ToolbarIconButton
-          disabled={!viewState.hasSiblingLayers}
-          active={viewState.otherLayersLocked}
-          title={t("action.lockUnlockOtherLayers")}
-          onClick={() => {
-            startTransition(() => {
-              store.toggleOtherLayersLock();
-            });
-          }}
-        >
-          <LockIcon locked />
-        </ToolbarIconButton>
-        <div className="min-w-0 flex-1" />
-        <ToolbarIconButton
-          active={viewState.highlightCurrentLayer}
-          disabled={!viewState.hasActiveLayer}
-          title={t("action.highlightCurrentLayer")}
-          onClick={() => {
-            startTransition(() => {
-              store.toggleHighlightCurrentLayer();
-            });
-          }}
-        >
-          <svg aria-hidden="true" className="h-4 w-4 text-amber-300" fill="none" viewBox="0 0 16 16">
-            <path
-              d="M8 2.5 9.7 6l3.8.5-2.8 2.7.7 3.8L8 11.2 4.6 13l.7-3.8L2.5 6.5 6.3 6 8 2.5Z"
-              stroke="currentColor"
-            />
-          </svg>
-        </ToolbarIconButton>
+        {toolbarPresentation.toolbarItems.map((item) => {
+          if (item.kind === "separator") {
+            return <div key={item.id} className="mx-1 h-4 w-px bg-slate-600" />;
+          }
+
+          if (item.kind === "spacer") {
+            return <div key={item.id} className="min-w-0 flex-1" />;
+          }
+
+          return (
+            <ToolbarIconButton
+              key={item.actionId}
+              active={item.active}
+              disabled={item.disabled}
+              title={item.title}
+              onClick={() => {
+                executeAction(item.actionId);
+              }}
+            >
+              {renderToolbarActionIcon(item.iconKey)}
+            </ToolbarIconButton>
+          );
+        })}
       </div>
     </div>
   );

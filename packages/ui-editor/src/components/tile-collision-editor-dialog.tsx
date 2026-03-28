@@ -1,7 +1,14 @@
 "use client";
 
-import type {
-  TileCollisionEditorViewState
+import {
+  createTileCollisionEditorDialogActionPlan,
+  createTileCollisionEditorKeyDownPlan,
+  createTileCollisionEditorToolbarActionPlan,
+  deriveTileCollisionObjectListPresentation,
+  deriveTileCollisionEditorToolbarPresentation,
+  type TileCollisionEditorDialogStore,
+  type TileCollisionObjectListStore,
+  type TileCollisionEditorViewState
 } from "@pixel-editor/app-services/ui";
 import type { TileCollisionEditorStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -29,6 +36,24 @@ export function TileCollisionEditorDialog(props: {
     store: props.store,
     viewState: props.viewState
   });
+  const toolbarPresentation = deriveTileCollisionEditorToolbarPresentation({
+    selectedObjectId: state.selectedObjectId,
+    t
+  });
+  const objectListPresentation = deriveTileCollisionObjectListPresentation({
+    collisionObjects: state.collisionObjects,
+    selectedObjectId: state.selectedObjectId,
+    t
+  });
+  const dialogStore: TileCollisionEditorDialogStore = {
+    createObject: state.actions.createObject,
+    removeSelectedObject: state.actions.removeSelectedObject,
+    reorderSelectedObject: state.actions.reorderSelectedObject,
+    closeDialog: props.onClose
+  };
+  const objectListStore: TileCollisionObjectListStore = {
+    selectObject: state.actions.selectObject
+  };
 
   useEffect(() => {
     dialogRef.current?.focus();
@@ -44,26 +69,33 @@ export function TileCollisionEditorDialog(props: {
         aria-modal="true"
         aria-label={t("action.editCollision")}
         onKeyDown={(event) => {
-          if (event.key === "Escape") {
-            event.preventDefault();
-            props.onClose();
-            return;
-          }
+          const plan = createTileCollisionEditorDialogActionPlan(
+            createTileCollisionEditorKeyDownPlan({
+              key: event.key,
+              selectedObjectId: state.selectedObjectId
+            })
+          );
 
-          if (
-            (event.key === "Delete" || event.key === "Backspace") &&
-            state.selectedObjectId
-          ) {
+          if (plan.kind === "transition") {
             event.preventDefault();
-            state.actions.removeSelectedObject();
+            plan.run(dialogStore);
           }
         }}
       >
         <TileCollisionEditorToolbar
-          selectedObjectId={state.selectedObjectId}
-          onCreateObject={state.actions.createObject}
-          onMoveSelectedObject={state.actions.reorderSelectedObject}
-          onRemoveSelectedObject={state.actions.removeSelectedObject}
+          presentation={toolbarPresentation}
+          onAction={(actionId) => {
+            const plan = createTileCollisionEditorDialogActionPlan(
+              createTileCollisionEditorToolbarActionPlan({
+                actionId,
+                selectedObjectId: state.selectedObjectId
+              })
+            );
+
+            if (plan.kind === "transition") {
+              plan.run(dialogStore);
+            }
+          }}
         />
 
         {props.viewState.selectedLocalId === null || !props.viewState.canvas ? (
@@ -84,9 +116,8 @@ export function TileCollisionEditorDialog(props: {
 
             <div className="grid min-h-0 grid-rows-[220px_minmax(0,1fr)]">
               <TileCollisionObjectList
-                collisionObjects={state.collisionObjects}
-                selectedObjectId={state.selectedObjectId}
-                onSelectObject={state.actions.selectObject}
+                presentation={objectListPresentation}
+                store={objectListStore}
               />
 
               <div className="min-h-0 overflow-y-auto">

@@ -1,6 +1,12 @@
 "use client";
 
 import {
+  createTilesetsPanelSurfaceActionPlan,
+  deriveTilesetsPanelActiveStampPresentation,
+  deriveTilesetsPanelPalettePresentation,
+  deriveTilesetsPanelTileGridPresentation,
+  deriveTilesetsPanelToolbarPresentation,
+  type TilesetsPanelSurfaceStore,
   type TilesetsPanelViewState
 } from "@pixel-editor/app-services/ui";
 import type { TilesetsPanelStore } from "@pixel-editor/app-services/ui-store";
@@ -38,7 +44,8 @@ function TilesetsPanelContent({
 }) {
   const { t } = useI18n();
   const activeTilesetId = viewState.activeTilesetId;
-  const selectedLocalId = viewState.selectedLocalId;
+  const activeStampPresentation = deriveTilesetsPanelActiveStampPresentation(viewState);
+  const tileGridPresentation = deriveTilesetsPanelTileGridPresentation(viewState);
 
   return (
     <>
@@ -56,17 +63,13 @@ function TilesetsPanelContent({
           {activeTilesetId && (
             <>
               <TilesetActiveStampCard
-                selectedLocalId={selectedLocalId}
-                selectedTileClassName={viewState.selectedTileClassName}
-                selectedTilePreview={viewState.selectedTilePreview}
-                stampSummary={viewState.stampSummary}
+                presentation={activeStampPresentation}
               />
 
               <TilesetsPanelTileGrid
-                activeTilesetId={activeTilesetId}
-                tileEntries={viewState.activeTileEntries}
+                presentation={tileGridPresentation}
                 onSelectTile={(localId) => {
-                  state.actions.selectStampTile(activeTilesetId, localId);
+                  state.actions.selectStampTile(viewState.activeTilesetId, localId);
                 }}
               />
 
@@ -98,7 +101,46 @@ function TilesetsDockContent({
 }) {
   const { t } = useI18n();
   const activeTilesetId = viewState.activeTilesetId;
-  const selectedLocalId = viewState.selectedLocalId;
+  const palettePresentation = deriveTilesetsPanelPalettePresentation(viewState);
+  const toolbarPresentation = deriveTilesetsPanelToolbarPresentation({
+    viewState,
+    hasExportJsonAction: onExportJson !== undefined,
+    hasOpenTerrainSetsAction: onOpenTerrainSets !== undefined,
+    hasOpenTileCollisionEditorAction: onOpenTileCollisionEditor !== undefined,
+    hasOpenTileAnimationEditorAction: onOpenTileAnimationEditor !== undefined,
+    t
+  });
+  const surfaceStore: TilesetsPanelSurfaceStore = {
+    exportJson: () => {
+      onExportJson?.();
+    },
+    openTerrainSets: () => {
+      onOpenTerrainSets?.();
+    },
+    openTileCollisionEditor: () => {
+      onOpenTileCollisionEditor?.();
+    },
+    openTileAnimationEditor: () => {
+      onOpenTileAnimationEditor?.();
+    }
+  };
+
+  function runSurfaceAction(actionId: Parameters<typeof createTilesetsPanelSurfaceActionPlan>[0]["actionId"]): void {
+    const plan = createTilesetsPanelSurfaceActionPlan({
+      actionId,
+      viewState,
+      hasExportJsonAction: onExportJson !== undefined,
+      hasOpenTerrainSetsAction: onOpenTerrainSets !== undefined,
+      hasOpenTileCollisionEditorAction: onOpenTileCollisionEditor !== undefined,
+      hasOpenTileAnimationEditorAction: onOpenTileAnimationEditor !== undefined
+    });
+
+    if (plan.kind !== "transition") {
+      return;
+    }
+
+    plan.run(surfaceStore);
+  }
 
   if (!viewState.availableTilesets.length) {
     return (
@@ -117,32 +159,19 @@ function TilesetsDockContent({
 
       <div className="min-h-0 flex-1 overflow-auto p-2">
         <TilesetsDockTilePalette
-          activeImageColumns={viewState.activeImageColumns}
-          activeTileEntries={viewState.activeTileEntries}
-          activeTileHeight={viewState.activeTileHeight}
-          activeTileWidth={viewState.activeTileWidth}
-          activeTilesetId={activeTilesetId}
-          activeTilesetKind={viewState.activeTilesetKind}
+          presentation={palettePresentation}
           zoom={state.zoom}
           onSelectTile={(localId) => {
-            if (!activeTilesetId) {
-              return;
-            }
-
             state.actions.selectStampTile(activeTilesetId, localId);
           }}
         />
       </div>
 
       <TilesetsDockToolbar
-        activeTilesetId={activeTilesetId}
-        selectedLocalId={selectedLocalId}
+        presentation={toolbarPresentation}
         zoom={state.zoom}
         setZoom={state.setZoom}
-        onExportJson={onExportJson}
-        onOpenTerrainSets={onOpenTerrainSets}
-        onOpenTileAnimationEditor={onOpenTileAnimationEditor}
-        onOpenTileCollisionEditor={onOpenTileCollisionEditor}
+        onAction={runSurfaceAction}
       />
     </div>
   );
