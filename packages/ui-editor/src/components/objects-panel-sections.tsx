@@ -1,6 +1,9 @@
 "use client";
 
-import type { ObjectsPanelViewState } from "@pixel-editor/app-services/ui";
+import type {
+  ObjectsPanelActionAvailability,
+  ObjectsPanelViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 
 import { getObjectShapeLabel } from "./i18n-helpers";
@@ -40,11 +43,7 @@ function DockActionButton(props: {
 }
 
 export function ObjectsPanelActionGroups(props: {
-  activeTemplateName: string | undefined;
-  hasActiveLayer: boolean;
-  hasObjectClipboard: boolean;
-  hasObjectSelection: boolean;
-  hasTemplateInstanceSelection: boolean;
+  actionAvailability: ObjectsPanelActionAvailability;
   onCopy: () => void;
   onCreateRectangle: () => void;
   onCut: () => void;
@@ -54,10 +53,6 @@ export function ObjectsPanelActionGroups(props: {
   onReplaceWithTemplate: () => void;
   onResetTemplateInstances: () => void;
   onSaveAsTemplate: () => void;
-  saveAsTemplateEnabled: boolean;
-  replaceWithTemplateEnabled: boolean;
-  resetTemplateInstancesEnabled: boolean;
-  detachTemplateInstancesEnabled: boolean;
 }) {
   const { t } = useI18n();
 
@@ -66,12 +61,12 @@ export function ObjectsPanelActionGroups(props: {
       <div className="mb-4 grid grid-cols-2 gap-2">
         <ActionButton
           label={t("objects.addRectangle")}
-          disabled={!props.hasActiveLayer}
+          disabled={!props.actionAvailability.canCreateRectangle}
           onClick={props.onCreateRectangle}
         />
         <ActionButton
           label={t("objects.removeSelected")}
-          disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+          disabled={!props.actionAvailability.canRemoveSelected}
           onClick={props.onRemoveSelected}
         />
       </div>
@@ -79,50 +74,37 @@ export function ObjectsPanelActionGroups(props: {
       <div className="mb-4 flex flex-wrap gap-2">
         <ActionButton
           label={t("common.copy")}
-          disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+          disabled={!props.actionAvailability.canCopy}
           onClick={props.onCopy}
         />
         <ActionButton
           label={t("common.cut")}
-          disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+          disabled={!props.actionAvailability.canCut}
           onClick={props.onCut}
         />
         <ActionButton
           label={t("common.paste")}
-          disabled={!props.hasActiveLayer || !props.hasObjectClipboard}
+          disabled={!props.actionAvailability.canPaste}
           onClick={props.onPaste}
         />
         <ActionButton
           label={t("objects.saveAsTemplate")}
-          disabled={!props.hasActiveLayer || !props.hasObjectSelection || !props.saveAsTemplateEnabled}
+          disabled={!props.actionAvailability.canSaveAsTemplate}
           onClick={props.onSaveAsTemplate}
         />
         <ActionButton
           label={t("objects.replaceWithTemplate")}
-          disabled={
-            !props.hasActiveLayer ||
-            !props.hasObjectSelection ||
-            !props.activeTemplateName ||
-            !props.replaceWithTemplateEnabled
-          }
+          disabled={!props.actionAvailability.canReplaceWithTemplate}
           onClick={props.onReplaceWithTemplate}
         />
         <ActionButton
           label={t("objects.resetTemplateInstances")}
-          disabled={
-            !props.hasActiveLayer ||
-            !props.hasTemplateInstanceSelection ||
-            !props.resetTemplateInstancesEnabled
-          }
+          disabled={!props.actionAvailability.canResetTemplateInstances}
           onClick={props.onResetTemplateInstances}
         />
         <ActionButton
           label={t("objects.detachTemplateInstances")}
-          disabled={
-            !props.hasActiveLayer ||
-            !props.hasTemplateInstanceSelection ||
-            !props.detachTemplateInstancesEnabled
-          }
+          disabled={!props.actionAvailability.canDetachTemplateInstances}
           onClick={props.onDetachTemplateInstances}
         />
       </div>
@@ -253,11 +235,7 @@ export function ObjectsDockObjectRows(props: {
 }
 
 export function ObjectsDockActionBar(props: {
-  activeTemplateName: string | undefined;
-  hasActiveLayer: boolean;
-  hasObjectClipboard: boolean;
-  hasObjectSelection: boolean;
-  hasTemplateInstanceSelection: boolean;
+  actionAvailability: ObjectsPanelActionAvailability;
   onCopy: () => void;
   onCreateRectangle: () => void;
   onCut: () => void;
@@ -267,10 +245,6 @@ export function ObjectsDockActionBar(props: {
   onReplaceWithTemplate: () => void;
   onResetTemplateInstances: () => void;
   onSaveAsTemplate: () => void;
-  saveAsTemplateEnabled: boolean;
-  replaceWithTemplateEnabled: boolean;
-  resetTemplateInstancesEnabled: boolean;
-  detachTemplateInstancesEnabled: boolean;
 }) {
   const { t } = useI18n();
 
@@ -278,60 +252,47 @@ export function ObjectsDockActionBar(props: {
     <div className="flex flex-wrap items-center gap-px border-t border-slate-700 bg-slate-800 p-1">
       <DockActionButton
         label={t("common.add")}
-        disabled={!props.hasActiveLayer}
+        disabled={!props.actionAvailability.canCreateRectangle}
         onClick={props.onCreateRectangle}
       />
       <DockActionButton
         label={t("common.delete")}
-        disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+        disabled={!props.actionAvailability.canRemoveSelected}
         onClick={props.onRemoveSelected}
       />
       <DockActionButton
         label={t("common.copy")}
-        disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+        disabled={!props.actionAvailability.canCopy}
         onClick={props.onCopy}
       />
       <DockActionButton
         label={t("common.cut")}
-        disabled={!props.hasActiveLayer || !props.hasObjectSelection}
+        disabled={!props.actionAvailability.canCut}
         onClick={props.onCut}
       />
       <DockActionButton
         label={t("common.paste")}
-        disabled={!props.hasActiveLayer || !props.hasObjectClipboard}
+        disabled={!props.actionAvailability.canPaste}
         onClick={props.onPaste}
       />
       <DockActionButton
         label={t("objects.saveAsTemplate")}
-        disabled={!props.hasActiveLayer || !props.hasObjectSelection || !props.saveAsTemplateEnabled}
+        disabled={!props.actionAvailability.canSaveAsTemplate}
         onClick={props.onSaveAsTemplate}
       />
       <DockActionButton
         label={t("objects.replaceWithTemplate")}
-        disabled={
-          !props.hasActiveLayer ||
-          !props.hasObjectSelection ||
-          !props.activeTemplateName ||
-          !props.replaceWithTemplateEnabled
-        }
+        disabled={!props.actionAvailability.canReplaceWithTemplate}
         onClick={props.onReplaceWithTemplate}
       />
       <DockActionButton
         label={t("objects.resetTemplateInstances")}
-        disabled={
-          !props.hasActiveLayer ||
-          !props.hasTemplateInstanceSelection ||
-          !props.resetTemplateInstancesEnabled
-        }
+        disabled={!props.actionAvailability.canResetTemplateInstances}
         onClick={props.onResetTemplateInstances}
       />
       <DockActionButton
         label={t("objects.detachTemplateInstances")}
-        disabled={
-          !props.hasActiveLayer ||
-          !props.hasTemplateInstanceSelection ||
-          !props.detachTemplateInstancesEnabled
-        }
+        disabled={!props.actionAvailability.canDetachTemplateInstances}
         onClick={props.onDetachTemplateInstances}
       />
     </div>

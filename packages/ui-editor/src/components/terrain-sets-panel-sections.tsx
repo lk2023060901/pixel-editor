@@ -1,15 +1,15 @@
 "use client";
 
-import type {
-  TerrainSetsPanelViewState,
-  TerrainSetsPanelWangSetItemViewState
+import {
+  getTerrainSetsWangSetTypeOptions,
+  type TerrainSetsWangSetType,
+  type TerrainSetsPanelViewState,
+  type TerrainSetsPanelWangSetItemViewState
 } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { useEffect, useState } from "react";
 
 import { getWangSetTypeLabel } from "./i18n-helpers";
-
-type WangSetType = TerrainSetsPanelWangSetItemViewState["type"];
 
 function TerrainSetToolbarButton(props: {
   title: string;
@@ -120,10 +120,13 @@ export function TerrainSetsEmptyState(props: {
 export function TerrainSetDetails(props: {
   wangSet: TerrainSetsPanelWangSetItemViewState | undefined;
   onRename: (name: string) => void;
-  onTypeChange: (type: WangSetType) => void;
+  onTypeChange: (type: TerrainSetsWangSetType) => void;
 }) {
   const { t } = useI18n();
   const [nameDraft, setNameDraft] = useState(props.wangSet?.name ?? "");
+  const wangSetTypeOptions = getTerrainSetsWangSetTypeOptions((type: TerrainSetsWangSetType) =>
+    getWangSetTypeLabel(type, t)
+  );
 
   useEffect(() => {
     setNameDraft(props.wangSet?.name ?? "");
@@ -165,12 +168,12 @@ export function TerrainSetDetails(props: {
             className="h-7 border border-slate-500/30 bg-white px-2 text-sm text-slate-900 outline-none"
             value={props.wangSet.type}
             onChange={(event) => {
-              props.onTypeChange(event.target.value as WangSetType);
+              props.onTypeChange(event.target.value as TerrainSetsWangSetType);
             }}
           >
-            {(["corner", "edge", "mixed"] as const).map((type) => (
-              <option key={type} value={type}>
-                {getWangSetTypeLabel(type, t)}
+            {wangSetTypeOptions.map((typeOption) => (
+              <option key={typeOption.value} value={typeOption.value}>
+                {typeOption.label}
               </option>
             ))}
           </select>
@@ -182,30 +185,26 @@ export function TerrainSetDetails(props: {
 
 export function TerrainSetsToolbar(props: {
   hasSelectedWangSet: boolean;
-  onAddCorner: () => void;
-  onAddEdge: () => void;
-  onAddMixed: () => void;
+  onAddWangSet: (type: TerrainSetsWangSetType) => void;
   onRemove: () => void;
 }) {
   const { t } = useI18n();
+  const wangSetTypeOptions = getTerrainSetsWangSetTypeOptions((type: TerrainSetsWangSetType) =>
+    getWangSetTypeLabel(type, t)
+  );
 
   return (
     <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-2 py-1">
-      <TerrainSetToolbarButton
-        title={t("terrainSets.addCorner")}
-        label={t("wangSetType.corner")}
-        onClick={props.onAddCorner}
-      />
-      <TerrainSetToolbarButton
-        title={t("terrainSets.addEdge")}
-        label={t("wangSetType.edge")}
-        onClick={props.onAddEdge}
-      />
-      <TerrainSetToolbarButton
-        title={t("terrainSets.addMixed")}
-        label={t("wangSetType.mixed")}
-        onClick={props.onAddMixed}
-      />
+      {wangSetTypeOptions.map((typeOption) => (
+        <TerrainSetToolbarButton
+          key={typeOption.value}
+          title={typeOption.label}
+          label={typeOption.label}
+          onClick={() => {
+            props.onAddWangSet(typeOption.value);
+          }}
+        />
+      ))}
       <div className="min-w-0 flex-1" />
       <TerrainSetToolbarButton
         disabled={!props.hasSelectedWangSet}

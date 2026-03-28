@@ -1,75 +1,26 @@
 "use client";
 
-import type { TileCollisionEditorViewState } from "@pixel-editor/app-services/ui";
+import {
+  createTileCollisionObjectDraft,
+  deriveTileCollisionEditorSelection,
+  resolveTileCollisionObjectClassNameCommit,
+  resolveTileCollisionObjectNameCommit,
+  resolveTileCollisionObjectNumericFieldCommit,
+  resolveTileCollisionObjectPointsCommit,
+  type TileCollisionEditorObject as CollisionObject,
+  type TileCollisionEditorObjectId as CollisionObjectId,
+  type TileCollisionEditorViewState,
+  type TileCollisionNumericField as CollisionNumericField,
+  type TileCollisionObjectDraft as CollisionObjectDraft,
+  type TileCollisionObjectShape as CollisionObjectShape
+} from "@pixel-editor/app-services/ui";
 import type { TileCollisionEditorStore } from "@pixel-editor/app-services/ui-store";
 import { startTransition, useEffect, useState } from "react";
 
-export type CollisionObject = TileCollisionEditorViewState["collisionObjects"][number];
-export type CollisionObjectId = CollisionObject["id"];
-export type CollisionPoint = NonNullable<CollisionObject["points"]>[number];
-export type CollisionObjectShape = Parameters<
-  TileCollisionEditorStore["createSelectedTileCollisionObject"]
->[0];
-export type CollisionNumericField = "x" | "y" | "width" | "height" | "rotation";
 export type UpsertSelectedCollisionObjectProperty = (
   property: Parameters<TileCollisionEditorStore["upsertSelectedTileCollisionObjectProperty"]>[1],
   previousName?: Parameters<TileCollisionEditorStore["upsertSelectedTileCollisionObjectProperty"]>[2]
 ) => void;
-
-export interface CollisionObjectDraft {
-  name: string;
-  className: string;
-  x: string;
-  y: string;
-  width: string;
-  height: string;
-  rotation: string;
-  points: string;
-}
-
-function formatPoints(points: readonly CollisionPoint[] | undefined): string {
-  return (points ?? []).map((point) => `${point.x},${point.y}`).join(" ");
-}
-
-function parsePoints(value: string): CollisionPoint[] | undefined {
-  const trimmed = value.trim();
-
-  if (!trimmed) {
-    return [];
-  }
-
-  const points = trimmed.split(/\s+/).map((chunk) => {
-    const [x, y] = chunk.split(",");
-    const parsedX = Number.parseFloat(x ?? "");
-    const parsedY = Number.parseFloat(y ?? "");
-
-    if (Number.isNaN(parsedX) || Number.isNaN(parsedY)) {
-      throw new Error("Invalid point");
-    }
-
-    return {
-      x: parsedX,
-      y: parsedY
-    };
-  });
-
-  return points.length > 0 ? points : [];
-}
-
-function createCollisionObjectDraft(
-  selectedObject: CollisionObject | undefined
-): CollisionObjectDraft {
-  return {
-    name: selectedObject?.name ?? "",
-    className: selectedObject?.className ?? "",
-    x: String(selectedObject?.x ?? 0),
-    y: String(selectedObject?.y ?? 0),
-    width: String(selectedObject?.width ?? 0),
-    height: String(selectedObject?.height ?? 0),
-    rotation: String(selectedObject?.rotation ?? 0),
-    points: formatPoints(selectedObject?.points)
-  };
-}
 
 export function useTileCollisionEditorState(props: {
   store: TileCollisionEditorStore;
@@ -77,32 +28,34 @@ export function useTileCollisionEditorState(props: {
 }) {
   const collisionObjects = props.viewState.collisionObjects;
   const [selectedObjectId, setSelectedObjectId] = useState<CollisionObjectId | undefined>();
-  const selectedObject = collisionObjects.find((object) => object.id === selectedObjectId);
+  const selection = deriveTileCollisionEditorSelection(collisionObjects, selectedObjectId);
+  const currentSelectedObjectId = selection.selectedObjectId;
+  const selectedObject = selection.selectedObject;
   const [draft, setDraft] = useState<CollisionObjectDraft>(() =>
-    createCollisionObjectDraft(selectedObject)
+    createTileCollisionObjectDraft(selectedObject)
   );
 
   useEffect(() => {
-    if (selectedObjectId && collisionObjects.some((object) => object.id === selectedObjectId)) {
+    if (selection.selectedObjectId === selectedObjectId) {
       return;
     }
 
-    setSelectedObjectId(collisionObjects[0]?.id);
-  }, [collisionObjects, selectedObjectId]);
+    setSelectedObjectId(selection.selectedObjectId);
+  }, [selectedObjectId, selection.selectedObjectId]);
 
   useEffect(() => {
-    setDraft(createCollisionObjectDraft(selectedObject));
+    setDraft(createTileCollisionObjectDraft(selectedObject));
   }, [selectedObject]);
 
   function commitSelectedObjectPatch(
     patch: Parameters<TileCollisionEditorStore["updateSelectedTileCollisionObjectDetails"]>[1]
   ): void {
-    if (!selectedObjectId) {
+    if (!currentSelectedObjectId) {
       return;
     }
 
     startTransition(() => {
-      props.store.updateSelectedTileCollisionObjectDetails(selectedObjectId, patch);
+      props.store.updateSelectedTileCollisionObjectDetails(currentSelectedObjectId, patch);
     });
   }
 
@@ -111,17 +64,19 @@ export function useTileCollisionEditorState(props: {
       return;
     }
 
-    const nextValue = Number.parseFloat(draft[key]);
+    const resolution = resolveTileCollisionObjectNumericFieldCommit({
+      draft,
+      selectedObject,
+      field: key
+    });
 
-    if (Number.isNaN(nextValue)) {
-      setDraft((current) => ({
-        ...current,
-        [key]: String(selectedObject[key])
-      }));
-      return;
+    if (resolution.nextDraft !== draft) {
+      setDraft(resolution.nextDraft);
     }
 
-    commitSelectedObjectPatch({ [key]: nextValue });
+    if (resolution.patch) {
+      commitSelectedObjectPatch(resolution.patch);
+    }
   }
 
   function commitPoints(): void {
@@ -129,23 +84,25 @@ export function useTileCollisionEditorState(props: {
       return;
     }
 
-    try {
-      const parsedPoints = parsePoints(draft.points);
+    const resolution = resolveTileCollisionObjectPointsCommit({
+      draft,
+      selectedObject
+    });
 
-      commitSelectedObjectPatch(parsedPoints !== undefined ? { points: parsedPoints } : {});
-    } catch {
-      setDraft((current) => ({
-        ...current,
-        points: formatPoints(selectedObject.points)
-      }));
+    if (resolution.nextDraft !== draft) {
+      setDraft(resolution.nextDraft);
+    }
+
+    if (resolution.patch) {
+      commitSelectedObjectPatch(resolution.patch);
     }
   }
 
   return {
     collisionObjects,
-    selectedObjectId,
+    selectedObjectId: currentSelectedObjectId,
     selectedObject,
-    selectedObjectIds: selectedObjectId ? [selectedObjectId] : [],
+    selectedObjectIds: selection.selectedObjectIds,
     draft,
     setDraft,
     actions: {
@@ -161,18 +118,18 @@ export function useTileCollisionEditorState(props: {
         }
       },
       removeSelectedObject: () => {
-        if (!selectedObjectId) {
+        if (!currentSelectedObjectId) {
           return;
         }
 
-        props.store.removeSelectedTileCollisionObjects([selectedObjectId]);
+        props.store.removeSelectedTileCollisionObjects([currentSelectedObjectId]);
       },
       reorderSelectedObject: (direction: "up" | "down") => {
-        if (!selectedObjectId) {
+        if (!currentSelectedObjectId) {
           return;
         }
 
-        props.store.reorderSelectedTileCollisionObjects([selectedObjectId], direction);
+        props.store.reorderSelectedTileCollisionObjects([currentSelectedObjectId], direction);
       },
       moveSelectedObjects: (
         objectIds: readonly CollisionObjectId[],
@@ -186,14 +143,19 @@ export function useTileCollisionEditorState(props: {
           return;
         }
 
-        commitSelectedObjectPatch({
-          name: draft.name.trim() || selectedObject.name
-        });
+        commitSelectedObjectPatch(
+          resolveTileCollisionObjectNameCommit({
+            draft,
+            selectedObject
+          })
+        );
       },
       commitClassName: () => {
-        commitSelectedObjectPatch({
-          className: draft.className
-        });
+        commitSelectedObjectPatch(
+          resolveTileCollisionObjectClassNameCommit({
+            draft
+          })
+        );
       },
       commitNumericField,
       commitVisible: (visible: boolean) => {

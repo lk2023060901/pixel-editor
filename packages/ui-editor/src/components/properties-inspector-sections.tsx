@@ -1,6 +1,22 @@
 "use client";
 
-import type { PropertiesInspectorViewState } from "@pixel-editor/app-services/ui";
+import type {
+  InspectorLayerViewState,
+  InspectorMapViewState,
+  InspectorObjectViewState,
+  PropertiesInspectorBlendMode as BlendMode,
+  PropertiesInspectorLayerDraft as LayerDraft,
+  PropertiesInspectorMapDraft as MapDraft,
+  PropertiesInspectorObjectDraft as ObjectDraft,
+  PropertiesInspectorObjectDrawOrder as ObjectLayerDrawOrder,
+  PropertiesInspectorViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  propertiesInspectorBlendModeOptions,
+  propertiesInspectorMapOrientationOptions,
+  propertiesInspectorMapRenderOrderOptions,
+  propertiesInspectorObjectDrawOrderOptions
+} from "@pixel-editor/app-services/ui";
 import type { PropertiesInspectorStore } from "@pixel-editor/app-services/ui-store";
 import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -21,137 +37,6 @@ import {
   PropertyBrowserSelectRow,
   PropertyBrowserTextRow
 } from "./property-browser";
-
-export type InspectorMapViewState = NonNullable<PropertiesInspectorViewState["map"]>;
-export type InspectorLayerViewState = NonNullable<PropertiesInspectorViewState["layer"]>;
-export type InspectorObjectViewState = NonNullable<PropertiesInspectorViewState["object"]>;
-type BlendMode = Exclude<InspectorLayerViewState["blendMode"], undefined>;
-type ObjectLayerDrawOrder = Exclude<InspectorLayerViewState["drawOrder"], undefined>;
-
-export interface MapDraft {
-  name: string;
-  orientation: InspectorMapViewState["orientation"];
-  renderOrder: InspectorMapViewState["renderOrder"];
-  width: string;
-  height: string;
-  tileWidth: string;
-  tileHeight: string;
-  parallaxOriginX: string;
-  parallaxOriginY: string;
-  infinite: boolean;
-  backgroundColor: string;
-}
-
-export interface LayerDraft {
-  name: string;
-  className: string;
-  visible: boolean;
-  locked: boolean;
-  opacity: string;
-  offsetX: string;
-  offsetY: string;
-  parallaxX: string;
-  parallaxY: string;
-  tintColor: string;
-  blendMode: BlendMode;
-  drawOrder: ObjectLayerDrawOrder;
-  imagePath: string;
-  repeatX: boolean;
-  repeatY: boolean;
-}
-
-export interface ObjectDraft {
-  name: string;
-  className: string;
-  x: string;
-  y: string;
-  width: string;
-  height: string;
-  rotation: string;
-  visible: boolean;
-}
-
-const orientationOptions: Array<InspectorMapViewState["orientation"]> = [
-  "orthogonal",
-  "isometric",
-  "staggered",
-  "hexagonal",
-  "oblique"
-];
-
-const renderOrderOptions: Array<InspectorMapViewState["renderOrder"]> = [
-  "right-down",
-  "right-up",
-  "left-down",
-  "left-up"
-];
-
-const objectDrawOrderOptions: ObjectLayerDrawOrder[] = ["topdown", "index"];
-
-const blendModeOptions: BlendMode[] = [
-  "normal",
-  "add",
-  "multiply",
-  "screen",
-  "overlay",
-  "darken",
-  "lighten",
-  "color-dodge",
-  "color-burn",
-  "hard-light",
-  "soft-light",
-  "difference",
-  "exclusion"
-];
-
-export function createMapDraft(map?: InspectorMapViewState): MapDraft {
-  return {
-    name: map?.name ?? "",
-    orientation: map?.orientation ?? "orthogonal",
-    renderOrder: map?.renderOrder ?? "right-down",
-    width: String(map?.width || 64),
-    height: String(map?.height || 64),
-    tileWidth: String(map?.tileWidth ?? 32),
-    tileHeight: String(map?.tileHeight ?? 32),
-    parallaxOriginX: String(map?.parallaxOriginX ?? 0),
-    parallaxOriginY: String(map?.parallaxOriginY ?? 0),
-    infinite: map?.infinite ?? false,
-    backgroundColor: map?.backgroundColor ?? ""
-  };
-}
-
-export function createLayerDraft(layer?: InspectorLayerViewState): LayerDraft {
-  return {
-    name: layer?.name ?? "",
-    className: layer?.className ?? "",
-    visible: layer?.visible ?? true,
-    locked: layer?.locked ?? false,
-    opacity: String(layer?.opacity ?? 1),
-    offsetX: String(layer?.offsetX ?? 0),
-    offsetY: String(layer?.offsetY ?? 0),
-    parallaxX: String(layer?.parallaxX ?? 1),
-    parallaxY: String(layer?.parallaxY ?? 1),
-    tintColor: layer?.tintColor ?? "",
-    blendMode: layer?.blendMode ?? "normal",
-    drawOrder: layer?.kind === "object" ? (layer.drawOrder ?? "topdown") : "topdown",
-    imagePath: layer?.kind === "image" ? (layer.imagePath ?? "") : "",
-    repeatX: layer?.kind === "image" ? (layer.repeatX ?? false) : false,
-    repeatY: layer?.kind === "image" ? (layer.repeatY ?? false) : false
-  };
-}
-
-export function createObjectDraft(object?: InspectorObjectViewState): ObjectDraft {
-  return {
-    name: object?.name ?? "",
-    className: object?.className ?? "",
-    x: String(object?.x ?? 0),
-    y: String(object?.y ?? 0),
-    width: String(object?.width ?? 0),
-    height: String(object?.height ?? 0),
-    rotation: String(object?.rotation ?? 0),
-    visible: object?.visible ?? true
-  };
-}
 
 interface PropertiesInspectorSectionSharedProps {
   objectReferenceOptions: PropertiesInspectorViewState["objectReferenceOptions"];
@@ -187,7 +72,7 @@ export function PropertiesInspectorMapSection(
       />
       <PropertyBrowserSelectRow
         label={t("mapProperties.orientation")}
-        options={orientationOptions.map((orientation) => ({
+        options={propertiesInspectorMapOrientationOptions.map((orientation) => ({
           value: orientation,
           label: getOrientationLabel(orientation, t)
         }))}
@@ -203,7 +88,7 @@ export function PropertiesInspectorMapSection(
       />
       <PropertyBrowserSelectRow
         label={t("mapProperties.renderOrder")}
-        options={renderOrderOptions.map((renderOrder) => ({
+        options={propertiesInspectorMapRenderOrderOptions.map((renderOrder) => ({
           value: renderOrder,
           label: getRenderOrderLabel(renderOrder, t)
         }))}
@@ -445,7 +330,7 @@ export function PropertiesInspectorLayerSection(
       />
       <PropertyBrowserSelectRow
         label={t("propertiesInspector.blendMode")}
-        options={blendModeOptions.map((blendMode) => ({
+        options={propertiesInspectorBlendModeOptions.map((blendMode) => ({
           value: blendMode,
           label: getBlendModeLabel(blendMode, t)
         }))}
@@ -494,7 +379,7 @@ export function PropertiesInspectorLayerSection(
       {props.activeLayer.kind === "object" ? (
         <PropertyBrowserSelectRow
           label={t("propertiesInspector.drawOrder")}
-          options={objectDrawOrderOptions.map((drawOrder) => ({
+          options={propertiesInspectorObjectDrawOrderOptions.map((drawOrder) => ({
             value: drawOrder,
             label: getObjectDrawOrderLabel(drawOrder, t)
           }))}

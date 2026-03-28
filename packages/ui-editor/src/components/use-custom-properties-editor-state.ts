@@ -1,19 +1,16 @@
 "use client";
 
 import {
+  NEW_PROPERTY_KEY,
+  createEmptyPropertyDraft,
+  createPropertyDraft,
   mergeSuggestedPropertyDefinitions,
+  parsePropertyDraft,
+  type PropertyDraft,
   type PropertyDefinition,
   type PropertyTypeDefinition
 } from "@pixel-editor/app-services/ui-custom-properties";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-
-import {
-  NEW_PROPERTY_KEY,
-  createEmptyPropertyDraft,
-  createPropertyDraft,
-  parseDraft,
-  type PropertyDraft
-} from "./custom-properties-editor-utils";
 
 export function useCustomPropertiesEditorState(props: {
   properties: readonly PropertyDefinition[];
@@ -127,7 +124,7 @@ export function useCustomPropertiesEditorState(props: {
           return;
         }
 
-        const nextProperty = parseDraft(activeDraft, props.propertyTypes);
+        const nextProperty = parsePropertyDraft(activeDraft, props.propertyTypes);
 
         if (!nextProperty) {
           return;

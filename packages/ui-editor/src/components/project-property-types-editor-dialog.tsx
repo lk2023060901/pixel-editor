@@ -1,20 +1,37 @@
 "use client";
 
-import { createIndexedName } from "@pixel-editor/app-services/ui-naming";
 import type { ProjectPropertyTypesEditorStore } from "@pixel-editor/app-services/ui-store";
 import {
-  clonePropertyTypeDefinition,
-  clonePropertyValue,
-  createClassPropertyTypeDefinition,
-  createDefaultPropertyValue,
-  createEnumPropertyTypeDefinition,
-  getClassPropertyTypeDefinitionByName,
-  getEnumPropertyTypeDefinitionByName,
-  type ClassPropertyTypeDefinition,
-  type ClassPropertyValue,
+  appendProjectClassPropertyFieldDraft,
+  appendProjectEnumPropertyTypeValueDraft,
+  classPropertyTypeUseAsOptions,
+  createProjectPropertyTypesEditorState,
+  createProjectClassPropertyTypeDraft,
+  createProjectEnumPropertyTypeDraft,
+  deriveProjectPropertyTypesEditorSelection,
+  deriveProjectPropertyTypeReferenceOptions,
+  deriveProjectPropertyTypeValueEditorControl,
+  propertyTypeValueOptions,
+  removeProjectClassPropertyFieldDraft,
+  removeProjectEnumPropertyTypeValueDraft,
+  removeProjectPropertyTypeDraft,
+  resolveProjectPropertyTypesApplyResult,
+  resolveProjectPropertyTypeValueEditorValue,
+  selectProjectPropertyTypesEditorType,
+  toggleProjectClassPropertyTypeUseAsDraft,
+  updateProjectClassPropertyFieldDefaultValueDraft,
+  updateProjectClassPropertyFieldNameDraft,
+  updateProjectClassPropertyFieldReferenceTypeDraft,
+  updateProjectClassPropertyFieldValueTypeDraft,
+  updateProjectClassPropertyTypeColorDraft,
+  updateProjectClassPropertyTypeDrawFillDraft,
+  updateProjectEnumPropertyTypeValueDraft,
+  updateProjectEnumStorageTypeDraft,
+  updateProjectEnumValuesAsFlagsDraft,
+  updateProjectPropertyTypeNameDraft,
+  updateProjectPropertyTypesEditorDraftsState,
   type PropertyTypeDefinition,
   type PropertyTypeName,
-  type PropertyTypeUseAs,
   type PropertyValue
 } from "@pixel-editor/app-services/ui-property-types";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -24,271 +41,6 @@ import {
   getPropertyTypeLabel,
   getPropertyTypeUseAsLabel
 } from "./i18n-helpers";
-
-const PROPERTY_VALUE_TYPE_OPTIONS: PropertyTypeName[] = [
-  "string",
-  "int",
-  "float",
-  "bool",
-  "color",
-  "file",
-  "object",
-  "enum",
-  "class"
-];
-const CLASS_USE_AS_OPTIONS: PropertyTypeUseAs[] = [
-  "property",
-  "map",
-  "layer",
-  "object",
-  "tile",
-  "tileset",
-  "wangcolor",
-  "wangset",
-  "project",
-  "world",
-  "template"
-];
-
-function isClassPropertyValue(value: PropertyValue | undefined): value is ClassPropertyValue {
-  return value !== null && typeof value === "object" && value !== undefined && "members" in value;
-}
-
-function coerceDefaultValue(
-  valueType: PropertyTypeName,
-  propertyTypeName: string | undefined,
-  propertyTypes: readonly PropertyTypeDefinition[],
-  currentValue: PropertyValue | undefined,
-  lineage: readonly string[] = []
-): PropertyValue {
-  const fallback = createDefaultPropertyValue(valueType, propertyTypeName, propertyTypes);
-
-  switch (valueType) {
-    case "bool":
-      return typeof currentValue === "boolean" ? currentValue : fallback;
-    case "int":
-    case "float":
-      return typeof currentValue === "number" ? currentValue : fallback;
-    case "string":
-    case "color":
-    case "file":
-      return typeof currentValue === "string" ? currentValue : fallback;
-    case "object":
-      return currentValue !== undefined ? clonePropertyValue(currentValue) : fallback;
-    case "enum": {
-      const enumType = getEnumPropertyTypeDefinitionByName(propertyTypes, propertyTypeName);
-
-      if (!enumType) {
-        return fallback;
-      }
-
-      if (enumType.storageType === "int") {
-        return typeof currentValue === "number" ? currentValue : fallback;
-      }
-
-      return typeof currentValue === "string" ? currentValue : fallback;
-    }
-    case "class": {
-      const classType = getClassPropertyTypeDefinitionByName(propertyTypes, propertyTypeName);
-
-      if (!classType || lineage.includes(classType.name)) {
-        return fallback;
-      }
-
-      const fallbackMembers = isClassPropertyValue(fallback) ? fallback.members : {};
-      const currentMembers = isClassPropertyValue(currentValue) ? currentValue.members : {};
-
-      return {
-        members: Object.fromEntries(
-          classType.fields.map((field) => [
-            field.name,
-            coerceDefaultValue(
-              field.valueType,
-              field.propertyTypeName,
-              propertyTypes,
-              currentMembers[field.name] ?? field.defaultValue ?? fallbackMembers[field.name],
-              [...lineage, classType.name]
-            )
-          ])
-        )
-      };
-    }
-  }
-}
-
-function updatePropertyTypeDraft(
-  drafts: readonly PropertyTypeDefinition[],
-  propertyTypeId: string,
-  updater: (propertyType: PropertyTypeDefinition) => PropertyTypeDefinition
-): PropertyTypeDefinition[] {
-  return drafts.map((propertyType) =>
-    propertyType.id === propertyTypeId ? updater(propertyType) : propertyType
-  );
-}
-
-function updateClassFieldDraft(
-  propertyType: ClassPropertyTypeDefinition,
-  fieldIndex: number,
-  updater: (
-    field: ClassPropertyTypeDefinition["fields"][number]
-  ) => ClassPropertyTypeDefinition["fields"][number]
-): ClassPropertyTypeDefinition {
-  return {
-    ...propertyType,
-    fields: propertyType.fields.map((field, index) =>
-      index === fieldIndex ? updater(field) : field
-    )
-  };
-}
-
-function withOptionalPropertyTypeName<T extends { propertyTypeName?: string }>(
-  value: Omit<T, "propertyTypeName">,
-  propertyTypeName: string | undefined
-): T {
-  return {
-    ...value,
-    ...(propertyTypeName !== undefined ? { propertyTypeName } : {})
-  } as T;
-}
-
-function validatePropertyTypes(
-  propertyTypes: readonly PropertyTypeDefinition[],
-  t: ReturnType<typeof useI18n>["t"]
-): { propertyTypes: PropertyTypeDefinition[]; error?: string } {
-  const normalizedNames = new Set<string>();
-  const normalizedPropertyTypes = propertyTypes.map((propertyType) => {
-    const nextPropertyType = clonePropertyTypeDefinition(propertyType);
-    nextPropertyType.name = nextPropertyType.name.trim();
-    return nextPropertyType;
-  });
-
-  for (const propertyType of normalizedPropertyTypes) {
-    if (!propertyType.name) {
-      return {
-        propertyTypes: [],
-        error: t("propertyTypesEditor.validation.required", {
-          field: t("propertyTypesEditor.typeName")
-        })
-      };
-    }
-
-    if (normalizedNames.has(propertyType.name)) {
-      return {
-        propertyTypes: [],
-        error: t("propertyTypesEditor.validation.duplicate", {
-          field: t("propertyTypesEditor.typeName"),
-          value: propertyType.name
-        })
-      };
-    }
-
-    normalizedNames.add(propertyType.name);
-  }
-
-  const propertyTypesByName = new Map(
-    normalizedPropertyTypes.map((propertyType) => [propertyType.name, propertyType])
-  );
-
-  for (const propertyType of normalizedPropertyTypes) {
-    if (propertyType.kind === "enum") {
-      const valueNames = new Set<string>();
-      const nextValues: string[] = [];
-
-      for (const value of propertyType.values) {
-        const nextValue = value.trim();
-
-        if (!nextValue) {
-          return {
-            propertyTypes: [],
-            error: t("propertyTypesEditor.validation.required", {
-              field: t("propertyTypesEditor.enumValue")
-            })
-          };
-        }
-
-        if (valueNames.has(nextValue)) {
-          return {
-            propertyTypes: [],
-            error: t("propertyTypesEditor.validation.duplicate", {
-              field: t("propertyTypesEditor.enumValue"),
-              value: nextValue
-            })
-          };
-        }
-
-        valueNames.add(nextValue);
-        nextValues.push(nextValue);
-      }
-
-      propertyType.values = nextValues;
-      continue;
-    }
-
-    const fieldNames = new Set<string>();
-
-    for (const field of propertyType.fields) {
-      field.name = field.name.trim();
-
-      if (!field.name) {
-        return {
-          propertyTypes: [],
-          error: t("propertyTypesEditor.validation.required", {
-            field: t("propertyTypesEditor.fieldName")
-          })
-        };
-      }
-
-      if (fieldNames.has(field.name)) {
-        return {
-          propertyTypes: [],
-          error: t("propertyTypesEditor.validation.duplicate", {
-            field: t("propertyTypesEditor.fieldName"),
-            value: field.name
-          })
-        };
-      }
-
-      fieldNames.add(field.name);
-      const nextPropertyTypeName = field.propertyTypeName?.trim() || undefined;
-
-      if (nextPropertyTypeName !== undefined) {
-        field.propertyTypeName = nextPropertyTypeName;
-      } else {
-        delete field.propertyTypeName;
-      }
-
-      if (field.valueType === "enum" || field.valueType === "class") {
-        const referencedType = field.propertyTypeName
-          ? propertyTypesByName.get(field.propertyTypeName)
-          : undefined;
-
-        if (!referencedType || referencedType.kind !== field.valueType) {
-          return {
-            propertyTypes: [],
-            error: t("propertyTypesEditor.validation.missingReference", {
-              field: t("propertyTypesEditor.referencedType")
-            })
-          };
-        }
-      } else {
-        delete field.propertyTypeName;
-      }
-
-      field.defaultValue = clonePropertyValue(
-        coerceDefaultValue(
-          field.valueType,
-          field.propertyTypeName,
-          normalizedPropertyTypes,
-          field.defaultValue
-        )
-      );
-    }
-  }
-
-  return {
-    propertyTypes: normalizedPropertyTypes
-  };
-}
 
 function DialogTextInput(props: {
   value: string;
@@ -358,150 +110,92 @@ function PropertyValueEditor(props: {
   onChange: (value: PropertyValue) => void;
 }) {
   const { t } = useI18n();
-  const lineage = props.lineage ?? [];
+  const control = deriveProjectPropertyTypeValueEditorControl({
+    valueType: props.valueType,
+    propertyTypeName: props.propertyTypeName,
+    propertyTypes: props.propertyTypes,
+    value: props.value,
+    ...(props.lineage !== undefined ? { lineage: props.lineage } : {})
+  });
 
-  switch (props.valueType) {
-    case "bool":
+  switch (control.kind) {
+    case "boolean":
       return (
         <DialogCheckbox
-          checked={Boolean(props.value)}
-          label={Boolean(props.value) ? t("common.true") : t("common.false")}
+          checked={control.checked}
+          label={control.checked ? t("common.true") : t("common.false")}
           onChange={(checked) => {
-            props.onChange(checked);
+            props.onChange(
+              resolveProjectPropertyTypeValueEditorValue({
+                control,
+                nextValue: checked
+              })
+            );
           }}
         />
       );
-    case "int":
-    case "float":
+    case "number":
       return (
         <DialogTextInput
           type="number"
-          value={String(
-            typeof props.value === "number"
-              ? props.value
-              : createDefaultPropertyValue(
-                  props.valueType,
-                  props.propertyTypeName,
-                  props.propertyTypes
-                )
-          )}
+          value={control.value}
           onChange={(value) => {
-            const nextValue =
-              props.valueType === "int"
-                ? Number.parseInt(value || "0", 10)
-                : Number.parseFloat(value || "0");
-            props.onChange(Number.isNaN(nextValue) ? 0 : nextValue);
+            props.onChange(
+              resolveProjectPropertyTypeValueEditorValue({
+                control,
+                nextValue: value
+              })
+            );
           }}
         />
       );
-    case "string":
-    case "color":
-    case "file":
+    case "text":
       return (
         <DialogTextInput
-          value={typeof props.value === "string" ? props.value : ""}
+          value={control.value}
           onChange={(value) => {
-            props.onChange(value);
+            props.onChange(
+              resolveProjectPropertyTypeValueEditorValue({
+                control,
+                nextValue: value
+              })
+            );
           }}
         />
       );
     case "object":
       return (
         <DialogTextInput
-          value={
-            props.value !== null &&
-            props.value !== undefined &&
-            typeof props.value === "object" &&
-            "objectId" in props.value
-              ? props.value.objectId
-              : ""
-          }
+          value={control.value}
           onChange={(value) => {
-            props.onChange(value.trim() ? { objectId: value.trim() as never } : null);
+            props.onChange(
+              resolveProjectPropertyTypeValueEditorValue({
+                control,
+                nextValue: value
+              })
+            );
           }}
         />
       );
-    case "enum": {
-      const enumType = getEnumPropertyTypeDefinitionByName(
-        props.propertyTypes,
-        props.propertyTypeName
-      );
-
-      if (!enumType) {
-        return (
-          <div className="text-sm text-slate-400">
-            {t("propertyTypesEditor.unsupportedDefaultValue")}
-          </div>
-        );
-      }
-
+    case "select":
       return (
         <DialogSelect
-          value={
-            enumType.storageType === "int"
-              ? String(
-                  typeof props.value === "number"
-                    ? props.value
-                    : createDefaultPropertyValue(
-                        "enum",
-                        props.propertyTypeName,
-                        props.propertyTypes
-                      )
-                )
-              : String(
-                  typeof props.value === "string"
-                    ? props.value
-                    : createDefaultPropertyValue(
-                        "enum",
-                        props.propertyTypeName,
-                        props.propertyTypes
-                      )
-                )
-          }
-          options={enumType.values.map((value, index) => ({
-            value: enumType.storageType === "int" ? String(index) : value,
-            label: value
-          }))}
+          value={control.value}
+          options={control.options}
           onChange={(value) => {
-            props.onChange(enumType.storageType === "int" ? Number(value) : value);
+            props.onChange(
+              resolveProjectPropertyTypeValueEditorValue({
+                control,
+                nextValue: value
+              })
+            );
           }}
         />
       );
-    }
-    case "class": {
-      const classType = getClassPropertyTypeDefinitionByName(
-        props.propertyTypes,
-        props.propertyTypeName
-      );
-
-      if (!classType) {
-        return (
-          <div className="text-sm text-slate-400">
-            {t("propertyTypesEditor.unsupportedDefaultValue")}
-          </div>
-        );
-      }
-
-      if (lineage.includes(classType.name)) {
-        return (
-          <div className="text-sm text-slate-400">
-            {t("propertyTypesEditor.recursiveDefaultValue")}
-          </div>
-        );
-      }
-
-      const classValue = coerceDefaultValue(
-        "class",
-        classType.name,
-        props.propertyTypes,
-        props.value,
-        lineage
-      );
-      const members = isClassPropertyValue(classValue) ? classValue.members : {};
-
+    case "class":
       return (
         <div className="space-y-2">
-          {classType.fields.map((field) => (
+          {control.classType.fields.map((field) => (
             <div
               key={`${field.name}:${field.valueType}`}
               className="rounded border border-slate-700 bg-slate-950/60 p-2"
@@ -513,9 +207,9 @@ function PropertyValueEditor(props: {
                 </span>
               </div>
               <PropertyValueEditor
-                lineage={[...lineage, classType.name]}
+                lineage={control.nextLineage}
                 propertyTypes={props.propertyTypes}
-                value={members[field.name] ?? field.defaultValue}
+                value={control.members[field.name] ?? field.defaultValue}
                 valueType={field.valueType}
                 {...(field.propertyTypeName !== undefined
                   ? { propertyTypeName: field.propertyTypeName }
@@ -523,7 +217,7 @@ function PropertyValueEditor(props: {
                 onChange={(value) => {
                   props.onChange({
                     members: {
-                      ...members,
+                      ...control.members,
                       [field.name]: value
                     }
                   });
@@ -533,7 +227,18 @@ function PropertyValueEditor(props: {
           ))}
         </div>
       );
-    }
+    case "recursive":
+      return (
+        <div className="text-sm text-slate-400">
+          {t("propertyTypesEditor.recursiveDefaultValue")}
+        </div>
+      );
+    case "unsupported":
+      return (
+        <div className="text-sm text-slate-400">
+          {t("propertyTypesEditor.unsupportedDefaultValue")}
+        </div>
+      );
   }
 }
 
@@ -544,35 +249,21 @@ export function ProjectPropertyTypesEditorDialog(props: {
 }) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const [draftPropertyTypes, setDraftPropertyTypes] = useState<PropertyTypeDefinition[]>(() =>
-    props.propertyTypes.map((propertyType) => clonePropertyTypeDefinition(propertyType))
+  const [editorState, setEditorState] = useState(() =>
+    createProjectPropertyTypesEditorState(props.propertyTypes)
   );
-  const [selectedTypeId, setSelectedTypeId] = useState<string | null>(
-    props.propertyTypes[0]?.id ?? null
+  const draftPropertyTypes = editorState.draftPropertyTypes;
+  const selection = useMemo(
+    () => deriveProjectPropertyTypesEditorSelection(draftPropertyTypes, editorState.selectedTypeId),
+    [draftPropertyTypes, editorState.selectedTypeId]
   );
-  const [validationError, setValidationError] = useState<string | null>(null);
-  const selectedType = draftPropertyTypes.find((propertyType) => propertyType.id === selectedTypeId);
-  const selectedEnumType = selectedType?.kind === "enum" ? selectedType : undefined;
-  const selectedClassType = selectedType?.kind === "class" ? selectedType : undefined;
+  const currentSelectedTypeId = selection.selectedTypeId;
+  const selectedType = selection.selectedType;
+  const selectedEnumType = selection.selectedEnumType;
+  const selectedClassType = selection.selectedClassType;
 
-  const enumOptions = useMemo(
-    () =>
-      draftPropertyTypes
-        .filter((propertyType) => propertyType.kind === "enum")
-        .map((propertyType) => ({
-          value: propertyType.name,
-          label: propertyType.name
-        })),
-    [draftPropertyTypes]
-  );
-  const classOptions = useMemo(
-    () =>
-      draftPropertyTypes
-        .filter((propertyType) => propertyType.kind === "class")
-        .map((propertyType) => ({
-          value: propertyType.name,
-          label: propertyType.name
-        })),
+  const { enumOptions, classOptions } = useMemo(
+    () => deriveProjectPropertyTypeReferenceOptions(draftPropertyTypes),
     [draftPropertyTypes]
   );
 
@@ -581,72 +272,75 @@ export function ProjectPropertyTypesEditorDialog(props: {
   }, []);
 
   useEffect(() => {
-    setDraftPropertyTypes(
-      props.propertyTypes.map((propertyType) => clonePropertyTypeDefinition(propertyType))
-    );
-    setSelectedTypeId(props.propertyTypes[0]?.id ?? null);
-    setValidationError(null);
+    setEditorState(createProjectPropertyTypesEditorState(props.propertyTypes));
   }, [props.propertyTypes]);
 
-  useEffect(() => {
-    if (!selectedTypeId && draftPropertyTypes[0]) {
-      setSelectedTypeId(draftPropertyTypes[0].id);
-      return;
-    }
-
-    if (selectedTypeId && !draftPropertyTypes.some((propertyType) => propertyType.id === selectedTypeId)) {
-      setSelectedTypeId(draftPropertyTypes[0]?.id ?? null);
-    }
-  }, [draftPropertyTypes, selectedTypeId]);
+  function updateDrafts(
+    updater: (draftPropertyTypes: readonly PropertyTypeDefinition[]) => PropertyTypeDefinition[],
+    selectedTypeId?: string | null
+  ): void {
+    setEditorState((current) =>
+      updateProjectPropertyTypesEditorDraftsState({
+        state: current,
+        draftPropertyTypes: updater(current.draftPropertyTypes),
+        ...(selectedTypeId !== undefined ? { selectedTypeId } : {})
+      })
+    );
+  }
 
   function addEnumType(): void {
-    const nextType = createEnumPropertyTypeDefinition({
-      name: createIndexedName(
-        t("propertyTypesEditor.defaultEnumName"),
-        draftPropertyTypes.filter((propertyType) => propertyType.kind === "enum").length + 1
-      ),
-      values: [t("propertyTypesEditor.defaultValueName")]
-    });
+    setEditorState((current) => {
+      const nextType = createProjectEnumPropertyTypeDraft({
+        existingPropertyTypes: current.draftPropertyTypes,
+        defaultEnumName: t("propertyTypesEditor.defaultEnumName"),
+        defaultValueName: t("propertyTypesEditor.defaultValueName")
+      });
 
-    setDraftPropertyTypes((current) => [...current, nextType]);
-    setSelectedTypeId(nextType.id);
-    setValidationError(null);
+      return updateProjectPropertyTypesEditorDraftsState({
+        state: current,
+        draftPropertyTypes: [...current.draftPropertyTypes, nextType],
+        selectedTypeId: nextType.id
+      });
+    });
   }
 
   function addClassType(): void {
-    const nextType = createClassPropertyTypeDefinition({
-      name: createIndexedName(
-        t("propertyTypesEditor.defaultClassName"),
-        draftPropertyTypes.filter((propertyType) => propertyType.kind === "class").length + 1
-      )
-    });
+    setEditorState((current) => {
+      const nextType = createProjectClassPropertyTypeDraft({
+        existingPropertyTypes: current.draftPropertyTypes,
+        defaultClassName: t("propertyTypesEditor.defaultClassName")
+      });
 
-    setDraftPropertyTypes((current) => [...current, nextType]);
-    setSelectedTypeId(nextType.id);
-    setValidationError(null);
+      return updateProjectPropertyTypesEditorDraftsState({
+        state: current,
+        draftPropertyTypes: [...current.draftPropertyTypes, nextType],
+        selectedTypeId: nextType.id
+      });
+    });
   }
 
   function removeSelectedType(): void {
-    if (!selectedTypeId) {
+    if (!currentSelectedTypeId) {
       return;
     }
 
-    setDraftPropertyTypes((current) =>
-      current.filter((propertyType) => propertyType.id !== selectedTypeId)
-    );
-    setValidationError(null);
+    updateDrafts((current) => removeProjectPropertyTypeDraft(current, currentSelectedTypeId));
   }
 
   function applyDrafts(): void {
-    const validation = validatePropertyTypes(draftPropertyTypes, t);
+    const resolution = resolveProjectPropertyTypesApplyResult({
+      state: editorState,
+      t
+    });
+    setEditorState(resolution.nextState);
 
-    if (validation.error) {
-      setValidationError(validation.error);
+    if (!resolution.propertyTypes) {
       return;
     }
 
+    const nextPropertyTypes = resolution.propertyTypes;
     startTransition(() => {
-      props.store.replaceProjectPropertyTypes(validation.propertyTypes);
+      props.store.replaceProjectPropertyTypes(nextPropertyTypes);
     });
     props.onClose();
   }
@@ -709,14 +403,15 @@ export function ProjectPropertyTypesEditorDialog(props: {
                     <button
                       key={propertyType.id}
                       className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left transition ${
-                        propertyType.id === selectedTypeId
+                        propertyType.id === currentSelectedTypeId
                           ? "bg-blue-600/40 text-slate-50"
                           : "text-slate-200 hover:bg-slate-800"
                       }`}
                       type="button"
                       onClick={() => {
-                        setSelectedTypeId(propertyType.id);
-                        setValidationError(null);
+                        setEditorState((current) =>
+                          selectProjectPropertyTypesEditorType(current, propertyType.id)
+                        );
                       }}
                     >
                       <span className="min-w-0 truncate">{propertyType.name}</span>
@@ -745,11 +440,8 @@ export function ProjectPropertyTypesEditorDialog(props: {
                     <DialogTextInput
                       value={selectedType.name}
                       onChange={(value) => {
-                        setDraftPropertyTypes((current) =>
-                          updatePropertyTypeDraft(current, selectedType.id, (propertyType) => ({
-                            ...propertyType,
-                            name: value
-                          }))
+                        updateDrafts((current) =>
+                          updateProjectPropertyTypeNameDraft(current, selectedType.id, value)
                         );
                       }}
                     />
@@ -778,11 +470,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                           ]}
                           value={selectedEnumType.storageType}
                           onChange={(value) => {
-                            setDraftPropertyTypes((current) =>
-                              updatePropertyTypeDraft(current, selectedEnumType.id, (propertyType) => ({
-                                ...propertyType,
-                                storageType: value as "string" | "int"
-                              }))
+                            updateDrafts((current) =>
+                              updateProjectEnumStorageTypeDraft(
+                                current,
+                                selectedEnumType.id,
+                                value as "string" | "int"
+                              )
                             );
                           }}
                         />
@@ -796,11 +489,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                             checked={selectedEnumType.valuesAsFlags}
                             label={t("propertyTypesEditor.valuesAsFlags")}
                             onChange={(checked) => {
-                              setDraftPropertyTypes((current) =>
-                                updatePropertyTypeDraft(current, selectedEnumType.id, (propertyType) => ({
-                                  ...propertyType,
-                                  valuesAsFlags: checked
-                                }))
+                              updateDrafts((current) =>
+                                updateProjectEnumValuesAsFlagsDraft(
+                                  current,
+                                  selectedEnumType.id,
+                                  checked
+                                )
                               );
                             }}
                           />
@@ -817,24 +511,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                           className="h-8 border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 transition hover:bg-slate-700"
                           type="button"
                           onClick={() => {
-                            setDraftPropertyTypes((current) =>
-                              updatePropertyTypeDraft(current, selectedEnumType.id, (propertyType) => {
-                                const enumPropertyType = propertyType as Extract<
-                                  PropertyTypeDefinition,
-                                  { kind: "enum" }
-                                >;
-
-                                return {
-                                  ...enumPropertyType,
-                                  values: [
-                                    ...enumPropertyType.values,
-                                    createIndexedName(
-                                      t("propertyTypesEditor.defaultValueName"),
-                                      enumPropertyType.values.length + 1
-                                    )
-                                  ]
-                                };
-                              })
+                            updateDrafts((current) =>
+                              appendProjectEnumPropertyTypeValueDraft(
+                                current,
+                                selectedEnumType.id,
+                                t("propertyTypesEditor.defaultValueName")
+                              )
                             );
                           }}
                         >
@@ -851,23 +533,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                               <DialogTextInput
                                 value={value}
                                 onChange={(nextValue) => {
-                                  setDraftPropertyTypes((current) =>
-                                    updatePropertyTypeDraft(
+                                  updateDrafts((current) =>
+                                    updateProjectEnumPropertyTypeValueDraft(
                                       current,
                                       selectedEnumType.id,
-                                      (propertyType) => {
-                                        const enumPropertyType = propertyType as Extract<
-                                          PropertyTypeDefinition,
-                                          { kind: "enum" }
-                                        >;
-
-                                        return {
-                                          ...enumPropertyType,
-                                          values: enumPropertyType.values.map((entry, index) =>
-                                          index === valueIndex ? nextValue : entry
-                                          )
-                                        };
-                                      }
+                                      valueIndex,
+                                      nextValue
                                     )
                                   );
                                 }}
@@ -876,23 +547,11 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                 className="h-8 border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 transition hover:bg-slate-700"
                                 type="button"
                                 onClick={() => {
-                                  setDraftPropertyTypes((current) =>
-                                    updatePropertyTypeDraft(
+                                  updateDrafts((current) =>
+                                    removeProjectEnumPropertyTypeValueDraft(
                                       current,
                                       selectedEnumType.id,
-                                      (propertyType) => {
-                                        const enumPropertyType = propertyType as Extract<
-                                          PropertyTypeDefinition,
-                                          { kind: "enum" }
-                                        >;
-
-                                        return {
-                                          ...enumPropertyType,
-                                          values: enumPropertyType.values.filter(
-                                            (_entry, index) => index !== valueIndex
-                                          )
-                                        };
-                                      }
+                                      valueIndex
                                     )
                                   );
                                 }}
@@ -919,11 +578,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                         <DialogTextInput
                           value={selectedClassType.color ?? ""}
                           onChange={(value) => {
-                            setDraftPropertyTypes((current) =>
-                              updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) => ({
-                                ...propertyType,
-                                color: value
-                              }))
+                            updateDrafts((current) =>
+                              updateProjectClassPropertyTypeColorDraft(
+                                current,
+                                selectedClassType.id,
+                                value
+                              )
                             );
                           }}
                         />
@@ -937,11 +597,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                             checked={selectedClassType.drawFill ?? false}
                             label={t("propertyTypesEditor.drawFill")}
                             onChange={(checked) => {
-                              setDraftPropertyTypes((current) =>
-                                updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) => ({
-                                  ...propertyType,
-                                  drawFill: checked
-                                }))
+                              updateDrafts((current) =>
+                                updateProjectClassPropertyTypeDrawFillDraft(
+                                  current,
+                                  selectedClassType.id,
+                                  checked
+                                )
                               );
                             }}
                           />
@@ -954,7 +615,7 @@ export function ProjectPropertyTypesEditorDialog(props: {
                         {t("propertyTypesEditor.usage")}
                       </h3>
                       <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
-                        {CLASS_USE_AS_OPTIONS.map((useAs) => (
+                        {classPropertyTypeUseAsOptions.map((useAs) => (
                           <div
                             key={useAs}
                             className="rounded border border-slate-700 bg-slate-950/60 px-3 py-2"
@@ -963,20 +624,13 @@ export function ProjectPropertyTypesEditorDialog(props: {
                               checked={selectedClassType.useAs.includes(useAs)}
                               label={getPropertyTypeUseAsLabel(useAs, t)}
                               onChange={(checked) => {
-                                setDraftPropertyTypes((current) =>
-                                  updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) => {
-                                    const classPropertyType = propertyType as Extract<
-                                      PropertyTypeDefinition,
-                                      { kind: "class" }
-                                    >;
-
-                                    return {
-                                      ...classPropertyType,
-                                      useAs: checked
-                                        ? [...classPropertyType.useAs, useAs]
-                                        : classPropertyType.useAs.filter((entry) => entry !== useAs)
-                                    };
-                                  })
+                                updateDrafts((current) =>
+                                  toggleProjectClassPropertyTypeUseAsDraft(
+                                    current,
+                                    selectedClassType.id,
+                                    useAs,
+                                    checked
+                                  )
                                 );
                               }}
                             />
@@ -994,32 +648,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                           className="h-8 border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 transition hover:bg-slate-700"
                           type="button"
                           onClick={() => {
-                            const defaultValueType: PropertyTypeName = "string";
-                            setDraftPropertyTypes((current) =>
-                              updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) => {
-                                const classPropertyType = propertyType as Extract<
-                                  PropertyTypeDefinition,
-                                  { kind: "class" }
-                                >;
-
-                                return {
-                                  ...classPropertyType,
-                                  fields: [
-                                    ...classPropertyType.fields,
-                                  {
-                                    name: createIndexedName(
-                                      t("propertyTypesEditor.defaultFieldName"),
-                                      classPropertyType.fields.length + 1
-                                    ),
-                                    valueType: defaultValueType,
-                                    defaultValue: createDefaultPropertyValue(
-                                      defaultValueType,
-                                      undefined,
-                                      current
-                                    )
-                                  }
-                                  ]
-                                };
+                            updateDrafts((current) =>
+                              appendProjectClassPropertyFieldDraft({
+                                drafts: current,
+                                propertyTypeId: selectedClassType.id,
+                                defaultFieldName: t("propertyTypesEditor.defaultFieldName"),
+                                defaultValueType: "string"
                               })
                             );
                           }}
@@ -1042,20 +676,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                   className="h-8 border border-slate-600 bg-slate-800 px-3 text-sm text-slate-100 transition hover:bg-slate-700"
                                   type="button"
                                   onClick={() => {
-                                    setDraftPropertyTypes((current) =>
-                                      updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) => {
-                                        const classPropertyType = propertyType as Extract<
-                                          PropertyTypeDefinition,
-                                          { kind: "class" }
-                                        >;
-
-                                        return {
-                                          ...classPropertyType,
-                                          fields: classPropertyType.fields.filter(
-                                            (_field, index) => index !== fieldIndex
-                                          )
-                                        };
-                                      })
+                                    updateDrafts((current) =>
+                                      removeProjectClassPropertyFieldDraft(
+                                        current,
+                                        selectedClassType.id,
+                                        fieldIndex
+                                      )
                                     );
                                   }}
                                 >
@@ -1071,16 +697,12 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                   <DialogTextInput
                                     value={field.name}
                                     onChange={(value) => {
-                                      setDraftPropertyTypes((current) =>
-                                        updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) =>
-                                          updateClassFieldDraft(
-                                            propertyType as ClassPropertyTypeDefinition,
-                                            fieldIndex,
-                                            (entry) => ({
-                                              ...entry,
-                                              name: value
-                                            })
-                                          )
+                                      updateDrafts((current) =>
+                                        updateProjectClassPropertyFieldNameDraft(
+                                          current,
+                                          selectedClassType.id,
+                                          fieldIndex,
+                                          value
                                         )
                                       );
                                     }}
@@ -1092,39 +714,19 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                     {t("common.type")}
                                   </span>
                                   <DialogSelect
-                                    options={PROPERTY_VALUE_TYPE_OPTIONS.map((valueType) => ({
+                                    options={propertyTypeValueOptions.map((valueType) => ({
                                       value: valueType,
                                       label: getPropertyTypeLabel(valueType, t)
                                     }))}
                                     value={field.valueType}
                                     onChange={(value) => {
-                                      const nextValueType = value as PropertyTypeName;
-                                      const nextPropertyTypeName =
-                                        nextValueType === "enum"
-                                          ? enumOptions[0]?.value
-                                          : nextValueType === "class"
-                                            ? classOptions[0]?.value
-                                            : undefined;
-                                      setDraftPropertyTypes((current) =>
-                                        updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) =>
-                                          updateClassFieldDraft(
-                                            propertyType as ClassPropertyTypeDefinition,
-                                            fieldIndex,
-                                            (entry) =>
-                                              withOptionalPropertyTypeName(
-                                                {
-                                                  ...entry,
-                                                  valueType: nextValueType,
-                                                  defaultValue: createDefaultPropertyValue(
-                                                    nextValueType,
-                                                    nextPropertyTypeName,
-                                                    current
-                                                  )
-                                                },
-                                                nextPropertyTypeName
-                                              )
-                                          )
-                                        )
+                                      updateDrafts((current) =>
+                                        updateProjectClassPropertyFieldValueTypeDraft({
+                                          drafts: current,
+                                          propertyTypeId: selectedClassType.id,
+                                          fieldIndex,
+                                          nextValueType: value as PropertyTypeName
+                                        })
                                       );
                                     }}
                                   />
@@ -1142,22 +744,13 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                     }
                                     value={field.propertyTypeName ?? ""}
                                     onChange={(value) => {
-                                      setDraftPropertyTypes((current) =>
-                                        updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) =>
-                                          updateClassFieldDraft(
-                                            propertyType as ClassPropertyTypeDefinition,
-                                            fieldIndex,
-                                            (entry) => ({
-                                              ...entry,
-                                              propertyTypeName: value,
-                                              defaultValue: createDefaultPropertyValue(
-                                                entry.valueType,
-                                                value,
-                                                current
-                                              )
-                                            })
-                                          )
-                                        )
+                                      updateDrafts((current) =>
+                                        updateProjectClassPropertyFieldReferenceTypeDraft({
+                                          drafts: current,
+                                          propertyTypeId: selectedClassType.id,
+                                          fieldIndex,
+                                          propertyTypeName: value || undefined
+                                        })
                                       );
                                     }}
                                   />
@@ -1176,17 +769,13 @@ export function ProjectPropertyTypesEditorDialog(props: {
                                     ? { propertyTypeName: field.propertyTypeName }
                                     : {})}
                                   onChange={(value) => {
-                                    setDraftPropertyTypes((current) =>
-                                      updatePropertyTypeDraft(current, selectedClassType.id, (propertyType) =>
-                                        updateClassFieldDraft(
-                                          propertyType as ClassPropertyTypeDefinition,
-                                          fieldIndex,
-                                          (entry) => ({
-                                            ...entry,
-                                            defaultValue: clonePropertyValue(value)
-                                          })
-                                        )
-                                      )
+                                    updateDrafts((current) =>
+                                      updateProjectClassPropertyFieldDefaultValueDraft({
+                                        drafts: current,
+                                        propertyTypeId: selectedClassType.id,
+                                        fieldIndex,
+                                        defaultValue: value
+                                      })
                                     );
                                   }}
                                 />
@@ -1213,7 +802,7 @@ export function ProjectPropertyTypesEditorDialog(props: {
 
         <div className="flex items-center justify-between gap-3 border-t border-slate-700 px-4 py-3">
           <div className="min-h-[20px] text-sm text-rose-300">
-            {validationError ?? ""}
+            {editorState.validationError ?? ""}
           </div>
           <div className="flex items-center gap-3">
             <button

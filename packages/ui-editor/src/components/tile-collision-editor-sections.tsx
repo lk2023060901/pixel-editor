@@ -1,6 +1,13 @@
 "use client";
 
-import type { TileCollisionEditorViewState } from "@pixel-editor/app-services/ui";
+import type {
+  TileCollisionEditorObject as CollisionObject,
+  TileCollisionEditorObjectId as CollisionObjectId,
+  TileCollisionEditorViewState,
+  TileCollisionNumericField as CollisionNumericField,
+  TileCollisionObjectDraft as CollisionObjectDraft,
+  TileCollisionObjectShape as CollisionObjectShape
+} from "@pixel-editor/app-services/ui";
 import type { TileCollisionEditorStore } from "@pixel-editor/app-services/ui-store";
 import type { Dispatch, SetStateAction } from "react";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -14,14 +21,7 @@ import {
   PropertyBrowserTextareaRow,
   PropertyBrowserTextRow
 } from "./property-browser";
-import type {
-  CollisionNumericField,
-  CollisionObject,
-  CollisionObjectDraft,
-  CollisionObjectId,
-  CollisionObjectShape,
-  UpsertSelectedCollisionObjectProperty
-} from "./use-tile-collision-editor-state";
+import type { UpsertSelectedCollisionObjectProperty } from "./use-tile-collision-editor-state";
 
 const collisionObjectShapes: CollisionObjectShape[] = [
   "rectangle",

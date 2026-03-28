@@ -1,15 +1,15 @@
 "use client";
 
-import type { TilesetsPanelViewState } from "@pixel-editor/app-services/ui";
+import {
+  getTileViewZoomOptionItems,
+  type TilesetsPanelViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 import type { ReactNode } from "react";
 
 import { getTilesetKindLabel } from "./i18n-helpers";
 import { TilePreview } from "./tile-preview";
-import {
-  buildTileVisualStyle,
-  TILESET_VIEW_ZOOM_OPTIONS
-} from "./tileset-view-helpers";
+import { buildTileVisualStyle } from "./tileset-view-helpers";
 
 type TilesetListItem = TilesetsPanelViewState["availableTilesets"][number];
 type TileEntry = TilesetsPanelViewState["activeTileEntries"][number];
@@ -280,6 +280,7 @@ export function TilesetsDockToolbar(props: {
   onOpenTerrainSets?: (() => void) | undefined;
 }) {
   const { t } = useI18n();
+  const zoomOptions = getTileViewZoomOptionItems();
 
   return (
     <div className="flex items-center gap-1 border-t border-slate-700 bg-slate-800 px-2 py-1">
@@ -379,9 +380,9 @@ export function TilesetsDockToolbar(props: {
           props.setZoom(Number(event.target.value));
         }}
       >
-        {TILESET_VIEW_ZOOM_OPTIONS.map((option) => (
-          <option key={option} value={option}>
-            {Math.round(option * 100)} %
+        {zoomOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>

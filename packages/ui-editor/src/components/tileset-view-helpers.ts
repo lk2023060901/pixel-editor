@@ -4,8 +4,6 @@ import type { CSSProperties } from "react";
 
 import type { TileVisualViewState } from "@pixel-editor/app-services/ui";
 
-export const TILESET_VIEW_ZOOM_OPTIONS = [0.5, 1, 2, 4] as const;
-
 export function buildTileVisualStyle(
   viewState: TileVisualViewState,
   zoom: number

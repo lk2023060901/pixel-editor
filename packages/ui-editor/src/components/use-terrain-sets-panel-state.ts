@@ -1,13 +1,15 @@
 "use client";
 
-import type {
-  TerrainSetsPanelViewState,
-  TerrainSetsPanelWangSetItemViewState
+import {
+  deriveTerrainSetsPanelSelection,
+  resolveTerrainSetsRemovedWangSetFallbackId,
+  type TerrainSetsPanelViewState,
+  type TerrainSetsPanelWangSetId as WangSetId,
+  type TerrainSetsPanelWangSetItemViewState
 } from "@pixel-editor/app-services/ui";
 import type { TerrainSetsPanelStore } from "@pixel-editor/app-services/ui-store";
 import { startTransition, useEffect, useState } from "react";
 
-type WangSetId = TerrainSetsPanelWangSetItemViewState["id"];
 type WangSetType = TerrainSetsPanelWangSetItemViewState["type"];
 
 export function useTerrainSetsPanelState(props: {
@@ -15,33 +17,27 @@ export function useTerrainSetsPanelState(props: {
   viewState: TerrainSetsPanelViewState;
 }) {
   const [selectedWangSetId, setSelectedWangSetId] = useState<WangSetId | undefined>();
-  const activeTileset =
-    props.viewState.availableTilesets.find((tileset) => tileset.isActive) ??
-    props.viewState.availableTilesets[0];
-  const selectedWangSet =
-    props.viewState.wangSets.find((wangSet) => wangSet.id === selectedWangSetId) ??
-    props.viewState.wangSets[0];
+  const selection = deriveTerrainSetsPanelSelection({
+    availableTilesets: props.viewState.availableTilesets,
+    wangSets: props.viewState.wangSets,
+    selectedWangSetId
+  });
+  const activeTileset = selection.activeTileset;
+  const currentSelectedWangSetId = selection.selectedWangSetId;
+  const selectedWangSet = selection.selectedWangSet;
 
   useEffect(() => {
-    if (!activeTileset) {
-      setSelectedWangSetId(undefined);
+    if (currentSelectedWangSetId === selectedWangSetId) {
       return;
     }
 
-    if (
-      selectedWangSetId &&
-      props.viewState.wangSets.some((wangSet) => wangSet.id === selectedWangSetId)
-    ) {
-      return;
-    }
-
-    setSelectedWangSetId(props.viewState.wangSets[0]?.id);
-  }, [activeTileset, props.viewState.wangSets, selectedWangSetId]);
+    setSelectedWangSetId(currentSelectedWangSetId);
+  }, [currentSelectedWangSetId, selectedWangSetId]);
 
   return {
     activeTileset,
     selectedWangSet,
-    selectedWangSetId,
+    selectedWangSetId: currentSelectedWangSetId,
     actions: {
       activateTileset: (tilesetId: string) => {
         startTransition(() => {
@@ -81,12 +77,10 @@ export function useTerrainSetsPanelState(props: {
           return;
         }
 
-        const nextIndex =
-          props.viewState.wangSets.findIndex((wangSet) => wangSet.id === selectedWangSet.id) ?? -1;
-        const fallbackId =
-          nextIndex > 0
-            ? props.viewState.wangSets[nextIndex - 1]?.id
-            : props.viewState.wangSets[1]?.id;
+        const fallbackId = resolveTerrainSetsRemovedWangSetFallbackId({
+          wangSets: props.viewState.wangSets,
+          selectedWangSetId: selectedWangSet.id
+        });
 
         startTransition(() => {
           props.store.removeActiveTilesetWangSet(selectedWangSet.id);

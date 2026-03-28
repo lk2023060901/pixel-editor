@@ -1,7 +1,9 @@
 "use client";
 
-import type {
-  ObjectsPanelViewState
+import {
+  deriveObjectsPanelActionAvailability,
+  type ObjectsPanelActionAvailability,
+  type ObjectsPanelViewState
 } from "@pixel-editor/app-services/ui";
 import type { ObjectsPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -28,13 +30,10 @@ export interface ObjectsPanelProps {
 
 function ObjectsPanelContent({
   viewState,
-  store,
-  onDetachTemplateInstances,
-  onReplaceWithTemplate,
-  onResetTemplateInstances,
-  onSaveAsTemplate,
+  actionAvailability,
   state
 }: Omit<ObjectsPanelProps, "embedded"> & {
+  actionAvailability: ObjectsPanelActionAvailability;
   state: ReturnType<typeof useObjectsPanelState>;
 }) {
   const { t } = useI18n();
@@ -45,11 +44,7 @@ function ObjectsPanelContent({
   return (
     <>
       <ObjectsPanelActionGroups
-        activeTemplateName={viewState.activeTemplateName}
-        hasActiveLayer={viewState.hasActiveLayer}
-        hasObjectClipboard={viewState.hasObjectClipboard}
-        hasObjectSelection={viewState.hasObjectSelection}
-        hasTemplateInstanceSelection={viewState.hasTemplateInstanceSelection}
+        actionAvailability={actionAvailability}
         onCopy={state.actions.copySelectedObjectsToClipboard}
         onCreateRectangle={state.actions.createRectangleObject}
         onCut={state.actions.cutSelectedObjectsToClipboard}
@@ -59,10 +54,6 @@ function ObjectsPanelContent({
         onReplaceWithTemplate={state.actions.openReplaceWithTemplate}
         onResetTemplateInstances={state.actions.openResetTemplateInstances}
         onSaveAsTemplate={state.actions.openSaveAsTemplate}
-        saveAsTemplateEnabled={Boolean(onSaveAsTemplate)}
-        replaceWithTemplateEnabled={Boolean(onReplaceWithTemplate)}
-        resetTemplateInstancesEnabled={Boolean(onResetTemplateInstances)}
-        detachTemplateInstancesEnabled={Boolean(onDetachTemplateInstances)}
       />
 
       <ObjectsClipboardCard clipboardSummary={clipboardSummary} />
@@ -78,16 +69,12 @@ function ObjectsPanelContent({
 
 function ObjectsDockContent({
   viewState,
-  store,
-  onDetachTemplateInstances,
-  onReplaceWithTemplate,
-  onResetTemplateInstances,
-  onSaveAsTemplate,
+  actionAvailability,
   state
 }: Omit<ObjectsPanelProps, "embedded"> & {
+  actionAvailability: ObjectsPanelActionAvailability;
   state: ReturnType<typeof useObjectsPanelState>;
 }) {
-
   return (
     <div className="flex h-full min-h-0 flex-col">
       <ObjectsDockFilterBar
@@ -102,11 +89,7 @@ function ObjectsDockContent({
       />
 
       <ObjectsDockActionBar
-        activeTemplateName={viewState.activeTemplateName}
-        hasActiveLayer={viewState.hasActiveLayer}
-        hasObjectClipboard={viewState.hasObjectClipboard}
-        hasObjectSelection={viewState.hasObjectSelection}
-        hasTemplateInstanceSelection={viewState.hasTemplateInstanceSelection}
+        actionAvailability={actionAvailability}
         onCopy={state.actions.copySelectedObjectsToClipboard}
         onCreateRectangle={state.actions.createRectangleObject}
         onCut={state.actions.cutSelectedObjectsToClipboard}
@@ -116,10 +99,6 @@ function ObjectsDockContent({
         onReplaceWithTemplate={state.actions.openReplaceWithTemplate}
         onResetTemplateInstances={state.actions.openResetTemplateInstances}
         onSaveAsTemplate={state.actions.openSaveAsTemplate}
-        saveAsTemplateEnabled={Boolean(onSaveAsTemplate)}
-        replaceWithTemplateEnabled={Boolean(onReplaceWithTemplate)}
-        resetTemplateInstancesEnabled={Boolean(onResetTemplateInstances)}
-        detachTemplateInstancesEnabled={Boolean(onDetachTemplateInstances)}
       />
     </div>
   );
@@ -131,9 +110,20 @@ export function ObjectsPanel({
 }: ObjectsPanelProps) {
   const { t } = useI18n();
   const state = useObjectsPanelState(props);
+  const actionAvailability = deriveObjectsPanelActionAvailability({
+    activeTemplateName: props.viewState.activeTemplateName,
+    hasActiveLayer: props.viewState.hasActiveLayer,
+    hasObjectClipboard: props.viewState.hasObjectClipboard,
+    hasObjectSelection: props.viewState.hasObjectSelection,
+    hasTemplateInstanceSelection: props.viewState.hasTemplateInstanceSelection,
+    saveAsTemplateEnabled: Boolean(props.onSaveAsTemplate),
+    replaceWithTemplateEnabled: Boolean(props.onReplaceWithTemplate),
+    resetTemplateInstancesEnabled: Boolean(props.onResetTemplateInstances),
+    detachTemplateInstancesEnabled: Boolean(props.onDetachTemplateInstances)
+  });
   const content = embedded
-    ? <ObjectsDockContent {...props} state={state} />
-    : <ObjectsPanelContent {...props} state={state} />;
+    ? <ObjectsDockContent {...props} actionAvailability={actionAvailability} state={state} />
+    : <ObjectsPanelContent {...props} actionAvailability={actionAvailability} state={state} />;
 
   if (embedded) {
     return content;

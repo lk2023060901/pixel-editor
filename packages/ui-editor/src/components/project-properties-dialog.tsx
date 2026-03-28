@@ -1,58 +1,17 @@
 "use client";
 
-import type { EditorShellDialogsViewState } from "@pixel-editor/app-services/ui-shell";
+import type {
+  EditorShellDialogsViewState,
+  ProjectPropertiesDraft
+} from "@pixel-editor/app-services/ui-shell";
+import {
+  buildProjectPropertiesUpdatePatch,
+  createProjectPropertiesDraft,
+  projectCompatibilityVersionOptions
+} from "@pixel-editor/app-services/ui-shell";
 import type { ProjectPropertiesDialogStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, type ReactNode, useEffect, useRef, useState } from "react";
-
-interface ProjectPropertiesDraft {
-  compatibilityVersion: string;
-  extensionsDirectory: string;
-  automappingRulesFile: string;
-  embedTilesets: boolean;
-  detachTemplateInstances: boolean;
-  resolveObjectTypesAndProperties: boolean;
-  exportMinimized: boolean;
-}
-
-const COMPATIBILITY_VERSION_OPTIONS = [
-  {
-    value: "1.8",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.v1_8"
-  },
-  {
-    value: "1.9",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.v1_9"
-  },
-  {
-    value: "1.10",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.v1_10"
-  },
-  {
-    value: "1.11",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.v1_11"
-  },
-  {
-    value: "1.12",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.v1_12"
-  },
-  {
-    value: "latest",
-    labelKey: "projectPropertiesDialog.compatibilityVersion.latest"
-  }
-] as const;
-
-function createDraftFromProject(project: EditorShellDialogsViewState["project"]): ProjectPropertiesDraft {
-  return {
-    compatibilityVersion: project.compatibilityVersion,
-    extensionsDirectory: project.extensionsDirectory,
-    automappingRulesFile: project.automappingRulesFile ?? "",
-    embedTilesets: project.exportOptions.embedTilesets,
-    detachTemplateInstances: project.exportOptions.detachTemplateInstances,
-    resolveObjectTypesAndProperties: project.exportOptions.resolveObjectTypesAndProperties,
-    exportMinimized: project.exportOptions.exportMinimized
-  };
-}
 
 function Section(props: { title: string; children: ReactNode }) {
   return (
@@ -86,7 +45,7 @@ export function ProjectPropertiesDialog(props: {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
   const [draft, setDraft] = useState<ProjectPropertiesDraft>(() =>
-    createDraftFromProject(props.project)
+    createProjectPropertiesDraft(props.project)
   );
 
   useEffect(() => {
@@ -94,27 +53,12 @@ export function ProjectPropertiesDialog(props: {
   }, []);
 
   useEffect(() => {
-    setDraft(createDraftFromProject(props.project));
+    setDraft(createProjectPropertiesDraft(props.project));
   }, [props.project]);
 
   function applyChanges(): void {
-    const extensionsDirectory = draft.extensionsDirectory.trim();
-    const automappingRulesFile = draft.automappingRulesFile.trim();
-
     startTransition(() => {
-      props.store.updateProjectDetails({
-        compatibilityVersion: draft.compatibilityVersion,
-        extensionsDirectory:
-          extensionsDirectory.length > 0 ? extensionsDirectory : "extensions",
-        automappingRulesFile:
-          automappingRulesFile.length > 0 ? automappingRulesFile : null,
-        exportOptions: {
-          embedTilesets: draft.embedTilesets,
-          detachTemplateInstances: draft.detachTemplateInstances,
-          resolveObjectTypesAndProperties: draft.resolveObjectTypesAndProperties,
-          exportMinimized: draft.exportMinimized
-        }
-      });
+      props.store.updateProjectDetails(buildProjectPropertiesUpdatePatch(draft));
     });
   }
 
@@ -154,7 +98,7 @@ export function ProjectPropertiesDialog(props: {
                     }));
                   }}
                 >
-                  {COMPATIBILITY_VERSION_OPTIONS.map((option) => (
+                  {projectCompatibilityVersionOptions.map((option) => (
                     <option key={option.value} value={option.value}>
                       {t(option.labelKey)}
                     </option>

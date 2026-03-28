@@ -1,7 +1,12 @@
 "use client";
 
 import type {
+  TileMetadataDraft,
   TilePropertiesEditorViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  createTileMetadataDraft,
+  resolveTileMetadataDraftCommit
 } from "@pixel-editor/app-services/ui";
 import type { TilePropertiesEditorStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -22,13 +27,13 @@ export function TilePropertiesEditor(props: {
   const { t } = useI18n();
   const selectedTile = props.viewState.tile;
   const selectedLocalId = selectedTile?.localId ?? null;
-  const [className, setClassName] = useState(selectedTile?.className ?? "");
-  const [probability, setProbability] = useState(String(selectedTile?.probability ?? 1));
+  const [draft, setDraft] = useState<TileMetadataDraft>(() =>
+    createTileMetadataDraft(selectedTile)
+  );
 
   useEffect(() => {
-    setClassName(selectedTile?.className ?? "");
-    setProbability(String(selectedTile?.probability ?? 1));
-  }, [selectedTile?.className, selectedTile?.probability, selectedLocalId]);
+    setDraft(createTileMetadataDraft(selectedTile));
+  }, [selectedTile, selectedLocalId]);
 
   if (selectedLocalId === null || !selectedTile) {
     return (
@@ -36,26 +41,29 @@ export function TilePropertiesEditor(props: {
     );
   }
 
-  const currentProbability = selectedTile.probability;
+  const activeTile = selectedTile;
 
   function commitTileMetadata(input?: {
     className?: string;
     probability?: string;
   }): void {
-    const nextClassName = input?.className ?? className;
-    const nextProbabilityText = input?.probability ?? probability;
-    const nextProbability = Number.parseFloat(nextProbabilityText);
+    const resolution = resolveTileMetadataDraftCommit({
+      draft: {
+        className: input?.className ?? draft.className,
+        probability: input?.probability ?? draft.probability
+      },
+      tile: activeTile
+    });
 
-    if (Number.isNaN(nextProbability) || nextProbability < 0) {
-      setProbability(String(currentProbability));
+    if (resolution.patch === undefined) {
+      setDraft(resolution.nextDraft);
       return;
     }
 
+    const patch = resolution.patch;
+
     startTransition(() => {
-      props.store.updateSelectedTileMetadata({
-        className: nextClassName.trim() || null,
-        probability: nextProbability
-      });
+      props.store.updateSelectedTileMetadata(patch);
     });
   }
 
@@ -66,20 +74,24 @@ export function TilePropertiesEditor(props: {
           <PropertyBrowserReadOnlyRow label={t("common.id")} value={String(selectedLocalId)} />
           <PropertyBrowserTextRow
             label={t("common.class")}
-            value={className}
+            value={draft.className}
             onCommit={() => {
               commitTileMetadata();
             }}
-            onChange={setClassName}
+            onChange={(className) => {
+              setDraft((current) => ({ ...current, className }));
+            }}
           />
           <PropertyBrowserTextRow
             label={t("common.probability")}
             type="number"
-            value={probability}
+            value={draft.probability}
             onCommit={() => {
               commitTileMetadata();
             }}
-            onChange={setProbability}
+            onChange={(probability) => {
+              setDraft((current) => ({ ...current, probability }));
+            }}
           />
           {selectedTile.imageSource ? (
             <PropertyBrowserReadOnlyRow

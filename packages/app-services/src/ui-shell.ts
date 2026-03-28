@@ -23,6 +23,12 @@ export {
   type EditorShellOverlaysState
 } from "./editor-shell-overlays";
 export {
+  buildProjectPropertiesUpdatePatch,
+  createProjectPropertiesDraft,
+  projectCompatibilityVersionOptions,
+  type ProjectPropertiesDraft
+} from "./project-properties-form";
+export {
   resolveEditorShellNewMenuOpen,
   resolveEditorShellOpenMenuId,
   resolveEditorShellSaveTemplateDialogOpen,
@@ -42,6 +48,15 @@ export {
   type EditorShellViewState,
   type ProjectDockActivationTarget
 } from "./ui-models";
+export {
+  createDefaultTemplatePath,
+  createSaveTemplateDraft,
+  defaultTemplateAssetName,
+  resolveDefaultTemplateName,
+  resolveSaveTemplateNameChange,
+  slugifyTemplateAssetName,
+  type SaveTemplateDraft
+} from "./save-template-form";
 export {
   createEditorShellActionPlan,
   createEditorShellSurfaceActionPlan,

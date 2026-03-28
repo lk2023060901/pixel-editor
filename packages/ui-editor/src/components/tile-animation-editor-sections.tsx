@@ -1,13 +1,13 @@
 "use client";
 
-import type { TileAnimationEditorViewState } from "@pixel-editor/app-services/ui";
+import {
+  getTileViewZoomOptionItems,
+  type TileAnimationEditorViewState
+} from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 
 import { TilePreview } from "./tile-preview";
-import {
-  buildTileVisualStyle,
-  TILESET_VIEW_ZOOM_OPTIONS
-} from "./tileset-view-helpers";
+import { buildTileVisualStyle } from "./tileset-view-helpers";
 
 type TileAnimationFrameViewState = TileAnimationEditorViewState["frames"][number];
 type TileAnimationSourceTileViewState = TileAnimationEditorViewState["sourceTiles"][number];
@@ -21,6 +21,7 @@ export function TileAnimationEditorHeader(props: {
   onZoomChange: (zoom: number) => void;
 }) {
   const { t } = useI18n();
+  const zoomOptions = getTileViewZoomOptionItems();
 
   return (
     <div className="flex items-center gap-3 border-b border-slate-700 px-4 py-2 text-sm">
@@ -59,9 +60,9 @@ export function TileAnimationEditorHeader(props: {
           props.onZoomChange(Number(event.target.value));
         }}
       >
-        {TILESET_VIEW_ZOOM_OPTIONS.map((option) => (
-          <option key={option} value={option}>
-            {Math.round(option * 100)} %
+        {zoomOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
           </option>
         ))}
       </select>

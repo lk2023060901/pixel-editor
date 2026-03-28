@@ -1,52 +1,21 @@
 "use client";
 
-import type { MapPropertiesPanelViewState } from "@pixel-editor/app-services/ui";
+import type {
+  MapPropertiesDraft,
+  MapPropertiesPanelViewState
+} from "@pixel-editor/app-services/ui";
+import {
+  buildMapPropertiesUpdatePatch,
+  createMapPropertiesDraft,
+  mapOrientationOptions,
+  mapRenderOrderOptions
+} from "@pixel-editor/app-services/ui";
 import type { MapPropertiesPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
 import { getOrientationLabel, getRenderOrderLabel } from "./i18n-helpers";
 import { Panel } from "./panel";
-
-interface MapDetailsDraft {
-  name: string;
-  orientation: MapPropertiesPanelViewState["orientation"];
-  renderOrder: MapPropertiesPanelViewState["renderOrder"];
-  width: string;
-  height: string;
-  tileWidth: string;
-  tileHeight: string;
-  infinite: boolean;
-  backgroundColor: string;
-}
-
-const orientationOptions: Array<MapPropertiesPanelViewState["orientation"]> = [
-  "orthogonal",
-  "isometric",
-  "staggered",
-  "hexagonal",
-  "oblique"
-];
-const renderOrderOptions: Array<MapPropertiesPanelViewState["renderOrder"]> = [
-  "right-down",
-  "right-up",
-  "left-down",
-  "left-up"
-];
-
-function createDraft(viewState?: MapPropertiesPanelViewState): MapDetailsDraft {
-  return {
-    name: viewState?.name ?? "",
-    orientation: viewState?.orientation ?? "orthogonal",
-    renderOrder: viewState?.renderOrder ?? "right-down",
-    width: String(viewState?.width ?? 64),
-    height: String(viewState?.height ?? 64),
-    tileWidth: String(viewState?.tileWidth ?? 32),
-    tileHeight: String(viewState?.tileHeight ?? 32),
-    infinite: viewState?.infinite ?? false,
-    backgroundColor: viewState?.backgroundColor ?? ""
-  };
-}
 
 function NumberField(props: {
   label: string;
@@ -84,10 +53,12 @@ function MapPropertiesPanelContent({
   compact = false
 }: Omit<MapPropertiesPanelProps, "embedded">) {
   const { t } = useI18n();
-  const [draft, setDraft] = useState(() => createDraft(viewState));
+  const [draft, setDraft] = useState<MapPropertiesDraft>(() =>
+    createMapPropertiesDraft(viewState)
+  );
 
   useEffect(() => {
-    setDraft(createDraft(viewState));
+    setDraft(createMapPropertiesDraft(viewState));
   }, [viewState]);
 
   if (!viewState) {
@@ -99,32 +70,17 @@ function MapPropertiesPanelContent({
       return;
     }
 
-    const width = Number.parseInt(draft.width, 10);
-    const height = Number.parseInt(draft.height, 10);
-    const tileWidth = Number.parseInt(draft.tileWidth, 10);
-    const tileHeight = Number.parseInt(draft.tileHeight, 10);
+    const nextPatch = buildMapPropertiesUpdatePatch({
+      draft,
+      viewState
+    });
 
-    if (
-      Number.isNaN(tileWidth) ||
-      Number.isNaN(tileHeight) ||
-      (!draft.infinite && (Number.isNaN(width) || Number.isNaN(height)))
-    ) {
+    if (nextPatch === undefined) {
       return;
     }
 
     startTransition(() => {
-      store.updateActiveMapDetails({
-        name: draft.name.trim() || viewState.name,
-        orientation: draft.orientation,
-        renderOrder: draft.renderOrder,
-        tileWidth,
-        tileHeight,
-        infinite: draft.infinite,
-        ...(draft.infinite ? {} : { width, height }),
-        ...(draft.backgroundColor.trim()
-          ? { backgroundColor: draft.backgroundColor.trim() }
-          : {})
-      });
+      store.updateActiveMapDetails(nextPatch);
     });
   }
 
@@ -159,7 +115,7 @@ function MapPropertiesPanelContent({
                 }));
               }}
             >
-              {orientationOptions.map((orientation) => (
+              {mapOrientationOptions.map((orientation) => (
                 <option key={orientation} value={orientation}>
                   {getOrientationLabel(orientation, t)}
                 </option>
@@ -178,7 +134,7 @@ function MapPropertiesPanelContent({
                 }));
               }}
             >
-              {renderOrderOptions.map((renderOrder) => (
+              {mapRenderOrderOptions.map((renderOrder) => (
                 <option key={renderOrder} value={renderOrder}>
                   {getRenderOrderLabel(renderOrder, t)}
                 </option>
@@ -311,7 +267,7 @@ function MapPropertiesPanelContent({
               }));
             }}
           >
-            {orientationOptions.map((orientation) => (
+            {mapOrientationOptions.map((orientation) => (
               <option key={orientation} value={orientation}>
                 {getOrientationLabel(orientation, t)}
               </option>
@@ -334,7 +290,7 @@ function MapPropertiesPanelContent({
               }));
             }}
           >
-            {renderOrderOptions.map((renderOrder) => (
+            {mapRenderOrderOptions.map((renderOrder) => (
               <option key={renderOrder} value={renderOrder}>
                 {getRenderOrderLabel(renderOrder, t)}
               </option>

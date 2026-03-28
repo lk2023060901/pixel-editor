@@ -9,7 +9,7 @@ import {
   type PropertyDefinition,
   type PropertyTypeDefinition,
   type PropertyValue
-} from "@pixel-editor/app-services/ui-custom-properties";
+} from "@pixel-editor/domain";
 
 export type EditablePropertyType = Exclude<PrimitivePropertyType, "object">;
 export type DraftTypeValue = EditablePropertyType | "enum" | "class" | "object";
@@ -25,13 +25,13 @@ export interface PropertyDraft {
 
 export function getEnumPropertyTypes(
   propertyTypes: readonly PropertyTypeDefinition[]
-) {
+): PropertyTypeDefinition[] {
   return propertyTypes.filter((propertyType) => propertyType.kind === "enum");
 }
 
 export function getClassPropertyTypes(
   propertyTypes: readonly PropertyTypeDefinition[]
-) {
+): PropertyTypeDefinition[] {
   return propertyTypes.filter((propertyType) => propertyType.kind === "class");
 }
 
@@ -183,7 +183,7 @@ export function createPropertyDraft(
   };
 }
 
-export function parseDraft(
+export function parsePropertyDraft(
   draft: PropertyDraft,
   propertyTypes: readonly PropertyTypeDefinition[]
 ): PropertyDefinition | undefined {

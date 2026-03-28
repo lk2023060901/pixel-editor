@@ -1,22 +1,12 @@
 "use client";
 
+import {
+  createSaveTemplateDraft,
+  resolveSaveTemplateNameChange
+} from "@pixel-editor/app-services/ui-shell";
 import type { SaveTemplateDialogStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
-
-function slugifyTemplateName(value: string): string {
-  const normalized = value
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "");
-
-  return normalized || "template";
-}
-
-function createDefaultTemplatePath(name: string): string {
-  return `templates/${slugifyTemplateName(name)}.tx`;
-}
 
 export function SaveTemplateDialog(props: {
   objectName: string;
@@ -25,21 +15,18 @@ export function SaveTemplateDialog(props: {
 }) {
   const { t } = useI18n();
   const dialogRef = useRef<HTMLDivElement | null>(null);
-  const defaultTemplateName = useMemo(
-    () => props.objectName.trim() || "template",
-    [props.objectName]
-  );
-  const [templateName, setTemplateName] = useState(defaultTemplateName);
-  const [templatePath, setTemplatePath] = useState(createDefaultTemplatePath(defaultTemplateName));
+  const defaultDraft = useMemo(() => createSaveTemplateDraft(props.objectName), [props.objectName]);
+  const [templateName, setTemplateName] = useState(defaultDraft.templateName);
+  const [templatePath, setTemplatePath] = useState(defaultDraft.templatePath);
 
   useEffect(() => {
     dialogRef.current?.focus();
   }, []);
 
   useEffect(() => {
-    setTemplateName(defaultTemplateName);
-    setTemplatePath(createDefaultTemplatePath(defaultTemplateName));
-  }, [defaultTemplateName]);
+    setTemplateName(defaultDraft.templateName);
+    setTemplatePath(defaultDraft.templatePath);
+  }, [defaultDraft]);
 
   function submit(): void {
     const templateId = props.store.createTemplateFromSelectedObject({
@@ -95,17 +82,14 @@ export function SaveTemplateDialog(props: {
               value={templateName}
               onChange={(event) => {
                 const nextName = event.target.value;
-
-                setTemplateName(nextName);
-                setTemplatePath((currentPath) => {
-                  const defaultPath = createDefaultTemplatePath(templateName);
-
-                  if (currentPath !== defaultPath) {
-                    return currentPath;
-                  }
-
-                  return createDefaultTemplatePath(nextName);
+                const nextDraft = resolveSaveTemplateNameChange({
+                  currentTemplateName: templateName,
+                  currentTemplatePath: templatePath,
+                  nextTemplateName: nextName
                 });
+
+                setTemplateName(nextDraft.templateName);
+                setTemplatePath(nextDraft.templatePath);
               }}
             />
           </label>

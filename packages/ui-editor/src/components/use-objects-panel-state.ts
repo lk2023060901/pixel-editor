@@ -1,6 +1,9 @@
 "use client";
 
-import type { ObjectsPanelViewState } from "@pixel-editor/app-services/ui";
+import {
+  deriveFilteredObjectsPanelItems,
+  type ObjectsPanelViewState
+} from "@pixel-editor/app-services/ui";
 import type { ObjectsPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useMemo, useState } from "react";
@@ -18,17 +21,10 @@ export function useObjectsPanelState(props: {
   const { t } = useI18n();
   const [filterText, setFilterText] = useState("");
   const filteredObjects = useMemo(() => {
-    const keyword = filterText.trim().toLowerCase();
-
-    if (keyword.length === 0) {
-      return props.viewState.objects;
-    }
-
-    return props.viewState.objects.filter((object) => {
-      return (
-        object.name.toLowerCase().includes(keyword) ||
-        getObjectShapeLabel(object.shape, t).toLowerCase().includes(keyword)
-      );
+    return deriveFilteredObjectsPanelItems({
+      objects: props.viewState.objects,
+      filterText,
+      getShapeLabel: (shape) => getObjectShapeLabel(shape, t)
     });
   }, [filterText, props.viewState.objects, t]);
 

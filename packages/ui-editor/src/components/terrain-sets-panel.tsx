@@ -64,15 +64,7 @@ function TerrainSetsDockContent({
 
       <TerrainSetsToolbar
         hasSelectedWangSet={Boolean(state.selectedWangSet)}
-        onAddCorner={() => {
-          state.actions.createWangSet("corner");
-        }}
-        onAddEdge={() => {
-          state.actions.createWangSet("edge");
-        }}
-        onAddMixed={() => {
-          state.actions.createWangSet("mixed");
-        }}
+        onAddWangSet={state.actions.createWangSet}
         onRemove={state.actions.removeSelectedWangSet}
       />
     </div>

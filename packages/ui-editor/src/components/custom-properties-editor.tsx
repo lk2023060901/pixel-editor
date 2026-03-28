@@ -4,6 +4,10 @@ import {
   type ObjectReferenceOption
 } from "@pixel-editor/app-services/ui";
 import {
+  buildTypedOptionValue,
+  getClassPropertyTypes,
+  getEnumPropertyTypes,
+  NEW_PROPERTY_KEY,
   type PropertyDefinition,
   type PropertyTypeDefinition
 } from "@pixel-editor/app-services/ui-custom-properties";
@@ -15,11 +19,6 @@ import {
   PropertyDraftEditor,
   PropertyListRow
 } from "./custom-properties-editor-sections";
-import {
-  buildTypedOptionValue,
-  getClassPropertyTypes,
-  getEnumPropertyTypes
-} from "./custom-properties-editor-utils";
 import { PropertyBrowserGroup } from "./property-browser";
 import { useCustomPropertiesEditorState } from "./use-custom-properties-editor-state";
 
@@ -91,7 +90,9 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
           <div className="border-t border-slate-700">
             <PropertyDraftEditor
               draft={state.activeDraft}
-              identityLocked={state.activePropertyKey !== "__new__" && !state.selectedPropertyIsExplicit}
+              identityLocked={
+                state.activePropertyKey !== NEW_PROPERTY_KEY && !state.selectedPropertyIsExplicit
+              }
               nameInputRef={state.nameInputRef}
               objectReferenceOptions={objectReferenceOptions}
               propertyTypes={propertyTypes}
@@ -105,7 +106,9 @@ export function CustomPropertiesEditor(props: CustomPropertiesEditorProps) {
           activeDraft={state.activeDraft}
           activePropertyKey={state.activePropertyKey}
           canRemove={state.selectedPropertyIsExplicit}
-          canRename={state.activePropertyKey === "__new__" || state.selectedPropertyIsExplicit}
+          canRename={
+            state.activePropertyKey === NEW_PROPERTY_KEY || state.selectedPropertyIsExplicit
+          }
           previousName={state.previousName}
           onBeginCreate={state.actions.beginCreate}
           onFocusPropertyName={state.actions.focusPropertyName}
