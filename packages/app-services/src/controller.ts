@@ -156,6 +156,7 @@ import {
   setActiveStampCommand,
   setActiveToolCommand,
   setShapeFillModeCommand,
+  setViewportOriginCommand,
   setViewportZoomCommand,
   toggleHighlightCurrentLayerCommand,
   toggleAutoMapWhileDrawingCommand,
@@ -465,6 +466,7 @@ export interface EditorController {
   handleCanvasPrimaryAction(x: number, y: number): void;
   zoomIn(): void;
   zoomOut(): void;
+  setViewportOrigin(originX: number, originY: number): void;
   setViewportZoom(zoom: number): void;
   panBy(deltaX: number, deltaY: number): void;
   toggleGrid(): void;
@@ -4483,6 +4485,10 @@ class InMemoryEditorController implements EditorController {
 
   zoomOut(): void {
     this.commit(zoomViewportCommand("out"));
+  }
+
+  setViewportOrigin(originX: number, originY: number): void {
+    this.commit(setViewportOriginCommand(originX, originY));
   }
 
   setViewportZoom(zoom: number): void {

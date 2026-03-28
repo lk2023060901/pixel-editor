@@ -1,30 +1,12 @@
 export {
-  createIndexedName,
-  createIndexedSlug,
-  type EditorNamingConfig
-} from "./config";
-export {
-  type EditorController,
-  type EditorRuntimeSnapshot,
-  type EditorWorldContextMapSnapshot,
-  type EditorWorldContextSnapshot
-} from "./controller";
-export type {
-  DocumentSummary,
-  FeatureStatusValue,
-  ProjectAssetKind,
-  ProjectAssetSummary
-} from "@pixel-editor/contracts";
-export {
-  deriveEditorShellDialogsViewState,
-  deriveEditorShellChromeViewState,
-  deriveEditorShellViewState,
   deriveEditorStatusBarViewState,
   deriveIssuesPanelViewState,
   deriveLayersPanelViewState,
   deriveMapPropertiesPanelViewState,
   deriveMapImageExportViewState,
   deriveMiniMapPanelViewState,
+  resolveMiniMapNavigationTarget,
+  resolveWorldMapDragPreview,
   deriveObjectsPanelViewState,
   derivePropertiesInspectorViewState,
   deriveRendererCanvasViewState,
@@ -35,22 +17,16 @@ export {
   deriveTileSelectionControlsViewState,
   deriveTilesetsPanelViewState,
   deriveProjectDockViewState,
-  resolveProjectDockActivation,
   deriveWorldContextOverlayViewState,
-  type EditorShellDialogsViewState,
-  isEditorShellMainToolbarActionDisabled,
-  isEditorShellToolActionDisabled,
-  isEditorShellToolOptionActive,
   type EditorStatusBarLayerOption,
-  type EditorShellChromeViewState,
   type EditorStatusBarViewState,
-  type EditorShellViewState,
   type IssuesPanelIssueItem,
   type IssuesPanelViewState,
   type LayersPanelLayerItemViewState,
   type LayersPanelViewState,
   type MapPropertiesPanelViewState,
   type MapImageExportViewState,
+  type MiniMapNavigationTarget,
   type MiniMapPanelViewState,
   type ObjectReferenceOption,
   type ObjectsPanelObjectItem,
@@ -59,7 +35,6 @@ export {
   type PropertiesInspectorMapViewState,
   type PropertiesInspectorObjectViewState,
   type PropertiesInspectorViewState,
-  type ProjectDockActivationTarget,
   type ProjectDockViewState,
   type ProjectTreeAssetNode,
   type ProjectTreeFolderNode,
@@ -80,6 +55,7 @@ export {
   type TerrainSetsPanelTilesetItemViewState,
   type TerrainSetsPanelViewState,
   type TerrainSetsPanelWangSetItemViewState,
+  type WorldMapDragPreview,
   type WorldContextOverlayMapItemViewState,
   type WorldContextOverlayViewState,
   type TilesetDetailsViewState,
@@ -88,18 +64,3 @@ export {
   type TilesetsPanelTilesetItemViewState,
   type TilesetsPanelViewState
 } from "./ui-models";
-export {
-  createEditorShellActionPlan,
-  type EditorShellActionPlan,
-  type EditorShellLocalAction
-} from "./editor-shell-actions";
-export {
-  getTiledMainMenus,
-  getTiledMainToolbarActions,
-  getTiledNewMenuItems,
-  getTiledToolOptionItems,
-  getTiledToolToolbarItems,
-  toolbarIconUrls,
-  type TiledMenuItemSpec2,
-  type ToolbarActionSpec
-} from "./toolbar-spec";

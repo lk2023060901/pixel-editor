@@ -1,9 +1,10 @@
 "use client";
 
-import type { FeatureStatusValue } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
 
 import { getFeatureStatusLabel } from "./i18n-helpers";
+
+type FeatureStatusValue = "未开始" | "开发中" | "测试中" | "已完成";
 
 const statusClassNames: Record<FeatureStatusValue, string> = {
   未开始: "border-slate-700 bg-slate-900 text-slate-300",

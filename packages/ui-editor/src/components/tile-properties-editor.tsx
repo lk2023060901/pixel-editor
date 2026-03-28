@@ -1,9 +1,9 @@
 "use client";
 
 import type {
-  EditorController,
   TilePropertiesEditorViewState
 } from "@pixel-editor/app-services/ui";
+import type { TilePropertiesEditorStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
@@ -17,7 +17,7 @@ import {
 
 export function TilePropertiesEditor(props: {
   viewState: TilePropertiesEditorViewState;
-  store: EditorController;
+  store: TilePropertiesEditorStore;
 }) {
   const { t } = useI18n();
   const selectedTile = props.viewState.tile;

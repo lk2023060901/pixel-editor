@@ -36,12 +36,12 @@ import { collectImageLayerTilePositions } from "./image-layer-tiling";
 import { collectRenderableLayers } from "./layer-composition";
 import {
   DEFAULT_LAYER_BLEND_MODE,
-  DEFAULT_LAYER_TINT
+  DEFAULT_LAYER_TINT,
+  requiresGroupCompositing
 } from "./layer-style";
 import {
   createProjectedObjectSceneNodes,
   destroyProjectedObjectSceneNodes,
-  drawProjectedObjects,
   type ProjectedObjectSceneNodes,
   updateProjectedObjectScene
 } from "./object-layer-render";
@@ -51,6 +51,7 @@ import {
   type ProjectedObjectTransformHandle
 } from "./object-selection";
 import { getRendererMode, type RendererMode } from "./renderer-mode";
+import { collectRendererSnapshotTexturePaths } from "./scene-textures";
 import {
   createBoundsRenderSignature,
   createGridRenderSignature,
@@ -197,6 +198,7 @@ interface ResolvedRenderableTileLayer {
   highlighted: boolean;
   tintColor: number | undefined;
   blendMode: BlendMode;
+  groupPath: readonly ResolvedRenderableGroupLayer[];
   screenX: number;
   screenY: number;
   segments: ResolvedRenderableTileSegment[];
@@ -213,6 +215,7 @@ interface ResolvedRenderableObjectLayer {
   layerId: LayerId;
   tintColor: number | undefined;
   blendMode: BlendMode;
+  groupPath: readonly ResolvedRenderableGroupLayer[];
   objects: ProjectedMapObject[];
 }
 
@@ -223,6 +226,7 @@ interface ResolvedRenderableImageLayer {
   highlighted: boolean;
   tintColor: number | undefined;
   blendMode: BlendMode;
+  groupPath: readonly ResolvedRenderableGroupLayer[];
   repeatX: boolean;
   repeatY: boolean;
   screenX: number;
@@ -239,6 +243,13 @@ type ResolvedRenderableLayerEntry =
   | { kind: "tile"; layerId: LayerId; tileLayer: ResolvedRenderableTileLayer }
   | { kind: "object"; layerId: LayerId; objectLayer: ResolvedRenderableObjectLayer }
   | { kind: "image"; layerId: LayerId; imageLayer: ResolvedRenderableImageLayer };
+
+interface ResolvedRenderableGroupLayer {
+  layerId: LayerId;
+  opacity: number;
+  tintColor: number | undefined;
+  blendMode: BlendMode;
+}
 
 interface RendererSceneNodes {
   root: Container;
@@ -286,6 +297,11 @@ interface ImageLayerSceneNodes {
   sprites: Container;
   graphics: Graphics;
   signature: string | undefined;
+}
+
+interface GroupLayerSceneNodes {
+  root: Container;
+  cachedAsTexture: boolean;
 }
 
 function positiveModulo(value: number, divisor: number): number {
@@ -613,10 +629,11 @@ function resolveRenderableLayers(input: {
         layerId: entry.layer.id,
         tileLayer: {
           layerId: entry.layer.id,
-          opacity: entry.opacity,
+          opacity: entry.localOpacity,
           highlighted: entry.highlighted,
-          tintColor: entry.tintColor,
-          blendMode: entry.blendMode,
+          tintColor: entry.localTintColor,
+          blendMode: entry.localBlendMode,
+          groupPath: entry.groupPath,
           screenX: layerGridOriginX - viewportOriginX + screenOffsetX,
           screenY: layerGridOriginY - viewportOriginY + screenOffsetY,
           segments: collectVisibleTileSegments(entry.layer, {
@@ -649,7 +666,7 @@ function resolveRenderableLayers(input: {
           originX: viewportOriginX,
           originY: viewportOriginY
         },
-        opacity: entry.opacity,
+        opacity: entry.localOpacity,
         highlighted: entry.highlighted,
         offsetX: entry.offsetX,
         offsetY: entry.offsetY,
@@ -676,8 +693,9 @@ function resolveRenderableLayers(input: {
         layerId: entry.layer.id,
         objectLayer: {
           layerId: entry.layer.id,
-          tintColor: entry.tintColor,
-          blendMode: entry.blendMode,
+          tintColor: entry.localTintColor,
+          blendMode: entry.localBlendMode,
+          groupPath: entry.groupPath,
           objects
         }
       });
@@ -697,10 +715,11 @@ function resolveRenderableLayers(input: {
       imageLayer: {
         layerId: entry.layer.id,
         imagePath: entry.layer.imagePath,
-        opacity: entry.opacity,
+        opacity: entry.localOpacity,
         highlighted: entry.highlighted,
-        tintColor: entry.tintColor,
-        blendMode: entry.blendMode,
+        tintColor: entry.localTintColor,
+        blendMode: entry.localBlendMode,
+        groupPath: entry.groupPath,
         repeatX: entry.layer.repeatX,
         repeatY: entry.layer.repeatY,
         screenX: layerGridOriginX - viewportOriginX + screenOffsetX,
@@ -767,113 +786,32 @@ function drawImageLayerHighlight(
   });
 }
 
-function drawStaticTileLayer(
-  scene: Container,
-  layer: ResolvedRenderableTileLayer,
-  geometry: ViewportGeometry
-): void {
-  const layerScene = new Container();
-  const graphics = new Graphics();
-
-  layerScene.position.set(layer.screenX, layer.screenY);
-  layerScene.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
-  layerScene.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
-
-  for (const segment of layer.segments) {
-    for (const { x: tileX, y: tileY, cell } of segment.cells) {
-      drawTilePlaceholder(
-        graphics,
-        (tileX - segment.originTileX) * geometry.tileWidth +
-          segment.originTileX * geometry.tileWidth,
-        (tileY - segment.originTileY) * geometry.tileHeight +
-          segment.originTileY * geometry.tileHeight,
-        geometry.tileWidth,
-        geometry.tileHeight,
-        cell.gid,
-        layer.opacity,
-        layer.highlighted
-      );
-    }
-  }
-
-  layerScene.addChild(graphics);
-  scene.addChild(layerScene);
-}
-
-function drawStaticImageLayer(
-  scene: Container,
-  layer: ResolvedRenderableImageLayer
-): void {
-  if (!layer.imagePath || layer.screenWidth === undefined || layer.screenHeight === undefined) {
-    return;
-  }
-
-  const layerScene = new Container();
-  const graphics = new Graphics();
-
-  layerScene.position.set(layer.screenX, layer.screenY);
-  layerScene.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
-  layerScene.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
-  for (const tile of collectImageLayerTilePositions({
-    screenX: layer.screenX,
-    screenY: layer.screenY,
-    screenWidth: layer.screenWidth,
-    screenHeight: layer.screenHeight,
-    repeatX: layer.repeatX,
-    repeatY: layer.repeatY,
-    canvasX: layer.canvasX,
-    canvasY: layer.canvasY,
-    canvasWidth: layer.canvasWidth,
-    canvasHeight: layer.canvasHeight
-  })) {
-    drawImageLayerPlaceholder(
-      graphics,
-      tile.x,
-      tile.y,
-      layer.screenWidth,
-      layer.screenHeight,
-      layer.opacity
-    );
-
-    if (layer.highlighted) {
-      drawImageLayerHighlight(
-        graphics,
-        tile.x,
-        tile.y,
-        layer.screenWidth,
-        layer.screenHeight
-      );
-    }
-  }
-
-  layerScene.addChild(graphics);
-  scene.addChild(layerScene);
-}
-
 function drawStaticLayerContent(
   scene: Container,
   layers: readonly ResolvedRenderableLayerEntry[],
-  geometry: ViewportGeometry
-): void {
-  for (const entry of layers) {
-    if (entry.kind === "tile") {
-      drawStaticTileLayer(scene, entry.tileLayer, geometry);
-      continue;
-    }
-
-    if (entry.kind === "object") {
-      const objectLayerScene = new Container();
-
-      objectLayerScene.tint = entry.objectLayer.tintColor ?? DEFAULT_LAYER_TINT;
-      objectLayerScene.blendMode =
-        entry.objectLayer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
-      drawProjectedObjects(objectLayerScene, entry.objectLayer.objects, geometry);
-      scene.addChild(objectLayerScene);
-      continue;
-    }
-
-    drawStaticImageLayer(scene, entry.imageLayer);
+  geometry: ViewportGeometry,
+  options: {
+    getSourceTexture: (imagePath: string) => Texture | undefined;
+    getFrameTexture: (
+      imagePath: string,
+      frame: { x: number; y: number; width: number; height: number }
+    ) => Texture | undefined;
+    assetVersion: number;
+    objectTileTextures: ReadonlyMap<ObjectId, ResolvedTileTexture | undefined>;
   }
+): void {
+  updateLayerContentScenes(
+    scene,
+    {
+      groupLayers: new Map(),
+      tileLayers: new Map(),
+      objectLayers: new Map(),
+      imageLayers: new Map()
+    },
+    layers,
+    geometry,
+    options
+  );
 }
 
 function createRendererSceneNodes(labels?: {
@@ -1063,6 +1001,47 @@ function clearImageLayerSceneCache(
 ): void {
   clearContainerChildren(scene);
   cache.clear();
+}
+
+function createGroupLayerSceneNodes(): GroupLayerSceneNodes {
+  return {
+    root: new Container(),
+    cachedAsTexture: false
+  };
+}
+
+function destroyGroupLayerSceneNodes(layer: GroupLayerSceneNodes): void {
+  layer.root.destroy({ children: true });
+}
+
+function clearGroupLayerSceneCache(
+  scene: Container,
+  cache: Map<LayerId, GroupLayerSceneNodes>
+): void {
+  clearContainerChildren(scene);
+  cache.clear();
+}
+
+function updateGroupLayerScene(
+  layerScene: GroupLayerSceneNodes,
+  layer: ResolvedRenderableGroupLayer
+): void {
+  const shouldCacheAsTexture = requiresGroupCompositing(layer);
+
+  if (layerScene.cachedAsTexture !== shouldCacheAsTexture) {
+    layerScene.root.cacheAsTexture(
+      shouldCacheAsTexture
+        ? {
+            scaleMode: "nearest"
+          }
+        : false
+    );
+    layerScene.cachedAsTexture = shouldCacheAsTexture;
+  }
+
+  layerScene.root.alpha = layer.opacity;
+  layerScene.root.tint = layer.tintColor ?? DEFAULT_LAYER_TINT;
+  layerScene.root.blendMode = layer.blendMode ?? DEFAULT_LAYER_BLEND_MODE;
 }
 
 function drawHighlightedTileStroke(
@@ -1472,9 +1451,74 @@ function updateImageLayerScene(
   }
 }
 
+function syncGroupedLayerChildren<TEntry extends { layerId: LayerId }>(
+  scene: Container,
+  groupRoots: ReadonlyMap<LayerId, Container>,
+  layers: readonly TEntry[],
+  options: {
+    getGroupPath: (entry: TEntry) => readonly ResolvedRenderableGroupLayer[];
+    getLeafRoot: (entry: TEntry) => Container;
+  }
+): void {
+  const sceneRootKey = "__scene__";
+  const orderedChildren = new Map<LayerId | typeof sceneRootKey, Container[]>();
+  const seenChildren = new Map<LayerId | typeof sceneRootKey, Set<string>>();
+
+  function appendChild(
+    parentKey: LayerId | typeof sceneRootKey,
+    childKey: string,
+    childRoot: Container
+  ): void {
+    let parentChildren = orderedChildren.get(parentKey);
+
+    if (!parentChildren) {
+      parentChildren = [];
+      orderedChildren.set(parentKey, parentChildren);
+    }
+
+    let parentSeenChildren = seenChildren.get(parentKey);
+
+    if (!parentSeenChildren) {
+      parentSeenChildren = new Set();
+      seenChildren.set(parentKey, parentSeenChildren);
+    }
+
+    if (parentSeenChildren.has(childKey)) {
+      return;
+    }
+
+    parentSeenChildren.add(childKey);
+    parentChildren.push(childRoot);
+  }
+
+  for (const entry of layers) {
+    let parentKey: LayerId | typeof sceneRootKey = sceneRootKey;
+
+    for (const group of options.getGroupPath(entry)) {
+      const groupRoot = groupRoots.get(group.layerId);
+
+      if (!groupRoot) {
+        continue;
+      }
+
+      appendChild(parentKey, `group:${group.layerId}`, groupRoot);
+      parentKey = group.layerId;
+    }
+
+    appendChild(parentKey, `layer:${entry.layerId}`, options.getLeafRoot(entry));
+  }
+
+  syncContainerChildren(scene, orderedChildren.get(sceneRootKey) ?? []);
+
+  for (const [groupId, groupRoot] of groupRoots) {
+    syncContainerChildren(groupRoot, orderedChildren.get(groupId) ?? []);
+  }
+}
+
 function updateLayerContentScenes(
   scene: Container,
   caches: {
+    groupLayers: Map<LayerId, GroupLayerSceneNodes>;
     tileLayers: Map<LayerId, TileLayerSceneNodes>;
     objectLayers: Map<LayerId, ObjectLayerSceneNodes>;
     imageLayers: Map<LayerId, ImageLayerSceneNodes>;
@@ -1491,6 +1535,24 @@ function updateLayerContentScenes(
     objectTileTextures: ReadonlyMap<ObjectId, ResolvedTileTexture | undefined>;
   }
 ): void {
+  const nextGroupLayerEntries = new Map<LayerId, ResolvedRenderableGroupLayer>();
+
+  for (const layer of layers) {
+    const groupPath =
+      layer.kind === "tile"
+        ? layer.tileLayer.groupPath
+        : layer.kind === "object"
+          ? layer.objectLayer.groupPath
+          : layer.imageLayer.groupPath;
+
+    for (const group of groupPath) {
+      if (!nextGroupLayerEntries.has(group.layerId)) {
+        nextGroupLayerEntries.set(group.layerId, group);
+      }
+    }
+  }
+
+  const nextGroupLayerIds = new Set(nextGroupLayerEntries.keys());
   const nextTileLayerIds = new Set(
     layers
       .filter((layer): layer is Extract<ResolvedRenderableLayerEntry, { kind: "tile" }> =>
@@ -1513,12 +1575,22 @@ function updateLayerContentScenes(
       .map((layer) => layer.layerId)
   );
 
+  for (const [layerId, layerScene] of caches.groupLayers) {
+    if (nextGroupLayerIds.has(layerId)) {
+      continue;
+    }
+
+    layerScene.root.parent?.removeChild(layerScene.root);
+    destroyGroupLayerSceneNodes(layerScene);
+    caches.groupLayers.delete(layerId);
+  }
+
   for (const [layerId, layerScene] of caches.tileLayers) {
     if (nextTileLayerIds.has(layerId)) {
       continue;
     }
 
-    scene.removeChild(layerScene.root);
+    layerScene.root.parent?.removeChild(layerScene.root);
     destroyTileLayerSceneNodes(layerScene);
     caches.tileLayers.delete(layerId);
   }
@@ -1528,7 +1600,7 @@ function updateLayerContentScenes(
       continue;
     }
 
-    scene.removeChild(layerScene.root);
+    layerScene.root.parent?.removeChild(layerScene.root);
     destroyObjectLayerSceneNodes(layerScene);
     caches.objectLayers.delete(layerId);
   }
@@ -1538,12 +1610,24 @@ function updateLayerContentScenes(
       continue;
     }
 
-    scene.removeChild(layerScene.root);
+    layerScene.root.parent?.removeChild(layerScene.root);
     destroyImageLayerSceneNodes(layerScene);
     caches.imageLayers.delete(layerId);
   }
 
-  const orderedLayerRoots: Container[] = [];
+  const groupRoots = new Map<LayerId, Container>();
+
+  for (const group of nextGroupLayerEntries.values()) {
+    let layerScene = caches.groupLayers.get(group.layerId);
+
+    if (!layerScene) {
+      layerScene = createGroupLayerSceneNodes();
+      caches.groupLayers.set(group.layerId, layerScene);
+    }
+
+    updateGroupLayerScene(layerScene, group);
+    groupRoots.set(group.layerId, layerScene.root);
+  }
 
   for (const entry of layers) {
     if (entry.kind === "tile") {
@@ -1555,7 +1639,6 @@ function updateLayerContentScenes(
       }
 
       updateTileLayerScene(layerScene, entry.tileLayer, geometry, options);
-      orderedLayerRoots.push(layerScene.root);
       continue;
     }
 
@@ -1574,7 +1657,6 @@ function updateLayerContentScenes(
         options.objectTileTextures,
         options
       );
-      orderedLayerRoots.push(layerScene.root);
       continue;
     }
 
@@ -1586,10 +1668,27 @@ function updateLayerContentScenes(
     }
 
     updateImageLayerScene(layerScene, entry.imageLayer, options);
-    orderedLayerRoots.push(layerScene.root);
   }
 
-  syncContainerChildren(scene, orderedLayerRoots);
+  syncGroupedLayerChildren(scene, groupRoots, layers, {
+    getGroupPath: (entry) =>
+      entry.kind === "tile"
+        ? entry.tileLayer.groupPath
+        : entry.kind === "object"
+          ? entry.objectLayer.groupPath
+          : entry.imageLayer.groupPath,
+    getLeafRoot: (entry) => {
+      if (entry.kind === "tile") {
+        return caches.tileLayers.get(entry.layerId)!.root;
+      }
+
+      if (entry.kind === "object") {
+        return caches.objectLayers.get(entry.layerId)!.root;
+      }
+
+      return caches.imageLayers.get(entry.layerId)!.root;
+    }
+  });
 }
 
 function drawPreviewOverlay(
@@ -1662,7 +1761,55 @@ function drawGridOverlay(
   scene.addChild(grid);
 }
 
-function buildScene(
+async function preloadSceneSourceTextures(
+  imagePaths: readonly string[]
+): Promise<Map<string, Texture>> {
+  const textures = new Map<string, Texture>();
+
+  await Promise.all(
+    imagePaths.map(async (imagePath) => {
+      try {
+        const texture = await Assets.load<Texture>(imagePath);
+
+        textures.set(imagePath, texture);
+      } catch (error) {
+        console.error(`Failed to load renderer export texture: ${imagePath}`, error);
+      }
+    })
+  );
+
+  return textures;
+}
+
+function createFrameTextureResolver(
+  sourceTextureCache: ReadonlyMap<string, Texture>
+): (imagePath: string, frame: { x: number; y: number; width: number; height: number }) => Texture | undefined {
+  const frameTextureCache = new Map<string, Texture>();
+
+  return (
+    imagePath: string,
+    frame: { x: number; y: number; width: number; height: number }
+  ) => {
+    const sourceTexture = sourceTextureCache.get(imagePath);
+
+    if (!sourceTexture) {
+      return undefined;
+    }
+
+    const key = `${imagePath}:${frame.x}:${frame.y}:${frame.width}:${frame.height}`;
+    const cachedTexture = frameTextureCache.get(key);
+
+    if (cachedTexture) {
+      return cachedTexture;
+    }
+
+    const nextTexture = createFrameTexture(sourceTexture, frame);
+    frameTextureCache.set(key, nextTexture);
+    return nextTexture;
+  };
+}
+
+async function buildScene(
   scene: Container,
   snapshot: RendererSnapshot,
   width: number,
@@ -1671,7 +1818,7 @@ function buildScene(
   labels?: {
     noActiveMap?: string;
   }
-): void {
+): Promise<void> {
   const background = new Graphics();
   background.rect(0, 0, width, height);
   background.fill({ color: 0x0b1220, alpha: 1 });
@@ -1701,12 +1848,22 @@ function buildScene(
     height,
     layout
   );
+  const sourceTextureCache = await preloadSceneSourceTextures(
+    collectRendererSnapshotTexturePaths({
+      map: snapshot.map,
+      tilesets: snapshot.tilesets
+    })
+  );
+  const getSourceTexture = (imagePath: string): Texture | undefined =>
+    sourceTextureCache.get(imagePath);
+  const getFrameTexture = createFrameTextureResolver(sourceTextureCache);
 
   const resolvedLayers = resolveRenderableLayers({
     map: snapshot.map,
     tilesets: snapshot.tilesets,
     geometry,
     viewport: snapshot.viewport,
+    getSourceTexture,
     ...(snapshot.highlightedLayerId !== undefined
       ? { highlightedLayerId: snapshot.highlightedLayerId }
       : {}),
@@ -1719,7 +1876,14 @@ function buildScene(
   });
 
   drawGridOverlay(scene, snapshot, geometry);
-  drawStaticLayerContent(scene, resolvedLayers.layers, geometry);
+  const layerContent = new Container();
+  scene.addChild(layerContent);
+  drawStaticLayerContent(layerContent, resolvedLayers.layers, geometry, {
+    getSourceTexture,
+    getFrameTexture,
+    assetVersion: sourceTextureCache.size,
+    objectTileTextures: resolvedLayers.objectTileTextures
+  });
   const objectSelectionOverlay = new Graphics();
   scene.addChild(objectSelectionOverlay);
   drawObjectSelectionOverlay(
@@ -1771,7 +1935,7 @@ export async function exportRendererSnapshotImageDataUrl(input: {
 
     const scene = new Container();
     app.stage.addChild(scene);
-    buildScene(
+    await buildScene(
       scene,
       input.snapshot,
       input.width,
@@ -1816,6 +1980,7 @@ export function createPixiEditorRenderer(options: {
   const frameTextureCache = new Map<string, Texture>();
   const pendingTextureLoads = new Map<string, Promise<Texture>>();
   const failedTextureLoads = new Set<string>();
+  const groupLayerSceneCache = new Map<LayerId, GroupLayerSceneNodes>();
   const tileLayerSceneCache = new Map<LayerId, TileLayerSceneNodes>();
   const objectLayerSceneCache = new Map<LayerId, ObjectLayerSceneNodes>();
   const imageLayerSceneCache = new Map<LayerId, ImageLayerSceneNodes>();
@@ -1922,6 +2087,7 @@ export function createPixiEditorRenderer(options: {
     );
 
     if (mode === "empty") {
+      clearGroupLayerSceneCache(sceneNodes.layerContent, groupLayerSceneCache);
       clearTileLayerSceneCache(sceneNodes.layerContent, tileLayerSceneCache);
       clearObjectSceneCache(sceneNodes.layerContent, objectLayerSceneCache);
       clearImageLayerSceneCache(sceneNodes.layerContent, imageLayerSceneCache);
@@ -1975,6 +2141,7 @@ export function createPixiEditorRenderer(options: {
     );
 
     if (mode === "unsupported") {
+      clearGroupLayerSceneCache(sceneNodes.layerContent, groupLayerSceneCache);
       clearTileLayerSceneCache(sceneNodes.layerContent, tileLayerSceneCache);
       clearObjectSceneCache(sceneNodes.layerContent, objectLayerSceneCache);
       clearImageLayerSceneCache(sceneNodes.layerContent, imageLayerSceneCache);
@@ -2075,6 +2242,7 @@ export function createPixiEditorRenderer(options: {
     updateLayerContentScenes(
       sceneNodes.layerContent,
       {
+        groupLayers: groupLayerSceneCache,
         tileLayers: tileLayerSceneCache,
         objectLayers: objectLayerSceneCache,
         imageLayers: imageLayerSceneCache
@@ -2277,6 +2445,7 @@ export function createPixiEditorRenderer(options: {
       mountGeneration += 1;
 
       if (sceneNodes) {
+        clearGroupLayerSceneCache(sceneNodes.layerContent, groupLayerSceneCache);
         clearTileLayerSceneCache(sceneNodes.layerContent, tileLayerSceneCache);
         clearObjectSceneCache(sceneNodes.layerContent, objectLayerSceneCache);
         clearImageLayerSceneCache(sceneNodes.layerContent, imageLayerSceneCache);
@@ -2309,6 +2478,7 @@ export function createPixiEditorRenderer(options: {
       frameTextureCache.clear();
       pendingTextureLoads.clear();
       failedTextureLoads.clear();
+      groupLayerSceneCache.clear();
       tileLayerSceneCache.clear();
       objectLayerSceneCache.clear();
       imageLayerSceneCache.clear();

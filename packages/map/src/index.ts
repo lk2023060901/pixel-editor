@@ -403,6 +403,29 @@ export function setViewportZoomCommand(
   });
 }
 
+export function setViewportOriginCommand(
+  originX: number,
+  originY: number
+): HistoryCommand<EditorWorkspaceState> {
+  return createHistoryCommand({
+    id: "viewport.origin.set",
+    description: `Set viewport origin to ${originX}, ${originY}`,
+    run: (state) => ({
+      ...state,
+      session: {
+        ...state.session,
+        viewport: {
+          ...state.session.viewport,
+          originX,
+          originY
+        }
+      }
+    }),
+    canMerge: (next) => next.id === "viewport.origin.set",
+    merge: (next) => next
+  });
+}
+
 export function toggleGridCommand(): HistoryCommand<EditorWorkspaceState> {
   return createHistoryCommand({
     id: "viewport.toggleGrid",

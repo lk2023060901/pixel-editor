@@ -1,7 +1,7 @@
 "use client";
 
-import { createIndexedName } from "@pixel-editor/app-services/ui";
-import type { EditorController } from "@pixel-editor/app-services/ui";
+import { createIndexedName } from "@pixel-editor/app-services/ui-naming";
+import type { ProjectPropertyTypesEditorStore } from "@pixel-editor/app-services/ui-store";
 import {
   clonePropertyTypeDefinition,
   clonePropertyValue,
@@ -539,7 +539,7 @@ function PropertyValueEditor(props: {
 
 export function ProjectPropertyTypesEditorDialog(props: {
   propertyTypes: readonly PropertyTypeDefinition[];
-  store: EditorController;
+  store: ProjectPropertyTypesEditorStore;
   onClose: () => void;
 }) {
   const { t } = useI18n();

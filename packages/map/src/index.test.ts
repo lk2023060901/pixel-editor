@@ -24,6 +24,7 @@ import {
   removeMapPropertyCommand,
   selectTileRegionCommand,
   setActiveStampCommand,
+  setViewportOriginCommand,
   setViewportZoomCommand,
   toggleHighlightCurrentLayerCommand,
   toggleGridCommand,
@@ -80,6 +81,21 @@ describe("map commands", () => {
 
     expect(history.state.session.viewport.showGrid).toBe(false);
     expect(history.state.session.viewport.zoom).toBe(2);
+  });
+
+  it("sets viewport origin directly through the map command API", () => {
+    const workspace = createEditorWorkspaceState({
+      project: createProject({
+        name: "demo",
+        assetRoots: ["maps"]
+      })
+    });
+    const history = new CommandHistory(workspace);
+
+    history.execute(setViewportOriginCommand(96, 144));
+
+    expect(history.state.session.viewport.originX).toBe(96);
+    expect(history.state.session.viewport.originY).toBe(144);
   });
 
   it("toggles current layer highlighting in session state", () => {

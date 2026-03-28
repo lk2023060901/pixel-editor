@@ -28,14 +28,14 @@ import {
 
 import { createEditorStore } from "../src/controller";
 import {
-  deriveEditorShellDialogsViewState,
   deriveEditorStatusBarViewState,
-  deriveEditorShellChromeViewState,
   deriveIssuesPanelViewState,
   deriveLayersPanelViewState,
   deriveMapImageExportViewState,
   deriveMapPropertiesPanelViewState,
   deriveMiniMapPanelViewState,
+  resolveMiniMapNavigationTarget,
+  resolveWorldMapDragPreview,
   deriveObjectsPanelViewState,
   deriveProjectDockViewState,
   derivePropertiesInspectorViewState,
@@ -46,9 +46,13 @@ import {
   deriveTilePropertiesEditorViewState,
   deriveTileSelectionControlsViewState,
   deriveTilesetsPanelViewState,
-  deriveWorldContextOverlayViewState,
-  resolveProjectDockActivation
+  deriveWorldContextOverlayViewState
 } from "../src/ui";
+import {
+  deriveEditorShellDialogsViewState,
+  deriveEditorShellChromeViewState,
+  resolveProjectDockActivation
+} from "../src/ui-shell";
 
 describe("ui models", () => {
   it("derives objects panel selection and clipboard state from the active object layer", () => {
@@ -761,6 +765,8 @@ describe("ui models", () => {
       mapWidth: 100,
       mapHeight: 50,
       infinite: false,
+      mapPixelWidth: 3200,
+      mapPixelHeight: 800,
       previewWidthPercent: 100,
       previewHeightPercent: 50,
       viewportWidthPercent: 50,
@@ -768,6 +774,112 @@ describe("ui models", () => {
       viewportLeftPercent: 10,
       viewportTopPercent: 10,
       viewportZoom: 2
+    });
+    expect(viewState?.preview.width).toBe(224);
+    expect(viewState?.preview.height).toBe(112);
+    expect(viewState?.preview.snapshot.map).toBe(map);
+    expect(viewState?.preview.snapshot.tilesets).toEqual([]);
+    expect(viewState?.preview.snapshot.viewport).toEqual({
+      zoom: 0.07,
+      originX: 0,
+      originY: 0,
+      showGrid: false
+    });
+  });
+
+  it("resolves mini-map navigation through a shared UI helper", () => {
+    const target = resolveMiniMapNavigationTarget(
+      {
+        mapName: "starter-map",
+        mapWidth: 100,
+        mapHeight: 50,
+        infinite: false,
+        mapPixelWidth: 3200,
+        mapPixelHeight: 800,
+        previewWidthPercent: 100,
+        previewHeightPercent: 50,
+        viewportLeftPercent: 10,
+        viewportTopPercent: 10,
+        viewportWidthPercent: 50,
+        viewportHeightPercent: 50,
+        viewportZoom: 2,
+        preview: {
+          snapshot: {
+            map: createMap({
+              name: "starter-map",
+              orientation: "orthogonal",
+              width: 100,
+              height: 50,
+              tileWidth: 32,
+              tileHeight: 16
+            }),
+            tilesets: [],
+            viewport: {
+              zoom: 0.07,
+              originX: 0,
+              originY: 0,
+              showGrid: false
+            }
+          },
+          width: 224,
+          height: 112
+        }
+      },
+      0.5,
+      0.5
+    );
+
+    expect(target).toEqual({
+      originX: 800,
+      originY: 200
+    });
+  });
+
+  it("clamps mini-map navigation target at the map bounds", () => {
+    const target = resolveMiniMapNavigationTarget(
+      {
+        mapName: "starter-map",
+        mapWidth: 100,
+        mapHeight: 50,
+        infinite: false,
+        mapPixelWidth: 3200,
+        mapPixelHeight: 800,
+        previewWidthPercent: 100,
+        previewHeightPercent: 50,
+        viewportLeftPercent: 10,
+        viewportTopPercent: 10,
+        viewportWidthPercent: 50,
+        viewportHeightPercent: 50,
+        viewportZoom: 2,
+        preview: {
+          snapshot: {
+            map: createMap({
+              name: "starter-map",
+              orientation: "orthogonal",
+              width: 100,
+              height: 50,
+              tileWidth: 32,
+              tileHeight: 16
+            }),
+            tilesets: [],
+            viewport: {
+              zoom: 0.07,
+              originX: 0,
+              originY: 0,
+              showGrid: false
+            }
+          },
+          width: 224,
+          height: 112
+        }
+      },
+      -1,
+      2
+    );
+
+    expect(target).toEqual({
+      originX: 0,
+      originY: 400
     });
   });
 
@@ -1011,6 +1123,116 @@ describe("ui models", () => {
         gridHeight: 32
       })
     ]);
+  });
+
+  it("resolves world map drag preview through a shared UI helper", () => {
+    const activeMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 10,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const preview = resolveWorldMapDragPreview({
+      viewState: {
+        activeMap,
+        activeTool: "world-tool",
+        viewport: {
+          zoom: 1,
+          originX: 0,
+          originY: 0,
+          showGrid: true
+        },
+        visible: true,
+        modifiable: true,
+        activeMapRect: {
+          x: 0,
+          y: 0
+        },
+        maps: []
+      },
+      map: {
+        worldId: "world-1" as never,
+        fileName: "maps/starter-map.tmj",
+        name: "Starter",
+        x: 64,
+        y: 96,
+        width: 320,
+        height: 256,
+        active: true,
+        canActivate: false,
+        gridWidth: 32,
+        gridHeight: 32
+      },
+      deltaClientX: 48,
+      deltaClientY: -16,
+      pixelScaleX: 2,
+      pixelScaleY: 2,
+      freeMove: false
+    });
+
+    expect(preview).toEqual({
+      x: 96,
+      y: 96,
+      deltaX: 32,
+      deltaY: 0,
+      statusInfo: "96, 96 (32, 0)"
+    });
+  });
+
+  it("resolves free-move world map drag preview without grid snapping", () => {
+    const activeMap = createMap({
+      name: "starter-map",
+      orientation: "orthogonal",
+      width: 10,
+      height: 8,
+      tileWidth: 32,
+      tileHeight: 32
+    });
+    const preview = resolveWorldMapDragPreview({
+      viewState: {
+        activeMap,
+        activeTool: "world-tool",
+        viewport: {
+          zoom: 1,
+          originX: 0,
+          originY: 0,
+          showGrid: true
+        },
+        visible: true,
+        modifiable: true,
+        activeMapRect: {
+          x: 0,
+          y: 0
+        },
+        maps: []
+      },
+      map: {
+        worldId: "world-1" as never,
+        fileName: "maps/starter-map.tmj",
+        name: "Starter",
+        x: 64,
+        y: 96,
+        width: 320,
+        height: 256,
+        active: true,
+        canActivate: false
+      },
+      deltaClientX: 25,
+      deltaClientY: -11,
+      pixelScaleX: 2,
+      pixelScaleY: 2,
+      freeMove: true
+    });
+
+    expect(preview).toEqual({
+      x: 77,
+      y: 91,
+      deltaX: 13,
+      deltaY: -5,
+      statusInfo: "77, 91 (13, -5)"
+    });
   });
 
   it("derives properties inspector state from the active map, layer, and object", () => {

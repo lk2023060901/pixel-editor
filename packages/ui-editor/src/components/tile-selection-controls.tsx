@@ -1,15 +1,15 @@
 "use client";
 
 import type {
-  EditorController,
   TileSelectionControlsViewState
 } from "@pixel-editor/app-services/ui";
+import type { TileSelectionControlsStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition } from "react";
 
 export interface TileSelectionControlsProps {
   viewState: TileSelectionControlsViewState | undefined;
-  store: EditorController;
+  store: TileSelectionControlsStore;
 }
 
 export function TileSelectionControls({ viewState, store }: TileSelectionControlsProps) {

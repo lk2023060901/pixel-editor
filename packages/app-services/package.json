@@ -6,9 +6,11 @@
   "exports": {
     ".": "./src/index.ts",
     "./ui": "./src/ui.ts",
+    "./ui-shell": "./src/ui-shell.ts",
+    "./ui-naming": "./src/ui-naming.ts",
+    "./ui-store": "./src/ui-store.ts",
     "./ui-custom-properties": "./src/ui-custom-properties.ts",
-    "./ui-property-types": "./src/ui-property-types.ts",
-    "./ui-tiles": "./src/ui-tiles.ts"
+    "./ui-property-types": "./src/ui-property-types.ts"
   },
   "dependencies": {
     "@pixel-editor/asset-reference": "0.1.0",

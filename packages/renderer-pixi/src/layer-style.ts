@@ -45,3 +45,15 @@ export function resolveEffectiveLayerBlendMode(
     ? blendMode
     : inheritedBlendMode;
 }
+
+export function requiresGroupCompositing(input: {
+  opacity: number;
+  tintColor: number | undefined;
+  blendMode: BlendMode;
+}): boolean {
+  return (
+    input.opacity !== 1 ||
+    input.tintColor !== undefined ||
+    input.blendMode !== DEFAULT_LAYER_BLEND_MODE
+  );
+}

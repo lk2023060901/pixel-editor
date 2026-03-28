@@ -1,6 +1,6 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services/ui";
+import type { SaveTemplateDialogStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 
@@ -20,7 +20,7 @@ function createDefaultTemplatePath(name: string): string {
 
 export function SaveTemplateDialog(props: {
   objectName: string;
-  store: EditorController;
+  store: SaveTemplateDialogStore;
   onClose: () => void;
 }) {
   const { t } = useI18n();

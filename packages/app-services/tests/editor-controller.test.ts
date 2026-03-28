@@ -2630,6 +2630,15 @@ describe("editor controller", () => {
     expect(store.getSnapshot().bootstrap.viewport.zoom).toBe(8);
   });
 
+  it("sets viewport origin directly for mini-map navigation", () => {
+    const store = createTestEditorStore("demo");
+
+    store.setViewportOrigin(128, 96);
+
+    expect(store.getSnapshot().bootstrap.viewport.originX).toBe(128);
+    expect(store.getSnapshot().bootstrap.viewport.originY).toBe(96);
+  });
+
   it("routes canvas actions through the active tool", () => {
     const store = createTestEditorStore("demo");
 

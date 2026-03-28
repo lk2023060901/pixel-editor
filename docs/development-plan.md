@@ -1,6 +1,6 @@
 # Development Plan
 
-Last updated: 2026-03-27
+Last updated: 2026-03-28
 
 ## Status Definitions
 
@@ -69,14 +69,14 @@ Last updated: 2026-03-27
 | REN-011 | 渲染 | Object Layer 渲染 | REN-005, DOM-005 | 开发中 | 已支持 object layer 基础可视化、selected state、shape-aware canvas picking、keyed object scene cache / redraw 基础、runtime tile object 贴图解析、text style fidelity 基础、selection bounds / transform handles 可视反馈，以及单对象 resize handles 的 preview/commit；rotate 与多选缩放待补 |
 | REN-012 | 渲染 | Image Layer 与 Group Layer 渲染 | REN-003, DOM-003 | 开发中 | 已接入基于 layer tree 顺序的统一内容合成，支持 group visibility/opacity/offset/parallax/tint 基础继承下的 tile/object/image 渲染与 image layer 纹理加载；更完整的 group blend compositing 与其他视觉语义待补 |
 | REN-013 | 渲染 | Parallax、Tint、Blend Mode | REN-012, DOM-003 | 开发中 | 已接入 map parallax origin + layer parallax factors 的基础 renderer/picking 语义，以及 layer tint / blend mode 的基础 inspector + renderer 支持；更完整的 Tiled group compositing 语义待补 |
-| REN-014 | 渲染 | Minimap | REN-003, REN-011 | 未开始 | 支持地图预览与导航 |
-| UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现 Tiled 风格的 editor shell：左侧 `Project / Properties` 双 dock、右侧双 dock stack 与底部 status bar 骨架，去除 news 按钮；UI shell 仍仅通过注入的 `EditorController` 通信 |
+| REN-014 | 渲染 | Minimap | REN-003, REN-011 | 开发中 | 已接入 minimap 基础 view-model、真实 renderer 预览快照与拖拽导航入口；当前仍是有限能力版本，需继续补更完整的导航语义与后续回归验证 |
+| UI-001 | Web 壳 | 编辑器主布局 | FND-004, SES-001 | 开发中 | 已实现 Tiled 风格的 editor shell：左侧 `Project / Properties` 双 dock、右侧双 dock stack 与底部 status bar 骨架，去除 news 按钮；UI shell 通过注入的 `EditorShellStore` 分面接口与窄化 render bridge 通信 |
 | UI-002 | Web 壳 | 项目路由与编辑页入口 | FND-004 | 开发中 | 已实现 `/projects/[projectId]` 页面与 web-host 装配层，当前从 `examples/` 加载示例项目 seed，UI 不再直接绑定 demo store |
 | UI-003 | Web 壳 | Toolbar 与工具切换 | UI-001, SES-003 | 开发中 | 已按 Tiled 的 main/tools/tool-options 三段结构重建顶部 toolbar，并按 `mainwindow.ui` / `mainwindow.cpp` 接入 File/Edit/View/World/Map/Layer/Project/Help 菜单层级、可见性、文案与快捷键展示；现有工具切换、New split button 与 shape fill tool options 已接通，未实现动作仍保留禁用占位 |
 | UI-004 | Web 壳 | Layers Panel | UI-001, DOM-003 | 开发中 | 已收敛为 Tiled 风格的 layer dock：反向层级列表、图层类型图标、visible/locked 状态列与底部工具条；当前已接通选择、新建、删除、重排、行内 visibility/lock 切换、other layers 切换与 current layer highlight 开关，duplicate 等剩余动作待补 |
 | UI-005 | Web 壳 | Properties Inspector | UI-001, DOM-006 | 开发中 | 已接入 Map / Layer / Object 基础 inspector 编辑与 primitive + enum + class + object reference custom properties editor，并将左侧 Properties 收成连续 property rows、移除分段 Apply、改为字段 blur/change 即提交的 controller/command 链路；Custom Properties 已补齐紧凑列表、底部工具条、单项选择与内联新增/重命名编辑，更完整的 property browser 细节待补 |
-| UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板 |
-| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动；检索与属性面板待补 |
+| UI-006 | Web 壳 | Tilesets Panel | UI-001, DOM-004 | 开发中 | 已接入真实 asset preview、tile stamp 选择、tileset 创建、参数编辑与 tile 属性面板，并将 panel/dock 交互收敛为 `state hook + sections` 结构；更多 dock action 细节待补 |
+| UI-007 | Web 壳 | Objects Panel | UI-001, DOM-005 | 开发中 | 已支持 active object layer 的对象列表、选择、object clipboard 与画布拾取联动，并将 panel/dock 交互收敛为 `state hook + sections` 结构；检索后的更多属性联动待补 |
 | UI-008 | Web 壳 | Command Palette / Action Search | UI-001 | 未开始 | 对齐 Tiled action search 能力 |
 | UI-009 | Web 壳 | Issues Panel | UI-001, IO-008 | 已完成 | 已接入 runtime issue slice、状态栏问题计数按钮与底部 Issues Panel，支持展示导入兼容/校验问题并清空/关闭 |
 | MAP-001 | 地图编辑 | New Map 流程 | UI-001, DOM-002, CMD-001 | 开发中 | 已接入 quick create map 与默认图层初始化 |
@@ -105,9 +105,9 @@ Last updated: 2026-03-27
 | TSET-004 | Tileset | Tile 属性编辑 | TSET-003, DOM-006 | 开发中 | 已支持 tile class 与 primitive + enum + class + object reference custom properties 编辑，并将 Tile Properties 收成连续 property rows、移除 Apply 元数据按钮、接入紧凑 custom properties browser；property browser 细节与高级 tile 元数据待补 |
 | TSET-005 | Tileset | Tile Probability | TSET-004 | 已完成 | 已在 Tile Properties 中接入概率 property row、即时提交与 controller/domain 测试链路，为 random mode 提供 tile 权重元数据 |
 | TSET-006 | Tileset | Typed Tiles | TSET-004, DOM-006 | 已完成 | 已接入 tile class 对应的 suggested/inherited properties 解析、显式属性覆盖合并、继承属性在 Tile Properties 中的展示与覆写编辑，并通过 domain/seed 测试链路验证 |
-| TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 已完成 | 已接入 Tiled 风格的 tile animation editor 对话框，支持 frame 列表、拖拽重排、duration 应用与 tileset 选帧，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
-| TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 已完成 | 已接入独立 tile collision editor 对话框，支持 collision object 的创建、列表选择、画布拖拽移动、层级调整、基础属性与自定义属性编辑，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
-| TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 已完成 | 已接入 tileset 级 Wang set 数据/命令/控制器链路，支持 Terrain Sets dock 的创建、重命名、类型切换、删除，以及菜单/tileset 工具条入口，并通过 `npm run typecheck`、`npm test`、`npm run lint` 验证 |
+| TSET-007 | Tileset | Tile Animation Editor | TSET-003 | 已完成 | 已接入 Tiled 风格的 tile animation editor 对话框，支持 frame 列表、拖拽重排、duration 应用与 tileset 选帧；当前实现已进一步收敛为 `state hook + sections` 结构 |
+| TSET-008 | Tileset | Tile Collision Editor | TSET-003, OBJ-001 | 已完成 | 已接入独立 tile collision editor 对话框，支持 collision object 的创建、列表选择、画布拖拽移动、层级调整、基础属性与自定义属性编辑；当前实现已进一步收敛为 `state hook + sections` 结构 |
+| TSET-009 | Tileset | Wang Set 基础模型接入 | DOM-004, DOM-006 | 已完成 | 已接入 tileset 级 Wang set 数据/命令/控制器链路，支持 Terrain Sets dock 的创建、重命名、类型切换、删除，以及菜单/tileset 工具条入口；当前 dock 实现已进一步收敛为 `state hook + sections` 结构 |
 | LYR-001 | 高级图层 | Image Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level image layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，接通基础 renderer、Properties Inspector 中的 `imagePath/repeatX/repeatY` 编辑，以及 `repeatX/repeatY` 的基础平铺渲染；更完整视觉语义待补 |
 | LYR-002 | 高级图层 | Group Layer | DOM-003, REN-012 | 开发中 | 已补齐 top-level group layer 的 domain factory、map/controller 创建命令、Layer 菜单与 Layers dock 入口，并接通基础 group compositing / inherited visibility+opacity+offset renderer 语义；嵌套树编辑与 child layer 组织 UI 待补 |
 | LYR-003 | 高级图层 | Offset / Opacity / Visibility / Lock | DOM-003, UI-004 | 开发中 | 已接通 layer details 的 offset/opacity/visibility/lock command 链路、Properties Inspector 编辑、Layers dock 行内切换、other layers toggle 与 current layer highlight 开关，并让 canvas renderer 反映基础 offset/opacity/group inheritance；更完整的 lock 语义与 repeat/parallax 等深层联动待补 |
@@ -156,9 +156,9 @@ Last updated: 2026-03-27
 
 当前应优先推进以下功能，保持依赖顺序正确：
 
-1. `DOM-001` 到 `DOM-010` 领域模型细化与不变量补全
-2. `SES-001` 到 `SES-004` 状态选择器与应用服务扩展
-3. `REN-002` 到 `REN-005` 从基础可视化推进到真实 tile 编辑渲染
-4. `UI-004` 到 `UI-007` 图层、属性、tileset 与 object 面板细化
-5. `MAP-002` 到 `MAP-004` 地图属性、图层操作与 stamp brush
-6. `IO-001` 到 `IO-003` TMJ/TSJ 兼容层起步
+1. `REN-012` 到 `REN-013` 的剩余视觉语义补齐，优先完成更完整的 group compositing、blend/tint/parallax 一致性
+2. `REN-007` 到 `REN-010` 非正交 renderer 与 picking 起步，先打通 isometric，再扩到 staggered / hex / oblique
+3. `REN-014` minimap 从占位实现推进到基于真实 renderer 输出的预览与导航
+4. `UI-005` 到 `UI-007` 继续做重构后的交互回归与细节补齐，避免 panel presenter 化后出现行为回退
+5. `QA-004` 到 `QA-005` 补强验证层，优先为当前 `ui-editor` 重构增加更细粒度测试，再推进 web E2E
+6. 持续同步 `docs/architecture/module-boundaries.md` 与本表备注，避免文档状态再次落后于真实实现

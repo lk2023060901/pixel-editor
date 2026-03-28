@@ -1,7 +1,10 @@
+import type { ProjectAssetSummary } from "@pixel-editor/contracts";
 import type { EditorToolId, ShapeFillMode } from "@pixel-editor/editor-state";
 import type { LayerId } from "@pixel-editor/domain";
 
-import type { EditorController } from "./controller";
+import type { EditorRuntimeSnapshot } from "./controller";
+import { resolveProjectDockActivation } from "./ui-models";
+import type { EditorShellActionStore } from "./ui-store";
 
 export type EditorShellLocalAction =
   | "export-as-image"
@@ -15,15 +18,29 @@ export type EditorShellActionPlan =
   | { kind: "noop" }
   | {
       kind: "transition";
-      run: (store: EditorController) => void;
+      run: (store: EditorShellActionStore) => void;
     }
   | {
       kind: "async";
-      run: (store: EditorController) => Promise<unknown>;
+      run: (store: EditorShellActionStore) => Promise<unknown>;
     }
   | {
       kind: "local";
       action: EditorShellLocalAction;
+    };
+
+export interface ProjectDockActivationStore {
+  setActiveMap(documentId: string): void;
+  setActiveTileset(documentId: string): void;
+  setActiveTemplate(documentId: string): void;
+  focusTilesetsPanel(): void;
+}
+
+export type ProjectDockActivationPlan =
+  | { kind: "noop" }
+  | {
+      kind: "transition";
+      run: (store: ProjectDockActivationStore) => void;
     };
 
 export function createEditorShellActionPlan(input: {
@@ -272,5 +289,41 @@ export function createEditorShellActionPlan(input: {
       };
     default:
       return { kind: "noop" };
+  }
+}
+
+export function createProjectDockActivationPlan(input: {
+  snapshot: EditorRuntimeSnapshot;
+  asset: ProjectAssetSummary;
+}): ProjectDockActivationPlan {
+  const activation = resolveProjectDockActivation(input.snapshot, input.asset);
+
+  if (activation === undefined) {
+    return { kind: "noop" };
+  }
+
+  switch (activation.kind) {
+    case "map":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.setActiveMap(activation.documentId);
+        }
+      };
+    case "tileset":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.focusTilesetsPanel();
+          store.setActiveTileset(activation.documentId);
+        }
+      };
+    case "template":
+      return {
+        kind: "transition",
+        run: (store) => {
+          store.setActiveTemplate(activation.documentId);
+        }
+      };
   }
 }

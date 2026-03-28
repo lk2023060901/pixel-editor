@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  type ProjectAssetSummary,
   type ProjectDockViewState,
+  type ProjectTreeAssetNode,
   type ProjectTreeNode
 } from "@pixel-editor/app-services/ui";
 import { useI18n } from "@pixel-editor/i18n/client";
@@ -11,9 +11,11 @@ import { startTransition } from "react";
 import { DockPanel } from "./dock-panel";
 import { getProjectAssetKindLabel } from "./i18n-helpers";
 
+type ProjectDockAsset = ProjectTreeAssetNode["asset"];
+
 export interface ProjectDockProps {
   viewState: ProjectDockViewState;
-  onAssetActivate: (asset: ProjectAssetSummary) => void;
+  onAssetActivate: (asset: ProjectDockAsset) => void;
   embedded?: boolean;
 }
 
@@ -21,7 +23,7 @@ function ProjectTreeRow(props: {
   node: ProjectTreeNode;
   depth: number;
   activeDocumentIds: readonly string[];
-  onAssetActivate: (asset: ProjectAssetSummary) => void;
+  onAssetActivate: (asset: ProjectDockAsset) => void;
 }) {
   const { t } = useI18n();
 

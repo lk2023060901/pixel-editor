@@ -6,11 +6,15 @@ Allowed dependency direction:
 
 `ui-editor -> app-services/ui -> map -> editor-state -> domain`
 
+`ui-editor -> app-services/ui-shell -> map -> editor-state -> domain`
+
+`ui-editor -> app-services/ui-store -> map -> editor-state -> domain`
+
+`ui-editor -> app-services/ui-naming -> domain`
+
 `ui-editor -> app-services/ui-custom-properties -> domain`
 
 `ui-editor -> app-services/ui-property-types -> domain`
-
-`ui-editor -> app-services/ui-tiles -> domain`
 
 `ui-editor -> app-services/ui -> tileset -> editor-state -> domain`
 
@@ -199,7 +203,15 @@ Public API rules:
 - expose task-focused entrypoints such as `createMap`, `paintTiles`, `saveDocument`
 - expose typed UI contracts instead of forcing `ui-editor` to mirror business action registries
 - keep shell and panel contracts under the `@pixel-editor/app-services/ui` subpath
-- keep low-level widget helpers split by concern under dedicated subpaths such as `@pixel-editor/app-services/ui-custom-properties`, `@pixel-editor/app-services/ui-property-types`, and `@pixel-editor/app-services/ui-tiles`
+- keep editor shell chrome, toolbar, and menu registries under the `@pixel-editor/app-services/ui-shell` subpath
+- keep component-specific store/action facets under the `@pixel-editor/app-services/ui-store` subpath
+- split shell store facets by responsibility such as snapshot subscription, file actions, document navigation, canvas interaction, issues, and status bar controls
+- keep naming helpers such as indexed labels and slugs under the `@pixel-editor/app-services/ui-naming` subpath
+- keep low-level widget helpers split by concern under dedicated subpaths such as `@pixel-editor/app-services/ui-custom-properties` and `@pixel-editor/app-services/ui-property-types`
+- avoid re-exporting raw `contracts` DTOs or runtime snapshots from the `ui` root when a view-state or local union is sufficient
+- avoid re-exporting the full `EditorController` from the `ui` root when a narrower component store contract is available
+- avoid re-exporting generic naming utilities from the `ui` root when a narrower helper subpath is available
+- prefer deriving tile widget labels and unions from existing UI view-state contracts instead of maintaining a separate tile enum gateway
 - centralize state-to-view derivation there instead of rebuilding it ad hoc inside React components
 - define interfaces for infrastructure dependencies instead of reaching into app code
 
@@ -425,6 +437,18 @@ Public API rules:
 
 - consume `@pixel-editor/app-services/ui` shell and panel contracts, dedicated widget helper subpaths, and injected render bridges
 - components remain reusable and capability-scoped
+- keep shell-local UI state and menu/dialog orchestration in dedicated presenter hooks instead of growing a monolithic top-level component
+- keep shell snapshot subscriptions plus shell-specific view and chrome derivation in dedicated hooks instead of rebuilding them inline inside the presenter body
+- keep the workspace grid and overlay/dialog regions in dedicated shell layout components instead of concentrating all JSX branches in `editor-shell.tsx`
+- keep menu bar and toolbar rendering in dedicated shell chrome components instead of mixing chrome widgets with presenter hookup
+- keep menu popups and toolbar button groups under dedicated chrome primitive components instead of re-growing `editor-shell-chrome.tsx`
+- keep chrome-local interaction state such as submenu focus and the New split-menu open flag in dedicated chrome hooks instead of the generic shell local-state hook
+- keep toolbar split buttons, separators, and item groups under dedicated toolbar primitive components instead of re-growing `editor-shell-toolbar.tsx`
+- keep repeated chrome class and visual-state decisions in shared chrome style helpers instead of scattering the same Tailwind branches across menu and toolbar primitives
+- keep popup surfaces, popup rows, and popup separators under shared popup primitives instead of duplicating the same overlay structure between menu and split-button components
+- keep panel-local selection, filter text, zoom, draft objects, and controller action wrappers in dedicated `use-*-state` hooks instead of embedding those concerns in the panel root component
+- keep panel-specific list, toolbar, summary-card, and detail-form JSX in dedicated `*-sections.tsx` files instead of letting `properties-inspector`, `tilesets-panel`, `objects-panel`, `terrain-sets-panel`, or editor dialogs regrow into mixed presenter/view modules
+- keep property-editor parsing, draft coercion, and other pure transformation helpers in dedicated utility modules instead of combining pure helper logic with React component bodies
 - avoid reconstructing layer trees, project trees, or active-selection derivations from raw snapshot state
 - avoid app-global singleton state
 

@@ -1,21 +1,21 @@
 import type {
-  DocumentSummary,
-  FeatureStatusValue,
   MapPropertiesPanelViewState,
   ObjectsPanelObjectItem,
   PropertiesInspectorLayerViewState,
   PropertiesInspectorObjectViewState,
-  ProjectAssetKind,
   TerrainSetsPanelWangSetItemViewState,
   TilesetDetailsViewState,
   TilesetsPanelTilesetItemViewState
 } from "@pixel-editor/app-services/ui";
 import type { I18nMessageKey, TranslationFn } from "@pixel-editor/i18n";
 
+type DocumentKind = "map" | "tileset" | "template" | "world";
+type FeatureStatusValue = "未开始" | "开发中" | "测试中" | "已完成";
 type MapOrientation = MapPropertiesPanelViewState["orientation"];
 type MapRenderOrder = MapPropertiesPanelViewState["renderOrder"];
 type ObjectShape = PropertiesInspectorObjectViewState["shape"] | ObjectsPanelObjectItem["shape"];
 type BlendMode = Exclude<PropertiesInspectorLayerViewState["blendMode"], undefined>;
+type ProjectAssetKind = "folder" | "project" | "map" | "tileset" | "template" | "world" | "image" | "file";
 type TilesetKind =
   | TilesetsPanelTilesetItemViewState["kind"]
   | TilesetDetailsViewState["kind"];
@@ -47,7 +47,7 @@ type PropertyTypeUseAs =
   | "template";
 
 export function getDocumentKindLabel(
-  kind: DocumentSummary["kind"],
+  kind: DocumentKind,
   t: TranslationFn
 ): string {
   return t(`documentKind.${kind}` as I18nMessageKey);

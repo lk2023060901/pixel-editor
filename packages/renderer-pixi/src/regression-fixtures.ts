@@ -1,6 +1,7 @@
 import {
   createMap,
   createMapObject,
+  createGroupLayer,
   createObjectLayer,
   createTileCell,
   createTileLayer,
@@ -211,10 +212,106 @@ function createInfiniteChunkMap(): {
   };
 }
 
+function createGroupedCompositingMap(): {
+  map: EditorMap;
+  highlightedLayerId: LayerId;
+  selectedObjectIds: ObjectId[];
+} {
+  const groundLayer = withCells(
+    createTileLayer({
+      name: "Ground",
+      width: 9,
+      height: 7
+    }),
+    [
+      { x: 0, y: 1, gid: 1 },
+      { x: 1, y: 1, gid: 2 },
+      { x: 2, y: 1, gid: 3 },
+      { x: 3, y: 2, gid: 4 },
+      { x: 4, y: 2, gid: 5 },
+      { x: 5, y: 3, gid: 6 },
+      { x: 6, y: 3, gid: 7 },
+      { x: 7, y: 4, gid: 8 }
+    ]
+  );
+  const glowLayer = withCells(
+    createTileLayer({
+      name: "Glow",
+      width: 9,
+      height: 7,
+      opacity: 0.78
+    }),
+    [
+      { x: 2, y: 1, gid: 33 },
+      { x: 3, y: 1, gid: 34 },
+      { x: 4, y: 2, gid: 35 },
+      { x: 5, y: 2, gid: 36 },
+      { x: 6, y: 3, gid: 37 },
+      { x: 3, y: 4, gid: 38 },
+      { x: 4, y: 4, gid: 39 }
+    ]
+  );
+  const markerObject = createMapObject({
+    name: "Marker",
+    shape: "rectangle",
+    x: 120,
+    y: 72,
+    width: 56,
+    height: 44
+  });
+  const orbObject = createMapObject({
+    name: "Orb",
+    shape: "ellipse",
+    x: 196,
+    y: 128,
+    width: 48,
+    height: 48
+  });
+  const objectLayer = createObjectLayer({
+    name: "Props",
+    opacity: 0.84,
+    objects: [markerObject, orbObject]
+  });
+  const innerGroup = createGroupLayer({
+    name: "Inner FX",
+    opacity: 0.62,
+    tintColor: "#ffd080",
+    blendMode: "screen",
+    offsetX: 8,
+    offsetY: -6,
+    layers: [glowLayer, objectLayer]
+  });
+  const outerGroup = createGroupLayer({
+    name: "Composite FX",
+    opacity: 0.76,
+    tintColor: "#80c0ff",
+    blendMode: "overlay",
+    offsetX: 10,
+    offsetY: 12,
+    layers: [innerGroup]
+  });
+  const map = createMap({
+    name: "orthogonal-grouped-compositing",
+    orientation: "orthogonal",
+    width: 9,
+    height: 7,
+    tileWidth: 32,
+    tileHeight: 32,
+    layers: [groundLayer, outerGroup]
+  });
+
+  return {
+    map,
+    highlightedLayerId: glowLayer.id,
+    selectedObjectIds: [orbObject.id]
+  };
+}
+
 export function createRendererRegressionCases(): RendererRegressionCase[] {
   const finiteSelection = createFiniteTileSelectionMap();
   const objectOverlay = createObjectOverlayMap();
   const infiniteChunk = createInfiniteChunkMap();
+  const groupedCompositing = createGroupedCompositingMap();
 
   return [
     {
@@ -284,6 +381,28 @@ export function createRendererRegressionCases(): RendererRegressionCase[] {
         highlightedLayerId: infiniteChunk.highlightedLayerId,
         previewTiles: [
           { x: 3, y: 2 },
+          { x: 6, y: 2 }
+        ]
+      }
+    },
+    {
+      id: "orthogonal-grouped-compositing",
+      description: "nested group tint blend and object compositing",
+      width: 544,
+      height: 352,
+      snapshot: {
+        map: groupedCompositing.map,
+        tilesets: [],
+        viewport: {
+          zoom: 1,
+          originX: 0,
+          originY: 0,
+          showGrid: false
+        },
+        highlightedLayerId: groupedCompositing.highlightedLayerId,
+        selectedObjectIds: groupedCompositing.selectedObjectIds,
+        previewTiles: [
+          { x: 5, y: 2 },
           { x: 6, y: 2 }
         ]
       }

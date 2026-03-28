@@ -1,14 +1,9 @@
 "use client";
 
 import type {
-  EditorController,
   TilesetDetailsViewState
 } from "@pixel-editor/app-services/ui";
-import type {
-  TilesetFillMode,
-  TilesetObjectAlignment,
-  TilesetTileRenderSize
-} from "@pixel-editor/app-services/ui-tiles";
+import type { TilesetDetailsFormStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
@@ -18,6 +13,10 @@ import {
   getTilesetRenderSizeLabel
 } from "./i18n-helpers";
 import { NumberField, SelectField, TextField } from "./editor-fields";
+
+type TilesetObjectAlignment = TilesetDetailsViewState["objectAlignment"];
+type TilesetTileRenderSize = TilesetDetailsViewState["tileRenderSize"];
+type TilesetFillMode = TilesetDetailsViewState["fillMode"];
 
 interface TilesetDetailsDraft {
   name: string;
@@ -70,7 +69,7 @@ function parseInteger(value: string): number | undefined {
 
 export function TilesetDetailsForm(props: {
   viewState: TilesetDetailsViewState;
-  store: EditorController;
+  store: TilesetDetailsFormStore;
 }) {
   const { t } = useI18n();
   const objectAlignmentOptions: Array<{ label: string; value: TilesetObjectAlignment }> = ([

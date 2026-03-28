@@ -1,6 +1,6 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services/ui";
+import type { TilesetCreateFormsStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useState } from "react";
 
@@ -55,7 +55,7 @@ function parseInteger(value: string): number | undefined {
 }
 
 export function TilesetCreateForms(props: {
-  store: EditorController;
+  store: TilesetCreateFormsStore;
 }) {
   const { t } = useI18n();
   const [spriteDraft, setSpriteDraft] = useState(() =>

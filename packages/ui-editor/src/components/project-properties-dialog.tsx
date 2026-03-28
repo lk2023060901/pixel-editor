@@ -1,9 +1,7 @@
 "use client";
 
-import type {
-  EditorController,
-  EditorShellDialogsViewState
-} from "@pixel-editor/app-services/ui";
+import type { EditorShellDialogsViewState } from "@pixel-editor/app-services/ui-shell";
+import type { ProjectPropertiesDialogStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, type ReactNode, useEffect, useRef, useState } from "react";
 
@@ -82,7 +80,7 @@ function inputClassName() {
 
 export function ProjectPropertiesDialog(props: {
   project: EditorShellDialogsViewState["project"];
-  store: EditorController;
+  store: ProjectPropertiesDialogStore;
   onClose: () => void;
 }) {
   const { t } = useI18n();

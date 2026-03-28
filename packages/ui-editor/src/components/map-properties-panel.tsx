@@ -1,7 +1,7 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services/ui";
 import type { MapPropertiesPanelViewState } from "@pixel-editor/app-services/ui";
+import type { MapPropertiesPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { startTransition, useEffect, useState } from "react";
 
@@ -73,7 +73,7 @@ function NumberField(props: {
 
 export interface MapPropertiesPanelProps {
   viewState: MapPropertiesPanelViewState | undefined;
-  store: EditorController;
+  store: MapPropertiesPanelStore;
   embedded?: boolean;
   compact?: boolean;
 }

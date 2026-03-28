@@ -1,9 +1,9 @@
 "use client";
 
 import type {
-  EditorController,
   RendererCanvasViewState
 } from "@pixel-editor/app-services/ui";
+import type { EditorShellCanvasInteractionStore } from "@pixel-editor/app-services/ui-shell";
 import { useI18n } from "@pixel-editor/i18n/client";
 import { useDeferredValue, useEffect, useRef, useState } from "react";
 
@@ -11,16 +11,18 @@ import type { EditorRenderBridge } from "../render-bridge";
 
 import { WorldContextOverlay } from "./world-context-overlay";
 
-type RendererCanvasObjectId = Parameters<EditorController["selectObject"]>[0];
+type RendererCanvasObjectId = Parameters<EditorShellCanvasInteractionStore["selectObject"]>[0];
 type RendererCanvasGestureModifiers = NonNullable<
-  Parameters<EditorController["beginCanvasStroke"]>[2]
+  Parameters<EditorShellCanvasInteractionStore["beginCanvasStroke"]>[2]
 >;
 type RendererCanvasObjectMoveGestureModifiers = NonNullable<
-  Parameters<EditorController["beginObjectMove"]>[3]
+  Parameters<EditorShellCanvasInteractionStore["beginObjectMove"]>[3]
 >;
-type RendererCanvasObjectResizeHandle = Parameters<EditorController["beginObjectResize"]>[1];
+type RendererCanvasObjectResizeHandle = Parameters<
+  EditorShellCanvasInteractionStore["beginObjectResize"]
+>[1];
 type RendererCanvasObjectResizeGestureModifiers = NonNullable<
-  Parameters<EditorController["beginObjectResize"]>[4]
+  Parameters<EditorShellCanvasInteractionStore["beginObjectResize"]>[4]
 >;
 
 export interface RendererCanvasProps {

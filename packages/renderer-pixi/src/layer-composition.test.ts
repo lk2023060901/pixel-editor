@@ -83,12 +83,70 @@ describe("layer composition", () => {
     expect(renderableLayers[0]).toMatchObject({
       kind: "image",
       opacity: 0.3,
+      localOpacity: 0.6,
       offsetX: 20,
       offsetY: 20,
       parallaxX: 0.375,
       parallaxY: 0.125,
       tintColor: 0x408000,
+      localTintColor: 0x80ff00,
       blendMode: "overlay"
     });
+    expect(renderableLayers[0]?.groupPath).toEqual([
+      {
+        layerId: groupedImageLayer.id,
+        opacity: 0.5,
+        tintColor: 0x808080,
+        blendMode: "overlay"
+      }
+    ]);
+  });
+
+  it("captures nested group paths with local style values", () => {
+    const imageLayer = createImageLayer({
+      name: "Clouds",
+      imagePath: "/clouds.png",
+      opacity: 0.6,
+      tintColor: "#80ff00",
+      blendMode: "screen"
+    });
+    const innerGroup = createGroupLayer({
+      name: "Inner",
+      opacity: 0.5,
+      tintColor: "#808080",
+      layers: [imageLayer]
+    });
+    const outerGroup = createGroupLayer({
+      name: "Outer",
+      opacity: 0.25,
+      blendMode: "overlay",
+      layers: [innerGroup]
+    });
+
+    const renderableLayers = collectRenderableLayers([outerGroup]);
+
+    expect(renderableLayers).toHaveLength(1);
+    expect(renderableLayers[0]).toMatchObject({
+      opacity: 0.075,
+      localOpacity: 0.6,
+      tintColor: 0x408000,
+      localTintColor: 0x80ff00,
+      blendMode: "screen",
+      localBlendMode: "screen"
+    });
+    expect(renderableLayers[0]?.groupPath).toEqual([
+      {
+        layerId: outerGroup.id,
+        opacity: 0.25,
+        tintColor: undefined,
+        blendMode: "overlay"
+      },
+      {
+        layerId: innerGroup.id,
+        opacity: 0.5,
+        tintColor: 0x808080,
+        blendMode: "normal"
+      }
+    ]);
   });
 });

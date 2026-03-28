@@ -18,6 +18,12 @@
       "width": 448,
       "height": 288,
       "sha256": "5151c12099c3010610630c0e0ffe07a18cb120818f720ccb97ed2545b2d97ab2"
+    },
+    {
+      "id": "orthogonal-grouped-compositing",
+      "width": 544,
+      "height": 352,
+      "sha256": "f851742452e9783008641e14a89c20db82491a7437d89c1cec319cd3aaf973b7"
     }
   ]
 }

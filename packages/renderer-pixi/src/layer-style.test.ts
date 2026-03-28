@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   combineLayerTintColor,
   DEFAULT_LAYER_BLEND_MODE,
+  requiresGroupCompositing,
   resolveEffectiveLayerBlendMode,
   resolveLayerTintColor
 } from "./layer-style";
@@ -23,5 +24,36 @@ describe("layer style", () => {
     expect(resolveEffectiveLayerBlendMode(DEFAULT_LAYER_BLEND_MODE, "normal")).toBe("normal");
     expect(resolveEffectiveLayerBlendMode("overlay", "normal")).toBe("overlay");
     expect(resolveEffectiveLayerBlendMode("overlay", "screen")).toBe("screen");
+  });
+
+  it("requires group compositing only when group-level style is present", () => {
+    expect(
+      requiresGroupCompositing({
+        opacity: 1,
+        tintColor: undefined,
+        blendMode: "normal"
+      })
+    ).toBe(false);
+    expect(
+      requiresGroupCompositing({
+        opacity: 0.8,
+        tintColor: undefined,
+        blendMode: "normal"
+      })
+    ).toBe(true);
+    expect(
+      requiresGroupCompositing({
+        opacity: 1,
+        tintColor: 0xff0000,
+        blendMode: "normal"
+      })
+    ).toBe(true);
+    expect(
+      requiresGroupCompositing({
+        opacity: 1,
+        tintColor: undefined,
+        blendMode: "overlay"
+      })
+    ).toBe(true);
   });
 });

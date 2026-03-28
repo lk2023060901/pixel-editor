@@ -1,10 +1,10 @@
 "use client";
 
-import type { EditorController } from "@pixel-editor/app-services/ui";
 import type {
   LayersPanelLayerItemViewState,
   LayersPanelViewState
 } from "@pixel-editor/app-services/ui";
+import type { LayersPanelStore } from "@pixel-editor/app-services/ui-store";
 import { useI18n } from "@pixel-editor/i18n/client";
 import type { ReactNode } from "react";
 import { startTransition, useState } from "react";
@@ -316,7 +316,7 @@ function LayerRow(props: {
 
 export interface LayersPanelProps {
   viewState: LayersPanelViewState;
-  store: EditorController;
+  store: LayersPanelStore;
   embedded?: boolean;
 }
 

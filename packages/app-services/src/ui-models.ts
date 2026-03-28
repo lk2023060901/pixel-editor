@@ -172,6 +172,8 @@ export interface MiniMapPanelViewState {
   mapWidth: number;
   mapHeight: number;
   infinite: boolean;
+  mapPixelWidth: number;
+  mapPixelHeight: number;
   previewWidthPercent: number;
   previewHeightPercent: number;
   viewportLeftPercent: number;
@@ -179,6 +181,12 @@ export interface MiniMapPanelViewState {
   viewportWidthPercent: number;
   viewportHeightPercent: number;
   viewportZoom: number;
+  preview: MapImageExportViewState;
+}
+
+export interface MiniMapNavigationTarget {
+  originX: number;
+  originY: number;
 }
 
 export type RendererCanvasObjectTransformPreviewViewState =
@@ -235,6 +243,14 @@ export interface WorldContextOverlayViewState {
     y: number;
   };
   maps: WorldContextOverlayMapItemViewState[];
+}
+
+export interface WorldMapDragPreview {
+  x: number;
+  y: number;
+  deltaX: number;
+  deltaY: number;
+  statusInfo: string;
 }
 
 export interface RendererCanvasViewState {
@@ -521,6 +537,8 @@ function basename(path: string): string {
 function clamp(value: number, min: number, max: number): number {
   return Math.max(min, Math.min(max, value));
 }
+
+const MINI_MAP_PREVIEW_MAX_DIMENSION = 224;
 
 function createProjectTreeFolder(path: string): ProjectTreeFolderNode {
   return {
@@ -1384,6 +1402,15 @@ export function deriveMiniMapPanelViewState(
   const mapWidthPx = Math.max(mapWidthTiles * activeMap.settings.tileWidth, 1);
   const mapHeightPx = Math.max(mapHeightTiles * activeMap.settings.tileHeight, 1);
   const maxDimension = Math.max(mapWidthTiles, mapHeightTiles, 1);
+  const previewWidth = Math.max(
+    1,
+    Math.round((mapWidthTiles / maxDimension) * MINI_MAP_PREVIEW_MAX_DIMENSION)
+  );
+  const previewHeight = Math.max(
+    1,
+    Math.round((mapHeightTiles / maxDimension) * MINI_MAP_PREVIEW_MAX_DIMENSION)
+  );
+  const previewZoom = Math.min(previewWidth / mapWidthPx, previewHeight / mapHeightPx);
   const viewportWidthPercent = clamp(
     100 / Math.max(snapshot.bootstrap.viewport.zoom, 0.25),
     14,
@@ -1400,6 +1427,8 @@ export function deriveMiniMapPanelViewState(
     mapWidth: activeMap.settings.width,
     mapHeight: activeMap.settings.height,
     infinite: activeMap.settings.infinite ?? false,
+    mapPixelWidth: mapWidthPx,
+    mapPixelHeight: mapHeightPx,
     previewWidthPercent: (mapWidthTiles / maxDimension) * 100,
     previewHeightPercent: (mapHeightTiles / maxDimension) * 100,
     viewportLeftPercent: clamp(
@@ -1414,7 +1443,80 @@ export function deriveMiniMapPanelViewState(
     ),
     viewportWidthPercent,
     viewportHeightPercent,
-    viewportZoom: snapshot.bootstrap.viewport.zoom
+    viewportZoom: snapshot.bootstrap.viewport.zoom,
+    preview: {
+      snapshot: {
+        map: activeMap,
+        tilesets: [...snapshot.workspace.tilesets],
+        viewport: {
+          zoom: previewZoom,
+          originX: 0,
+          originY: 0,
+          showGrid: false
+        }
+      },
+      width: previewWidth,
+      height: previewHeight
+    }
+  };
+}
+
+export function resolveMiniMapNavigationTarget(
+  viewState: MiniMapPanelViewState,
+  pointerRatioX: number,
+  pointerRatioY: number
+): MiniMapNavigationTarget {
+  const normalizedPointerRatioX = clamp(pointerRatioX, 0, 1);
+  const normalizedPointerRatioY = clamp(pointerRatioY, 0, 1);
+  const viewportWidth = (viewState.viewportWidthPercent / 100) * viewState.mapPixelWidth;
+  const viewportHeight = (viewState.viewportHeightPercent / 100) * viewState.mapPixelHeight;
+  const maxOriginX = Math.max(0, viewState.mapPixelWidth - viewportWidth);
+  const maxOriginY = Math.max(0, viewState.mapPixelHeight - viewportHeight);
+
+  return {
+    originX: Math.round(
+      clamp(
+        viewState.mapPixelWidth * normalizedPointerRatioX - viewportWidth * 0.5,
+        0,
+        maxOriginX
+      )
+    ),
+    originY: Math.round(
+      clamp(
+        viewState.mapPixelHeight * normalizedPointerRatioY - viewportHeight * 0.5,
+        0,
+        maxOriginY
+      )
+    )
+  };
+}
+
+export function resolveWorldMapDragPreview(input: {
+  viewState: WorldContextOverlayViewState;
+  map: WorldContextOverlayMapItemViewState;
+  deltaClientX: number;
+  deltaClientY: number;
+  pixelScaleX: number;
+  pixelScaleY: number;
+  freeMove: boolean;
+}): WorldMapDragPreview {
+  const safePixelScaleX = Math.abs(input.pixelScaleX) > 0 ? input.pixelScaleX : 1;
+  const safePixelScaleY = Math.abs(input.pixelScaleY) > 0 ? input.pixelScaleY : 1;
+  const rawX = input.map.x + input.deltaClientX / safePixelScaleX;
+  const rawY = input.map.y + input.deltaClientY / safePixelScaleY;
+  const gridWidth = input.map.gridWidth ?? input.viewState.activeMap.settings.tileWidth;
+  const gridHeight = input.map.gridHeight ?? input.viewState.activeMap.settings.tileHeight;
+  const x = input.freeMove ? Math.round(rawX) : Math.round(rawX / gridWidth) * gridWidth;
+  const y = input.freeMove ? Math.round(rawY) : Math.round(rawY / gridHeight) * gridHeight;
+  const deltaX = x - input.map.x;
+  const deltaY = y - input.map.y;
+
+  return {
+    x,
+    y,
+    deltaX,
+    deltaY,
+    statusInfo: `${x}, ${y} (${deltaX}, ${deltaY})`
   };
 }
 

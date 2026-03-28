@@ -1,9 +1,11 @@
 "use client";
 
 import type {
+  WorldMapDragPreview,
   WorldContextOverlayMapItemViewState,
   WorldContextOverlayViewState
 } from "@pixel-editor/app-services/ui";
+import { resolveWorldMapDragPreview as resolveWorldMapDragPreviewHelper } from "@pixel-editor/app-services/ui";
 import { useRef, useState } from "react";
 
 import type { EditorRenderBridge } from "../render-bridge";
@@ -25,8 +27,6 @@ interface WorldMapDragState {
   map: WorldContextOverlayMapItemViewState;
   startClientX: number;
   startClientY: number;
-  startX: number;
-  startY: number;
   moved: boolean;
 }
 
@@ -80,31 +80,19 @@ export function WorldContextOverlay({
     onStatusInfoChange?.("");
   }
 
-  function readSnappedPosition(
+  function readDragPreview(
     dragState: WorldMapDragState,
     event: { clientX: number; clientY: number; ctrlKey: boolean }
-  ): { x: number; y: number } {
-    const rawX =
-      dragState.startX +
-      (event.clientX - dragState.startClientX) / projection.pixelScaleX;
-    const rawY =
-      dragState.startY +
-      (event.clientY - dragState.startClientY) / projection.pixelScaleY;
-
-    if (event.ctrlKey) {
-      return {
-        x: Math.round(rawX),
-        y: Math.round(rawY)
-      };
-    }
-
-    const gridWidth = dragState.map.gridWidth ?? viewState.activeMap.settings.tileWidth;
-    const gridHeight = dragState.map.gridHeight ?? viewState.activeMap.settings.tileHeight;
-
-    return {
-      x: Math.round(rawX / gridWidth) * gridWidth,
-      y: Math.round(rawY / gridHeight) * gridHeight
-    };
+  ): WorldMapDragPreview {
+    return resolveWorldMapDragPreviewHelper({
+      viewState,
+      map: dragState.map,
+      deltaClientX: event.clientX - dragState.startClientX,
+      deltaClientY: event.clientY - dragState.startClientY,
+      pixelScaleX: projection.pixelScaleX,
+      pixelScaleY: projection.pixelScaleY,
+      freeMove: event.ctrlKey
+    });
   }
 
   function commitDrag(event: { clientX: number; clientY: number; ctrlKey: boolean }): void {
@@ -115,7 +103,7 @@ export function WorldContextOverlay({
     }
 
     dragStateRef.current = undefined;
-    const nextPosition = readSnappedPosition(dragState, event);
+    const nextPosition = readDragPreview(dragState, event);
 
     if (dragState.moved) {
       onMoveWorldMap?.(
@@ -169,8 +157,6 @@ export function WorldContextOverlay({
                 map: mapEntry,
                 startClientX: event.clientX,
                 startClientY: event.clientY,
-                startX: mapEntry.worldX,
-                startY: mapEntry.worldY,
                 moved: false
               };
               event.currentTarget.setPointerCapture(event.pointerId);
@@ -197,7 +183,7 @@ export function WorldContextOverlay({
                 dragState.moved = true;
               }
 
-              const nextPosition = readSnappedPosition(dragState, event);
+              const nextPosition = readDragPreview(dragState, event);
               setPreview({
                 fileName: dragState.map.fileName,
                 x: nextPosition.x,
@@ -205,12 +191,7 @@ export function WorldContextOverlay({
               });
 
               if (dragState.moved) {
-                const offsetX = nextPosition.x - dragState.startX;
-                const offsetY = nextPosition.y - dragState.startY;
-
-                onStatusInfoChange?.(
-                  `${nextPosition.x}, ${nextPosition.y} (${offsetX}, ${offsetY})`
-                );
+                onStatusInfoChange?.(nextPosition.statusInfo);
               }
 
               event.preventDefault();
